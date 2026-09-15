@@ -302,6 +302,42 @@ input:focus, select:focus {
 .history-item .date { font-weight: 600; }
 .history-item .stats { color: var(--muted); font-size: 13px; text-align: right; }
 
+.compare-row {
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.compare-row:last-child {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.compare-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.compare-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.compare-deltas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.compare-delta {
+  font-size: 13px;
+  color: var(--muted);
+}
+
 .graph-title {
   font-size: 14px;
   font-weight: 600;

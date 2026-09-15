@@ -24,6 +24,11 @@ Once submitted, a food's name/calories are remembered so it shows up as a
 suggestion next time, instead of retyping it. A **History** tab lists every
 past day with its total calories and weight.
 
+A **Compare** tab shows today's weight, total calories, and calories for each
+meal/snack, each against yesterday and against your all-time average for that
+stat (averages exclude today itself, so it's "today vs your typical day," not
+today diluting its own baseline).
+
 ## Using it on your phone (recommended — `docs/`)
 
 The `docs/` folder is a self-contained, static version of the app: no server,

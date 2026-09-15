@@ -66,11 +66,12 @@ const state = {
 };
 
 let foodsLibrary = [];
-let mode = 'dashboard'; // 'dashboard' | 'log' | 'history'
+let mode = 'dashboard'; // 'dashboard' | 'log' | 'history' | 'compare'
 let logMealKey = MEAL_STEPS[0].key;
 
 const stepContainer = document.getElementById('stepContainer');
 const historyBtn = document.getElementById('historyBtn');
+const compareBtn = document.getElementById('compareBtn');
 const titleBtn = document.getElementById('titleBtn');
 
 function goDashboard() {
@@ -85,11 +86,19 @@ function goHistory() {
   render();
 }
 
+function goCompare() {
+  mode = mode === 'compare' ? 'dashboard' : 'compare';
+  updateNav();
+  render();
+}
+
 function updateNav() {
   historyBtn.classList.toggle('active', mode === 'history');
+  compareBtn.classList.toggle('active', mode === 'compare');
 }
 
 historyBtn.addEventListener('click', goHistory);
+compareBtn.addEventListener('click', goCompare);
 titleBtn.addEventListener('click', goDashboard);
 
 function loadEntryForDate(date) {
@@ -150,6 +159,10 @@ function render() {
 
   if (mode === 'history') {
     renderHistory();
+    return;
+  }
+  if (mode === 'compare') {
+    renderCompare();
     return;
   }
   if (mode === 'log') {
@@ -490,6 +503,126 @@ function renderHistory() {
       )
       .join('');
   stepContainer.appendChild(card);
+}
+
+function shiftDate(dateStr, days) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
+function mealCalories(items) {
+  return items.reduce((sum, f) => sum + foodConsumedCalories(f), 0);
+}
+
+function computeDayStats(entry) {
+  const stats = {
+    weight: entry && entry.weight !== null && entry.weight !== undefined ? Number(entry.weight) : null,
+    total: entry ? totalCaloriesForMeals(entry.meals) : null,
+  };
+  for (const m of MEAL_STEPS) {
+    stats[m.key] = entry ? mealCalories(entry.meals[m.key]) : null;
+  }
+  return stats;
+}
+
+function computeAllTimeAverages(excludeDate) {
+  const entries = Object.values(loadEntries()).filter((e) => e.date !== excludeDate);
+  const result = { weight: null, total: null };
+  for (const m of MEAL_STEPS) result[m.key] = null;
+  if (entries.length === 0) return result;
+
+  const weights = entries.map((e) => e.weight).filter((w) => w !== null && w !== undefined).map(Number);
+  if (weights.length > 0) {
+    result.weight = weights.reduce((a, b) => a + b, 0) / weights.length;
+  }
+
+  result.total = entries.reduce((sum, e) => sum + totalCaloriesForMeals(e.meals), 0) / entries.length;
+  for (const m of MEAL_STEPS) {
+    result[m.key] = entries.reduce((sum, e) => sum + mealCalories(e.meals[m.key]), 0) / entries.length;
+  }
+  return result;
+}
+
+function formatMetricValue(v, unit) {
+  if (v === null || v === undefined) return null;
+  return unit === 'lbs' ? Math.round(v * 10) / 10 : Math.round(v);
+}
+
+function renderDeltaLine(label, todayVal, compareVal, unit) {
+  const line = document.createElement('div');
+  line.className = 'compare-delta';
+  if (todayVal === null || todayVal === undefined || compareVal === null || compareVal === undefined) {
+    line.textContent = `${label}: no data`;
+    return line;
+  }
+  const diff = todayVal - compareVal;
+  const rounded = unit === 'lbs' ? Math.round(diff * 10) / 10 : Math.round(diff);
+  const arrow = rounded > 0 ? '▲' : rounded < 0 ? '▼' : '—';
+  const sign = rounded > 0 ? '+' : '';
+  const compareDisplay = formatMetricValue(compareVal, unit);
+  line.textContent = `${label}: ${arrow} ${sign}${rounded} ${unit} (was ${compareDisplay} ${unit})`;
+  return line;
+}
+
+function renderCompareRow(container, metric, todayVal, yesterdayVal, avgVal) {
+  const row = document.createElement('div');
+  row.className = 'compare-row';
+
+  const label = document.createElement('div');
+  label.className = 'compare-label';
+  label.textContent = metric.label;
+  row.appendChild(label);
+
+  const formattedToday = formatMetricValue(todayVal, metric.unit);
+  const value = document.createElement('div');
+  value.className = 'compare-value';
+  value.textContent = formattedToday === null ? '—' : `${formattedToday} ${metric.unit}`;
+  row.appendChild(value);
+
+  const deltas = document.createElement('div');
+  deltas.className = 'compare-deltas';
+  deltas.appendChild(renderDeltaLine('vs Yesterday', todayVal, yesterdayVal, metric.unit));
+  deltas.appendChild(renderDeltaLine('vs All-Time Avg', todayVal, avgVal, metric.unit));
+  row.appendChild(deltas);
+
+  container.appendChild(row);
+}
+
+function renderCompare() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  stepContainer.appendChild(card);
+
+  const today = todayStr();
+  const yesterday = shiftDate(today, -1);
+  const entries = loadEntries();
+
+  card.innerHTML = `<div class="step-title">Compare</div><p class="step-sub">${today} vs yesterday and your all-time average</p>`;
+
+  if (!entries[today]) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-hint';
+    empty.textContent = 'Nothing logged for today yet. Log a weight or food from the dashboard to see how today compares.';
+    card.appendChild(empty);
+    return;
+  }
+
+  const todayStats = computeDayStats(entries[today]);
+  const yesterdayStats = computeDayStats(entries[yesterday]);
+  const averages = computeAllTimeAverages(today);
+
+  const metrics = [
+    { key: 'weight', label: 'Weight', unit: 'lbs' },
+    { key: 'total', label: 'Total Calories', unit: 'cal' },
+    ...MEAL_STEPS.map((m) => ({ key: m.key, label: m.label, unit: 'cal' })),
+  ];
+
+  metrics.forEach((metric) => {
+    renderCompareRow(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
+  });
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';

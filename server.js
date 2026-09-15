@@ -47,7 +47,7 @@ app.get('/api/entries', (req, res) => {
         const foods = entry.meals[key] || [];
         return sum + foods.reduce((s, f) => s + (f.calories * f.percent) / 100, 0);
       }, 0);
-      return { date: entry.date, weight: entry.weight, totalCalories: Math.round(totalCalories) };
+      return { date: entry.date, weight: entry.weight, totalCalories: Math.round(totalCalories), meals: entry.meals };
     })
     .sort((a, b) => (a.date < b.date ? 1 : -1));
   res.json(list);
