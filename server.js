@@ -66,7 +66,7 @@ app.post('/api/entries', (req, res) => {
   if (!meals || typeof meals !== 'object') return res.status(400).json({ error: 'Invalid meals' });
 
   const entry = emptyEntry(date);
-  entry.weight = weight === '' || weight === undefined ? null : Number(weight);
+  entry.weight = weight === '' || weight === undefined || weight === null ? null : Number(weight);
 
   const foods = readJson(FOODS_FILE);
   const foodMap = new Map(foods.map((f) => [f.name.toLowerCase(), f]));

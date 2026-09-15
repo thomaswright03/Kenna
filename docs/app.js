@@ -80,15 +80,30 @@ const state = {
 
 let stepIndex = 0;
 let foodsLibrary = [];
-let mode = 'wizard'; // 'wizard' | 'history' | 'saved'
+let mode = 'wizard'; // 'wizard' | 'history' | 'graphs' | 'saved'
 
 const stepContainer = document.getElementById('stepContainer');
 const progressEl = document.getElementById('progress');
 const historyBtn = document.getElementById('historyBtn');
+const graphsBtn = document.getElementById('graphsBtn');
+const titleBtn = document.getElementById('titleBtn');
 
-historyBtn.addEventListener('click', () => {
-  mode = mode === 'history' ? 'wizard' : 'history';
-  historyBtn.textContent = mode === 'history' ? 'Back' : 'History';
+function setMode(next) {
+  mode = mode === next ? 'wizard' : next;
+  updateNav();
+  render();
+}
+
+function updateNav() {
+  historyBtn.classList.toggle('active', mode === 'history');
+  graphsBtn.classList.toggle('active', mode === 'graphs');
+}
+
+historyBtn.addEventListener('click', () => setMode('history'));
+graphsBtn.addEventListener('click', () => setMode('graphs'));
+titleBtn.addEventListener('click', () => {
+  mode = 'wizard';
+  updateNav();
   render();
 });
 
@@ -147,6 +162,10 @@ function render() {
 
   if (mode === 'history') {
     renderHistory();
+    return;
+  }
+  if (mode === 'graphs') {
+    renderGraphs();
     return;
   }
   if (mode === 'saved') {
@@ -440,6 +459,293 @@ function renderHistory() {
       )
       .join('');
   stepContainer.appendChild(card);
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CHART_SURFACE_RING = '#1e293b'; // matches --card
+const CHART_COLORS = { calories: '#22c55e', weight: '#3987e5' };
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const key in attrs) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+function niceNum(range, round) {
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / Math.pow(10, exponent);
+  let niceFraction;
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else if (fraction <= 1) niceFraction = 1;
+  else if (fraction <= 2) niceFraction = 2;
+  else if (fraction <= 5) niceFraction = 5;
+  else niceFraction = 10;
+  return niceFraction * Math.pow(10, exponent);
+}
+
+function niceTicks(min, max, tickCount) {
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = niceNum(max - min, false) || 1;
+  const step = niceNum(range / (tickCount - 1), true) || 1;
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = niceMin; v <= niceMax + step / 2; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+
+function formatShortDate(dateStr) {
+  const parts = dateStr.split('-');
+  return `${Number(parts[1])}/${Number(parts[2])}`;
+}
+
+function renderGraphs() {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const entries = loadEntries();
+  const rows = Object.values(entries)
+    .map((entry) => ({
+      date: entry.date,
+      calories: totalCaloriesForMeals(entry.meals),
+      weight: entry.weight === null || entry.weight === undefined ? null : Number(entry.weight),
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+  if (rows.length === 0) {
+    card.innerHTML = '<div class="step-title">Graphs</div><p class="empty-hint">No days logged yet</p>';
+    stepContainer.appendChild(card);
+    return;
+  }
+
+  card.innerHTML = '<div class="step-title">Graphs</div>';
+  stepContainer.appendChild(card);
+
+  const caloriesWrap = document.createElement('div');
+  caloriesWrap.className = 'graph-wrap';
+  card.appendChild(caloriesWrap);
+  buildLineChart(caloriesWrap, rows, {
+    accessor: (r) => r.calories,
+    color: CHART_COLORS.calories,
+    title: 'Calories',
+    subtitle: 'Total daily intake',
+    unit: 'cal',
+  });
+
+  const weightWrap = document.createElement('div');
+  weightWrap.className = 'graph-wrap';
+  card.appendChild(weightWrap);
+  buildLineChart(weightWrap, rows, {
+    accessor: (r) => r.weight,
+    color: CHART_COLORS.weight,
+    title: 'Weight',
+    subtitle: 'Logged each day',
+    unit: 'lbs',
+  });
+
+  const note = document.createElement('p');
+  note.className = 'graphs-note';
+  note.appendChild(document.createTextNode('Exact numbers: '));
+  const link = document.createElement('button');
+  link.type = 'button';
+  link.textContent = 'view History';
+  link.addEventListener('click', () => setMode('history'));
+  note.appendChild(link);
+  card.appendChild(note);
+}
+
+function buildLineChart(container, rows, opts) {
+  const { accessor, color, title, subtitle, unit } = opts;
+  const values = rows.map(accessor).filter((v) => v !== null && v !== undefined && !Number.isNaN(v));
+
+  const heading = document.createElement('div');
+  heading.className = 'graph-title';
+  heading.textContent = title;
+  container.appendChild(heading);
+
+  const sub = document.createElement('p');
+  sub.className = 'graph-sub';
+  sub.textContent = subtitle;
+  container.appendChild(sub);
+
+  if (values.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-hint';
+    empty.textContent = 'No data yet';
+    container.appendChild(empty);
+    return;
+  }
+
+  const ticks = niceTicks(Math.min(...values), Math.max(...values), 4);
+  const yMin = ticks[0];
+  const yMax = ticks[ticks.length - 1];
+
+  const leftPad = 44;
+  const rightPad = 20;
+  const topPad = 16;
+  const plotHeight = 120;
+  const xAxisHeight = 22;
+  const pointSpacing = rows.length > 1 ? Math.max(40, Math.min(64, 320 / (rows.length - 1))) : 60;
+  const width = Math.max(260, leftPad + rightPad + (rows.length - 1) * pointSpacing + 20);
+  const height = topPad + plotHeight + xAxisHeight;
+
+  const xFor = (i) => leftPad + i * pointSpacing;
+  const yFor = (v) => topPad + plotHeight - ((v - yMin) / (yMax - yMin || 1)) * plotHeight;
+
+  const scroll = document.createElement('div');
+  scroll.className = 'graph-scroll';
+  container.appendChild(scroll);
+
+  const svg = svgEl('svg', { class: 'chart-svg', width, height, viewBox: `0 0 ${width} ${height}` });
+  scroll.appendChild(svg);
+
+  for (const t of ticks) {
+    const y = yFor(t);
+    svg.appendChild(svgEl('line', { class: 'gridline', x1: leftPad, x2: width - rightPad, y1: y, y2: y }));
+    const label = svgEl('text', { class: 'axis-label', x: leftPad - 8, y: y + 3, 'text-anchor': 'end' });
+    label.textContent = t.toLocaleString();
+    svg.appendChild(label);
+  }
+
+  rows.forEach((r, i) => {
+    const label = svgEl('text', { class: 'x-label', x: xFor(i), y: height - 6, 'text-anchor': 'middle' });
+    label.textContent = formatShortDate(r.date);
+    svg.appendChild(label);
+  });
+
+  const segments = [];
+  let current = [];
+  rows.forEach((r, i) => {
+    const v = accessor(r);
+    if (v === null || v === undefined || Number.isNaN(v)) {
+      if (current.length) segments.push(current);
+      current = [];
+    } else {
+      current.push({ i, v });
+    }
+  });
+  if (current.length) segments.push(current);
+
+  for (const seg of segments) {
+    if (seg.length > 1) {
+      const areaPoints = [
+        `${xFor(seg[0].i)},${topPad + plotHeight}`,
+        ...seg.map((p) => `${xFor(p.i)},${yFor(p.v)}`),
+        `${xFor(seg[seg.length - 1].i)},${topPad + plotHeight}`,
+      ].join(' ');
+      svg.appendChild(svgEl('polygon', { class: 'area-fill', points: areaPoints, fill: color }));
+    }
+    const linePoints = seg.map((p) => `${xFor(p.i)},${yFor(p.v)}`).join(' ');
+    svg.appendChild(svgEl('polyline', { class: 'line-path', points: linePoints, stroke: color }));
+  }
+
+  // Every known value gets its own marker dot, so an isolated point
+  // (gaps on both sides) still renders instead of vanishing with no line.
+  rows.forEach((r, i) => {
+    const v = accessor(r);
+    if (v === null || v === undefined || Number.isNaN(v)) return;
+    svg.appendChild(
+      svgEl('circle', { class: 'end-dot', cx: xFor(i), cy: yFor(v), r: 4, fill: color, stroke: CHART_SURFACE_RING })
+    );
+  });
+
+  rows.forEach((r, i) => {
+    const v = accessor(r);
+    if (v === null || v === undefined || Number.isNaN(v)) return;
+    svg.appendChild(
+      svgEl('circle', { class: 'hit-target', cx: xFor(i), cy: yFor(v), r: 14, 'data-idx': i, tabindex: 0 })
+    );
+  });
+
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const v = accessor(rows[i]);
+    if (v === null || v === undefined || Number.isNaN(v)) continue;
+    const cx = xFor(i);
+    const cy = yFor(v);
+    const endLabel = svgEl('text', {
+      class: 'end-label',
+      x: Math.min(cx, width - rightPad - 4),
+      y: Math.max(cy - 10, topPad + 10),
+      'text-anchor': 'end',
+      fill: color,
+    });
+    endLabel.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    svg.appendChild(endLabel);
+    break;
+  }
+
+  const crosshair = svgEl('line', {
+    class: 'crosshair',
+    x1: 0,
+    x2: 0,
+    y1: topPad,
+    y2: topPad + plotHeight,
+    visibility: 'hidden',
+  });
+  svg.appendChild(crosshair);
+  const hoverDot = svgEl('circle', { class: 'hover-dot', r: 5, fill: color, stroke: CHART_SURFACE_RING, visibility: 'hidden' });
+  svg.appendChild(hoverDot);
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'graph-tooltip';
+  container.appendChild(tooltip);
+
+  function showAt(index) {
+    const row = rows[index];
+    const v = accessor(row);
+    if (v === null || v === undefined || Number.isNaN(v)) {
+      hideTooltip();
+      return;
+    }
+    const cx = xFor(index);
+    const cy = yFor(v);
+    crosshair.setAttribute('x1', cx);
+    crosshair.setAttribute('x2', cx);
+    crosshair.setAttribute('visibility', 'visible');
+    hoverDot.setAttribute('cx', cx);
+    hoverDot.setAttribute('cy', cy);
+    hoverDot.setAttribute('visibility', 'visible');
+
+    tooltip.innerHTML = '';
+    const valueEl = document.createElement('div');
+    valueEl.className = 'tt-value';
+    valueEl.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    const dateEl = document.createElement('div');
+    dateEl.className = 'tt-date';
+    dateEl.textContent = row.date;
+    tooltip.appendChild(valueEl);
+    tooltip.appendChild(dateEl);
+    tooltip.style.left = `${cx}px`;
+    tooltip.style.top = `${cy}px`;
+    tooltip.classList.add('visible');
+  }
+
+  function hideTooltip() {
+    crosshair.setAttribute('visibility', 'hidden');
+    hoverDot.setAttribute('visibility', 'hidden');
+    tooltip.classList.remove('visible');
+  }
+
+  function nearestIndex(clientX) {
+    const rect = svg.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * width;
+    return Math.max(0, Math.min(rows.length - 1, Math.round((x - leftPad) / pointSpacing)));
+  }
+
+  svg.addEventListener('pointermove', (e) => showAt(nearestIndex(e.clientX)));
+  svg.addEventListener('pointerdown', (e) => showAt(nearestIndex(e.clientX)));
+  svg.addEventListener('pointerleave', hideTooltip);
+  svg.querySelectorAll('.hit-target').forEach((dot) => {
+    dot.addEventListener('focus', () => showAt(Number(dot.dataset.idx)));
+  });
+  svg.addEventListener('focusout', hideTooltip);
 }
 
 function escapeHtml(str) {

@@ -8,6 +8,8 @@
   --muted: #94a3b8;
   --danger: #f87171;
   --border: #334155;
+  --chart-calories: #22c55e;
+  --chart-weight: #3987e5;
 }
 
 * { box-sizing: border-box; }
@@ -47,6 +49,28 @@ body {
   color: var(--accent);
   font-size: 15px;
   padding: 8px;
+}
+
+.topbar h1 { cursor: pointer; }
+
+.nav-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 12px;
+  border-radius: 999px;
+}
+
+.nav-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .progress {
@@ -267,4 +291,75 @@ input:focus, select:focus {
   font-size: 12px;
   padding: 0 20px 20px;
   margin: 0;
+}
+
+.graph-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 4px 0 2px;
+}
+
+.graph-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.graph-wrap {
+  position: relative;
+}
+
+.graph-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chart-svg { display: block; }
+.chart-svg .gridline { stroke: var(--border); stroke-width: 1; }
+.chart-svg .axis-label { fill: var(--muted); font-size: 10px; }
+.chart-svg .x-label { fill: var(--muted); font-size: 10px; }
+.chart-svg .area-fill { opacity: 0.12; }
+.chart-svg .line-path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chart-svg .end-dot { stroke-width: 2; }
+.chart-svg .end-label { font-size: 12px; font-weight: 700; }
+.chart-svg .crosshair { stroke: var(--muted); stroke-width: 1; }
+.chart-svg .hover-dot { stroke-width: 2; }
+.chart-svg .hit-target { fill: transparent; }
+
+.graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  transform: translate(-50%, -110%);
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.08s ease;
+}
+
+.graph-tooltip.visible { opacity: 1; }
+.graph-tooltip .tt-value { font-weight: 700; color: var(--text); }
+.graph-tooltip .tt-date { color: var(--muted); }
+
+.graphs-note {
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.graphs-note button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 0;
+  font-weight: 600;
 }
