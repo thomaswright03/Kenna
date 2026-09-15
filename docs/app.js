@@ -551,44 +551,92 @@ function formatMetricValue(v, unit) {
   return unit === 'lbs' ? Math.round(v * 10) / 10 : Math.round(v);
 }
 
-function renderDeltaLine(label, todayVal, compareVal, unit) {
-  const line = document.createElement('div');
-  line.className = 'compare-delta';
-  if (todayVal === null || todayVal === undefined || compareVal === null || compareVal === undefined) {
-    line.textContent = `${label}: no data`;
-    return line;
-  }
+function formatDeltaPhrase(label, todayVal, compareVal, unit) {
   const diff = todayVal - compareVal;
   const rounded = unit === 'lbs' ? Math.round(diff * 10) / 10 : Math.round(diff);
   const arrow = rounded > 0 ? '▲' : rounded < 0 ? '▼' : '—';
   const sign = rounded > 0 ? '+' : '';
-  const compareDisplay = formatMetricValue(compareVal, unit);
-  line.textContent = `${label}: ${arrow} ${sign}${rounded} ${unit} (was ${compareDisplay} ${unit})`;
-  return line;
+  return `${arrow} ${sign}${rounded} ${label}`;
 }
 
-function renderCompareRow(container, metric, todayVal, yesterdayVal, avgVal) {
+function buildCompareCaption(todayVal, yesterdayVal, avgVal, unit) {
+  const parts = [];
+  if (todayVal !== null && yesterdayVal !== null && yesterdayVal !== undefined) {
+    parts.push(formatDeltaPhrase('vs yesterday', todayVal, yesterdayVal, unit));
+  }
+  if (todayVal !== null && avgVal !== null && avgVal !== undefined) {
+    parts.push(formatDeltaPhrase('vs avg', todayVal, avgVal, unit));
+  }
+  const p = document.createElement('p');
+  p.className = 'compare-caption';
+  p.textContent = parts.length > 0 ? parts.join(' · ') : 'Not enough history to compare yet';
+  return p;
+}
+
+// Bars grow from a single zero baseline (never truncated), so the visible
+// bar length always honestly reflects magnitude — a metric like weight that
+// barely moves day to day will produce near-equal bars, which is correct;
+// the direct labels and caption carry the precise numbers regardless.
+function buildCompareBarRow(catLabel, value, unit, maxVal, isToday) {
   const row = document.createElement('div');
-  row.className = 'compare-row';
+  row.className = 'compare-bar-row' + (isToday ? ' compare-bar-row-today' : '');
+
+  const cat = document.createElement('div');
+  cat.className = 'compare-bar-cat';
+  cat.textContent = catLabel;
+  row.appendChild(cat);
+
+  if (value === null || value === undefined) {
+    const track = document.createElement('div');
+    track.className = 'compare-bar-track compare-bar-empty';
+    row.appendChild(track);
+    const val = document.createElement('div');
+    val.className = 'compare-bar-value compare-bar-value-empty';
+    val.textContent = 'No data';
+    row.appendChild(val);
+    return row;
+  }
+
+  const track = document.createElement('div');
+  track.className = 'compare-bar-track';
+  const bar = document.createElement('div');
+  bar.className = 'compare-bar' + (isToday ? ' compare-bar-today' : ' compare-bar-muted');
+  const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, value > 0 ? 3 : 0) : 0;
+  bar.style.width = `${pct}%`;
+  track.appendChild(bar);
+  row.appendChild(track);
+
+  const val = document.createElement('div');
+  val.className = 'compare-bar-value';
+  val.textContent = `${formatMetricValue(value, unit)} ${unit}`;
+  row.appendChild(val);
+
+  return row;
+}
+
+function renderCompareMetric(container, metric, todayVal, yesterdayVal, avgVal) {
+  const wrap = document.createElement('div');
+  wrap.className = 'compare-metric';
 
   const label = document.createElement('div');
-  label.className = 'compare-label';
+  label.className = 'compare-metric-label';
   label.textContent = metric.label;
-  row.appendChild(label);
+  wrap.appendChild(label);
 
-  const formattedToday = formatMetricValue(todayVal, metric.unit);
-  const value = document.createElement('div');
-  value.className = 'compare-value';
-  value.textContent = formattedToday === null ? '—' : `${formattedToday} ${metric.unit}`;
-  row.appendChild(value);
+  const bars = document.createElement('div');
+  bars.className = 'compare-bars';
 
-  const deltas = document.createElement('div');
-  deltas.className = 'compare-deltas';
-  deltas.appendChild(renderDeltaLine('vs Yesterday', todayVal, yesterdayVal, metric.unit));
-  deltas.appendChild(renderDeltaLine('vs All-Time Avg', todayVal, avgVal, metric.unit));
-  row.appendChild(deltas);
+  const values = [todayVal, yesterdayVal, avgVal].filter((v) => v !== null && v !== undefined);
+  const maxVal = values.length > 0 ? Math.max(...values, 0) : 0;
 
-  container.appendChild(row);
+  bars.appendChild(buildCompareBarRow('Today', todayVal, metric.unit, maxVal, true));
+  bars.appendChild(buildCompareBarRow('Yesterday', yesterdayVal, metric.unit, maxVal, false));
+  bars.appendChild(buildCompareBarRow('All-Time Avg', avgVal, metric.unit, maxVal, false));
+
+  wrap.appendChild(bars);
+  wrap.appendChild(buildCompareCaption(todayVal, yesterdayVal, avgVal, metric.unit));
+
+  container.appendChild(wrap);
 }
 
 function renderCompare() {
@@ -621,7 +669,7 @@ function renderCompare() {
   ];
 
   metrics.forEach((metric) => {
-    renderCompareRow(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
+    renderCompareMetric(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
   });
 }
 

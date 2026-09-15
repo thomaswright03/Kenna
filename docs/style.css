@@ -10,6 +10,7 @@
   --border: #334155;
   --chart-calories: #22c55e;
   --chart-weight: #3987e5;
+  --bar-muted: #64748b;
 }
 
 * { box-sizing: border-box; }
@@ -304,40 +305,85 @@ input:focus, select:focus {
 .history-item .date { font-weight: 600; }
 .history-item .stats { color: var(--muted); font-size: 13px; text-align: right; }
 
-.compare-row {
-  padding-bottom: 14px;
-  margin-bottom: 14px;
+.compare-metric {
+  padding-bottom: 16px;
+  margin-bottom: 18px;
   border-bottom: 1px solid var(--border);
 }
 
-.compare-row:last-child {
+.compare-metric:last-child {
   padding-bottom: 0;
   margin-bottom: 0;
   border-bottom: none;
 }
 
-.compare-label {
-  font-size: 13px;
-  color: var(--muted);
-  margin-bottom: 2px;
-}
-
-.compare-value {
-  font-size: 24px;
-  font-weight: 700;
+.compare-metric-label {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--text);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
-.compare-deltas {
+.compare-bars {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
 
-.compare-delta {
-  font-size: 13px;
+.compare-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compare-bar-cat {
+  flex: 0 0 76px;
+  font-size: 11px;
   color: var(--muted);
+}
+
+.compare-bar-row-today .compare-bar-cat {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.compare-bar-track {
+  flex: 1;
+  height: 20px;
+  background: var(--card-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.compare-bar-track.compare-bar-empty {
+  background: none;
+}
+
+.compare-bar {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+
+.compare-bar-muted { background: var(--bar-muted); }
+.compare-bar-today { background: var(--accent); }
+
+.compare-bar-value {
+  flex: 0 0 64px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+
+.compare-bar-value-empty {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.compare-caption {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 0;
 }
 
 .storage-note {
