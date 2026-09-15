@@ -1,24 +1,11 @@
 const MEAL_STEPS = [
   { key: 'breakfast', label: 'Breakfast' },
-  { key: 'snack1', label: 'Snack #1' },
+  { key: 'snack1', label: 'Snack 1' },
   { key: 'lunch', label: 'Lunch' },
-  { key: 'snack2', label: 'Snack #2' },
+  { key: 'snack2', label: 'Snack 2' },
   { key: 'dinner', label: 'Dinner' },
-  { key: 'snack3', label: 'Snack #3' },
+  { key: 'snack3', label: 'Snack 3' },
 ];
-
-const STEP_ORDER = ['weight', ...MEAL_STEPS.map((m) => m.key), 'review'];
-
-const STEP_LABELS = {
-  weight: 'Weight',
-  breakfast: 'Breakfast',
-  snack1: 'Snack 1',
-  lunch: 'Lunch',
-  snack2: 'Snack 2',
-  dinner: 'Dinner',
-  snack3: 'Snack 3',
-  review: 'Review',
-};
 
 function todayStr() {
   const d = new Date();
@@ -38,34 +25,32 @@ const state = {
   meals: emptyMeals(),
 };
 
-let stepIndex = 0;
 let foodsLibrary = [];
-let mode = 'wizard'; // 'wizard' | 'history' | 'graphs' | 'saved'
+let mode = 'dashboard'; // 'dashboard' | 'log' | 'history'
+let logMealKey = MEAL_STEPS[0].key;
 
 const stepContainer = document.getElementById('stepContainer');
-const progressEl = document.getElementById('progress');
 const historyBtn = document.getElementById('historyBtn');
-const graphsBtn = document.getElementById('graphsBtn');
 const titleBtn = document.getElementById('titleBtn');
 
-function setMode(next) {
-  mode = mode === next ? 'wizard' : next;
+function goDashboard() {
+  mode = 'dashboard';
+  updateNav();
+  render();
+}
+
+function goHistory() {
+  mode = mode === 'history' ? 'dashboard' : 'history';
   updateNav();
   render();
 }
 
 function updateNav() {
   historyBtn.classList.toggle('active', mode === 'history');
-  graphsBtn.classList.toggle('active', mode === 'graphs');
 }
 
-historyBtn.addEventListener('click', () => setMode('history'));
-graphsBtn.addEventListener('click', () => setMode('graphs'));
-titleBtn.addEventListener('click', () => {
-  mode = 'wizard';
-  updateNav();
-  render();
-});
+historyBtn.addEventListener('click', goHistory);
+titleBtn.addEventListener('click', goDashboard);
 
 async function fetchFoods() {
   try {
@@ -91,130 +76,213 @@ async function loadEntryForDate(date) {
   }
 }
 
-function renderProgress() {
-  if (mode !== 'wizard') {
-    progressEl.innerHTML = '';
-    return;
+async function persistEntry() {
+  try {
+    const res = await fetch('/api/entries', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: state.date,
+        weight: state.weight === '' ? null : Number(state.weight),
+        meals: state.meals,
+      }),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
   }
-  progressEl.innerHTML = STEP_ORDER.map((key, i) => {
-    let cls = 'tab';
-    if (i === stepIndex) cls += ' active';
-    else if (hasDataForStep(key)) cls += ' filled';
-    return `<button class="${cls}" data-idx="${i}" type="button">${STEP_LABELS[key]}</button>`;
-  }).join('');
-  progressEl.querySelectorAll('.tab').forEach((btn) => {
-    btn.addEventListener('click', () => goToStep(Number(btn.dataset.idx)));
-  });
-  const activeTab = progressEl.querySelector('.tab.active');
-  if (activeTab) activeTab.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
-function hasDataForStep(key) {
-  if (key === 'weight') return state.weight !== '';
-  if (key === 'review') return false;
-  return state.meals[key].length > 0;
+function rememberFood(name, calories) {
+  const idx = foodsLibrary.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) foodsLibrary[idx] = { name, calories };
+  else foodsLibrary.push({ name, calories });
+  foodsLibrary.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function totalCaloriesForMeals(meals) {
   let total = 0;
   for (const m of MEAL_STEPS) {
     for (const f of meals[m.key]) {
-      total += (Number(f.calories) || 0) * (Number(f.percent) || 0) / 100;
+      total += ((Number(f.calories) || 0) * (Number(f.percent) || 0)) / 100;
     }
   }
   return Math.round(total);
 }
 
 function render() {
-  renderProgress();
   stepContainer.innerHTML = '';
 
   if (mode === 'history') {
     renderHistory();
     return;
   }
-  if (mode === 'graphs') {
-    renderGraphs();
+  if (mode === 'log') {
+    renderLogFood();
     return;
   }
-  if (mode === 'saved') {
-    renderSaved();
-    return;
-  }
-
-  const key = STEP_ORDER[stepIndex];
-  if (key === 'weight') renderWeightStep();
-  else if (key === 'review') renderReviewStep();
-  else renderMealStep(MEAL_STEPS.find((m) => m.key === key));
+  renderDashboard();
 }
 
-function goNext() {
-  if (stepIndex < STEP_ORDER.length - 1) {
-    stepIndex += 1;
-    render();
-    window.scrollTo(0, 0);
-  }
-}
+async function renderDashboard() {
+  const todayCard = document.createElement('div');
+  todayCard.className = 'card';
 
-function goBack() {
-  if (stepIndex > 0) {
-    stepIndex -= 1;
-    render();
-    window.scrollTo(0, 0);
-  }
-}
+  const total = totalCaloriesForMeals(state.meals);
 
-function goToStep(index) {
-  stepIndex = index;
-  render();
-  window.scrollTo(0, 0);
-}
-
-function renderWeightStep() {
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = `
+  todayCard.innerHTML = `
     <div class="step-title">Today's Log</div>
-    <p class="step-sub">Start by confirming the date and your current weight.</p>
     <label for="dateInput">Date</label>
     <input type="date" id="dateInput" value="${state.date}">
     <label for="weightInput">Current Weight (lbs)</label>
     <input type="number" id="weightInput" inputmode="decimal" placeholder="e.g. 180" value="${state.weight}">
-    <button class="btn btn-primary" id="nextBtn" type="button">Next: Breakfast</button>
+    <div class="total-box">
+      <div class="num">${total}</div>
+      <div class="label">calories logged for ${state.date}</div>
+    </div>
+    <div id="todayFoods"></div>
+    <button class="btn btn-primary" id="logFoodBtn" type="button">Log Food</button>
   `;
-  stepContainer.appendChild(card);
+  stepContainer.appendChild(todayCard);
 
-  const weightInput = card.querySelector('#weightInput');
-  weightInput.addEventListener('input', () => {
-    state.weight = weightInput.value;
-  });
-
-  const dateInput = card.querySelector('#dateInput');
+  const dateInput = todayCard.querySelector('#dateInput');
   dateInput.addEventListener('change', async () => {
     state.date = dateInput.value;
     await loadEntryForDate(state.date);
     render();
   });
 
-  card.querySelector('#nextBtn').addEventListener('click', goNext);
+  const weightInput = todayCard.querySelector('#weightInput');
+  weightInput.addEventListener('change', async () => {
+    state.weight = weightInput.value;
+    await persistEntry();
+    render();
+  });
+
+  renderTodayFoods(todayCard.querySelector('#todayFoods'));
+
+  todayCard.querySelector('#logFoodBtn').addEventListener('click', () => {
+    mode = 'log';
+    render();
+  });
+
+  const graphsCard = document.createElement('div');
+  graphsCard.className = 'card';
+  graphsCard.innerHTML = '<div class="step-title">Graphs</div>';
+  stepContainer.appendChild(graphsCard);
+
+  const graphRows = await fetchGraphRows();
+
+  const caloriesWrap = document.createElement('div');
+  caloriesWrap.className = 'graph-wrap';
+  graphsCard.appendChild(caloriesWrap);
+  buildLineChart(caloriesWrap, graphRows, {
+    accessor: (r) => r.calories,
+    color: CHART_COLORS.calories,
+    title: 'Calories',
+    subtitle: 'Total daily intake',
+    unit: 'cal',
+  });
+
+  const weightWrap = document.createElement('div');
+  weightWrap.className = 'graph-wrap';
+  graphsCard.appendChild(weightWrap);
+  buildLineChart(weightWrap, graphRows, {
+    accessor: (r) => r.weight,
+    color: CHART_COLORS.weight,
+    title: 'Weight',
+    subtitle: 'Logged each day',
+    unit: 'lbs',
+  });
+
+  const note = document.createElement('p');
+  note.className = 'graphs-note';
+  note.appendChild(document.createTextNode('Exact numbers: '));
+  const link = document.createElement('button');
+  link.type = 'button';
+  link.textContent = 'view History';
+  link.addEventListener('click', goHistory);
+  note.appendChild(link);
+  graphsCard.appendChild(note);
 }
 
-function renderMealStep(mealDef) {
+function renderTodayFoods(container) {
+  const mealsWithItems = MEAL_STEPS.filter((m) => state.meals[m.key].length > 0);
+  if (mealsWithItems.length === 0) {
+    container.innerHTML = '<p class="empty-hint">No foods logged for this day yet</p>';
+    return;
+  }
+  container.innerHTML = '';
+  mealsWithItems.forEach((m) => {
+    const section = document.createElement('div');
+    section.className = 'summary-meal';
+    const h = document.createElement('h3');
+    h.textContent = m.label;
+    section.appendChild(h);
+
+    state.meals[m.key].forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'food-item';
+      const info = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = f.name;
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', async () => {
+        state.meals[m.key].splice(idx, 1);
+        await persistEntry();
+        render();
+      });
+
+      row.appendChild(info);
+      row.appendChild(removeBtn);
+      section.appendChild(row);
+    });
+
+    container.appendChild(section);
+  });
+}
+
+function renderLogFood() {
   const card = document.createElement('div');
   card.className = 'card';
+
+  const heading = document.createElement('div');
+  heading.className = 'step-title';
+  heading.textContent = 'Log Food';
+  card.appendChild(heading);
+
+  const sub = document.createElement('p');
+  sub.className = 'step-sub';
+  sub.textContent = `Adding to ${state.date}`;
+  card.appendChild(sub);
+
+  const mealPicker = document.createElement('div');
+  mealPicker.className = 'meal-picker';
+  card.appendChild(mealPicker);
+
+  const mealHeading = document.createElement('div');
+  mealHeading.className = 'section-label';
+  card.appendChild(mealHeading);
 
   const datalistOptions = foodsLibrary
     .map((f) => `<option value="${escapeHtml(f.name)}"></option>`)
     .join('');
 
-  card.innerHTML = `
-    <div class="step-title">${mealDef.label}</div>
-    <p class="step-sub">Log each food or drink, then continue when you're done.</p>
-
+  const formWrap = document.createElement('div');
+  formWrap.innerHTML = `
     <label for="foodName">Food Name</label>
     <input type="text" id="foodName" list="foodOptions" placeholder="Start typing or pick a saved food" autocomplete="off">
     <datalist id="foodOptions">${datalistOptions}</datalist>
-
     <div class="row">
       <div>
         <label for="foodPercent">% Eaten</label>
@@ -225,49 +293,84 @@ function renderMealStep(mealDef) {
         <input type="number" id="foodCalories" inputmode="numeric" placeholder="e.g. 250">
       </div>
     </div>
-
     <button class="btn btn-secondary" id="addFoodBtn" type="button">+ Add Food</button>
-
-    <div class="food-list" id="foodList"></div>
-
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="backBtn" type="button">Back</button>
-      <button class="btn btn-primary" id="nextBtn" type="button">Next</button>
-    </div>
   `;
+  card.appendChild(formWrap);
+
+  const listEl = document.createElement('div');
+  listEl.className = 'food-list';
+  card.appendChild(listEl);
+
+  const doneBtn = document.createElement('button');
+  doneBtn.className = 'btn btn-primary';
+  doneBtn.type = 'button';
+  doneBtn.textContent = 'Done';
+  doneBtn.addEventListener('click', goDashboard);
+  card.appendChild(doneBtn);
+
   stepContainer.appendChild(card);
 
-  const nameInput = card.querySelector('#foodName');
-  const percentInput = card.querySelector('#foodPercent');
-  const caloriesInput = card.querySelector('#foodCalories');
-  const listEl = card.querySelector('#foodList');
+  function renderMealPicker() {
+    mealPicker.innerHTML = '';
+    MEAL_STEPS.forEach((m) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      let cls = 'meal-pill';
+      if (m.key === logMealKey) cls += ' active';
+      else if (state.meals[m.key].length > 0) cls += ' filled';
+      btn.className = cls;
+      btn.textContent = m.label;
+      btn.addEventListener('click', () => {
+        logMealKey = m.key;
+        renderMealPicker();
+        mealHeading.textContent = m.label;
+        renderFoodList();
+      });
+      mealPicker.appendChild(btn);
+    });
+    mealHeading.textContent = MEAL_STEPS.find((m) => m.key === logMealKey).label;
+  }
 
-  function renderList() {
-    const items = state.meals[mealDef.key];
+  function renderFoodList() {
+    const items = state.meals[logMealKey];
     if (items.length === 0) {
       listEl.innerHTML = '<div class="empty-hint">No foods logged yet</div>';
       return;
     }
-    listEl.innerHTML = items
-      .map(
-        (f, i) => `
-      <div class="food-item">
-        <div>
-          <div class="name">${escapeHtml(f.name)}</div>
-          <div class="meta">${f.calories} cal &middot; ${f.percent}% eaten</div>
-        </div>
-        <button class="remove" data-idx="${i}" type="button">&times;</button>
-      </div>`
-      )
-      .join('');
-    listEl.querySelectorAll('.remove').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = Number(btn.dataset.idx);
-        state.meals[mealDef.key].splice(idx, 1);
-        renderList();
+    listEl.innerHTML = '';
+    items.forEach((f, idx) => {
+      const row = document.createElement('div');
+      row.className = 'food-item';
+      const info = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = f.name;
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', async () => {
+        state.meals[logMealKey].splice(idx, 1);
+        await persistEntry();
+        renderFoodList();
+        renderMealPicker();
       });
+
+      row.appendChild(info);
+      row.appendChild(removeBtn);
+      listEl.appendChild(row);
     });
   }
+
+  const nameInput = formWrap.querySelector('#foodName');
+  const percentInput = formWrap.querySelector('#foodPercent');
+  const caloriesInput = formWrap.querySelector('#foodCalories');
 
   nameInput.addEventListener('input', () => {
     const match = foodsLibrary.find(
@@ -276,7 +379,7 @@ function renderMealStep(mealDef) {
     if (match) caloriesInput.value = match.calories;
   });
 
-  card.querySelector('#addFoodBtn').addEventListener('click', () => {
+  formWrap.querySelector('#addFoodBtn').addEventListener('click', async () => {
     const name = nameInput.value.trim();
     const calories = Number(caloriesInput.value);
     const percent = percentInput.value === '' ? 100 : Number(percentInput.value);
@@ -288,105 +391,19 @@ function renderMealStep(mealDef) {
       caloriesInput.focus();
       return;
     }
-    state.meals[mealDef.key].push({ name, calories, percent });
-    if (!foodsLibrary.some((f) => f.name.toLowerCase() === name.toLowerCase())) {
-      foodsLibrary.push({ name, calories });
-    }
+    state.meals[logMealKey].push({ name, calories, percent });
+    rememberFood(name, calories);
+    await persistEntry();
     nameInput.value = '';
     caloriesInput.value = '';
     percentInput.value = '100';
     nameInput.focus();
-    renderList();
+    renderFoodList();
+    renderMealPicker();
   });
 
-  card.querySelector('#backBtn').addEventListener('click', goBack);
-  card.querySelector('#nextBtn').addEventListener('click', goNext);
-
-  renderList();
-}
-
-function renderReviewStep() {
-  const card = document.createElement('div');
-  card.className = 'card';
-
-  const total = totalCaloriesForMeals(state.meals);
-
-  const mealSummaries = MEAL_STEPS.map((m) => {
-    const items = state.meals[m.key];
-    if (items.length === 0) return '';
-    const rows = items
-      .map(
-        (f) => `
-      <div class="food-item">
-        <div>
-          <div class="name">${escapeHtml(f.name)}</div>
-          <div class="meta">${f.calories} cal &middot; ${f.percent}% eaten</div>
-        </div>
-      </div>`
-      )
-      .join('');
-    return `<div class="summary-meal"><h3>${m.label}</h3>${rows}</div>`;
-  }).join('');
-
-  card.innerHTML = `
-    <div class="step-title">Review &amp; Save</div>
-    <p class="step-sub">${state.date} &middot; Weight: ${state.weight || '—'} lbs</p>
-    <div class="total-box">
-      <div class="num">${total}</div>
-      <div class="label">total calories today</div>
-    </div>
-    ${mealSummaries || '<p class="empty-hint">No foods logged</p>'}
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="backBtn" type="button">Back</button>
-      <button class="btn btn-primary" id="saveBtn" type="button">Save Day</button>
-    </div>
-  `;
-  stepContainer.appendChild(card);
-
-  card.querySelector('#backBtn').addEventListener('click', goBack);
-  card.querySelector('#saveBtn').addEventListener('click', saveDay);
-}
-
-async function saveDay() {
-  const payload = {
-    date: state.date,
-    weight: state.weight === '' ? null : Number(state.weight),
-    meals: state.meals,
-  };
-  const res = await fetch('/api/entries', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (res.ok) {
-    await fetchFoods();
-    mode = 'saved';
-    render();
-  } else {
-    alert('Could not save. Please try again.');
-  }
-}
-
-function renderSaved() {
-  const card = document.createElement('div');
-  card.className = 'card saved-banner';
-  const total = totalCaloriesForMeals(state.meals);
-  card.innerHTML = `
-    <div class="check">✅</div>
-    <div class="step-title">Saved for ${state.date}</div>
-    <p class="step-sub">${total} total calories logged.</p>
-    <button class="btn btn-primary" id="newDayBtn" type="button">Log Another Day</button>
-  `;
-  stepContainer.appendChild(card);
-  card.querySelector('#newDayBtn').addEventListener('click', async () => {
-    state.date = todayStr();
-    state.weight = '';
-    state.meals = emptyMeals();
-    stepIndex = 0;
-    mode = 'wizard';
-    await loadEntryForDate(state.date);
-    render();
-  });
+  renderMealPicker();
+  renderFoodList();
 }
 
 async function renderHistory() {
@@ -463,62 +480,20 @@ function formatShortDate(dateStr) {
   return `${Number(parts[1])}/${Number(parts[2])}`;
 }
 
-async function renderGraphs() {
-  const card = document.createElement('div');
-  card.className = 'card';
-  card.innerHTML = '<div class="step-title">Graphs</div><p class="step-sub">Loading…</p>';
-  stepContainer.appendChild(card);
-
-  let rows;
+async function fetchGraphRows() {
   try {
     const res = await fetch('/api/entries');
     const list = await res.json();
-    rows = list
-      .map((e) => ({ date: e.date, calories: e.totalCalories, weight: e.weight === null || e.weight === undefined ? null : Number(e.weight) }))
+    return list
+      .map((e) => ({
+        date: e.date,
+        calories: e.totalCalories,
+        weight: e.weight === null || e.weight === undefined ? null : Number(e.weight),
+      }))
       .sort((a, b) => (a.date < b.date ? -1 : 1));
   } catch (e) {
-    card.innerHTML = '<div class="step-title">Graphs</div><p class="empty-hint">Could not load graphs</p>';
-    return;
+    return [];
   }
-
-  if (rows.length === 0) {
-    card.innerHTML = '<div class="step-title">Graphs</div><p class="empty-hint">No days logged yet</p>';
-    return;
-  }
-
-  card.innerHTML = '<div class="step-title">Graphs</div>';
-
-  const caloriesWrap = document.createElement('div');
-  caloriesWrap.className = 'graph-wrap';
-  card.appendChild(caloriesWrap);
-  buildLineChart(caloriesWrap, rows, {
-    accessor: (r) => r.calories,
-    color: CHART_COLORS.calories,
-    title: 'Calories',
-    subtitle: 'Total daily intake',
-    unit: 'cal',
-  });
-
-  const weightWrap = document.createElement('div');
-  weightWrap.className = 'graph-wrap';
-  card.appendChild(weightWrap);
-  buildLineChart(weightWrap, rows, {
-    accessor: (r) => r.weight,
-    color: CHART_COLORS.weight,
-    title: 'Weight',
-    subtitle: 'Logged each day',
-    unit: 'lbs',
-  });
-
-  const note = document.createElement('p');
-  note.className = 'graphs-note';
-  note.appendChild(document.createTextNode('Exact numbers: '));
-  const link = document.createElement('button');
-  link.type = 'button';
-  link.textContent = 'view History';
-  link.addEventListener('click', () => setMode('history'));
-  note.appendChild(link);
-  card.appendChild(note);
 }
 
 function buildLineChart(container, rows, opts) {

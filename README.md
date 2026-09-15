@@ -5,26 +5,23 @@ leaves your device.
 
 ## How it works
 
-Each day you log things **in order**:
+The home screen is a **dashboard**: today's date and weight, a running total
+of calories logged so far today, and the Calories/Weight trend graphs — all
+in one place.
 
-1. Current weight
-2. Breakfast
-3. Snack #1
-4. Lunch
-5. Snack #2
-6. Dinner
-7. Snack #3
+Tapping **Log Food** opens a form to add a food or drink:
 
-For every meal/snack you can add multiple foods. Each food asks for:
-
+- Which meal or snack it was eaten at (Breakfast, Snack 1, Lunch, Snack 2,
+  Dinner, or Snack 3 — pick any one, in any order)
 - Food name (start typing to pick a previously logged food — its calories
   auto-fill)
 - % eaten
 - Calories
 
+Everything saves immediately as you go — there's no separate "save" step.
 Once submitted, a food's name/calories are remembered so it shows up as a
-suggestion next time, instead of retyping it. At the end you review the full
-day's totals and save it.
+suggestion next time, instead of retyping it. A **History** tab lists every
+past day with its total calories and weight.
 
 ## Using it on your phone (recommended — `docs/`)
 

@@ -71,17 +71,18 @@ body {
   border-color: var(--accent);
 }
 
-.progress {
+.meal-picker {
   display: flex;
   gap: 8px;
-  padding: 0 20px 14px;
   overflow-x: auto;
+  padding-bottom: 4px;
+  margin-top: 4px;
   scrollbar-width: none;
 }
 
-.progress::-webkit-scrollbar { display: none; }
+.meal-picker::-webkit-scrollbar { display: none; }
 
-.progress .tab {
+.meal-pill {
   flex: 0 0 auto;
   padding: 8px 14px;
   border-radius: 999px;
@@ -93,15 +94,22 @@ body {
   white-space: nowrap;
 }
 
-.progress .tab.filled {
+.meal-pill.filled {
   border-color: var(--accent-dark);
   color: var(--text);
 }
 
-.progress .tab.active {
+.meal-pill.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #052e16;
+}
+
+.section-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 14px 0 4px;
 }
 
 .step-container {
@@ -181,13 +189,6 @@ input:focus, select:focus {
   color: var(--text);
   border: 1px solid var(--border);
 }
-
-.btn-row {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-row .btn { margin-top: 16px; }
 
 .food-list {
   margin-top: 16px;
@@ -272,16 +273,6 @@ input:focus, select:focus {
 
 .history-item .date { font-weight: 600; }
 .history-item .stats { color: var(--muted); font-size: 13px; text-align: right; }
-
-.saved-banner {
-  text-align: center;
-  padding: 40px 0;
-}
-
-.saved-banner .check {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
 
 .graph-title {
   font-size: 14px;
