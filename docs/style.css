@@ -138,6 +138,12 @@ body {
   margin: 0 0 16px;
 }
 
+.field-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
 label {
   display: block;
   font-size: 13px;

@@ -13,10 +13,11 @@ Tapping **Log Food** opens a form to add a food or drink:
 
 - Which meal or snack it was eaten at (Breakfast, Snack 1, Lunch, Snack 2,
   Dinner, or Snack 3 — pick any one, in any order)
-- Food name (start typing to pick a previously logged food — its calories
-  auto-fill)
-- % eaten
-- Calories
+- Food name (start typing to pick a previously logged food — its serving
+  size auto-fills)
+- % Eaten / Servings — `100` = one whole serving, `200` = two servings,
+  `50` = half a serving
+- Serving size, in calories (e.g. what's on the label for one serving)
 
 Everything saves immediately as you go — there's no separate "save" step.
 Once submitted, a food's name/calories are remembered so it shows up as a

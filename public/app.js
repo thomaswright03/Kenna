@@ -100,6 +100,14 @@ function rememberFood(name, calories) {
   foodsLibrary.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function foodConsumedCalories(f) {
+  return Math.round(((Number(f.calories) || 0) * (Number(f.percent) || 0)) / 100);
+}
+
+function formatFoodMeta(f) {
+  return `${foodConsumedCalories(f)} cal · ${f.calories} cal/serving × ${f.percent}%`;
+}
+
 function totalCaloriesForMeals(meals) {
   let total = 0;
   for (const m of MEAL_STEPS) {
@@ -245,7 +253,7 @@ function renderTodayFoods(container) {
         name.textContent = f.name;
         const meta = document.createElement('div');
         meta.className = 'meta';
-        meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
+        meta.textContent = formatFoodMeta(f);
         info.appendChild(name);
         info.appendChild(meta);
 
@@ -302,14 +310,15 @@ function renderLogFood() {
     <datalist id="foodOptions">${datalistOptions}</datalist>
     <div class="row">
       <div>
-        <label for="foodPercent">% Eaten</label>
-        <input type="number" id="foodPercent" inputmode="numeric" min="0" max="100" value="100">
+        <label for="foodPercent">% Eaten / Servings</label>
+        <input type="number" id="foodPercent" inputmode="numeric" min="0" value="100">
       </div>
       <div>
-        <label for="foodCalories">Calories</label>
+        <label for="foodCalories">Serving Size (cal)</label>
         <input type="number" id="foodCalories" inputmode="numeric" placeholder="e.g. 250">
       </div>
     </div>
+    <p class="field-hint">100 = one serving &middot; 200 = two servings &middot; 50 = half a serving</p>
     <button class="btn btn-secondary" id="addFoodBtn" type="button">+ Add Food</button>
   `;
   card.appendChild(formWrap);
@@ -364,7 +373,7 @@ function renderLogFood() {
       name.textContent = f.name;
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
+      meta.textContent = formatFoodMeta(f);
       info.appendChild(name);
       info.appendChild(meta);
 
