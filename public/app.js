@@ -9,6 +9,17 @@ const MEAL_STEPS = [
 
 const STEP_ORDER = ['weight', ...MEAL_STEPS.map((m) => m.key), 'review'];
 
+const STEP_LABELS = {
+  weight: 'Weight',
+  breakfast: 'Breakfast',
+  snack1: 'Snack 1',
+  lunch: 'Lunch',
+  snack2: 'Snack 2',
+  dinner: 'Dinner',
+  snack3: 'Snack 3',
+  review: 'Review',
+};
+
 function todayStr() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -71,11 +82,22 @@ function renderProgress() {
     return;
   }
   progressEl.innerHTML = STEP_ORDER.map((key, i) => {
-    let cls = 'dot';
-    if (i < stepIndex) cls += ' done';
+    let cls = 'tab';
     if (i === stepIndex) cls += ' active';
-    return `<div class="${cls}"></div>`;
+    else if (hasDataForStep(key)) cls += ' filled';
+    return `<button class="${cls}" data-idx="${i}" type="button">${STEP_LABELS[key]}</button>`;
   }).join('');
+  progressEl.querySelectorAll('.tab').forEach((btn) => {
+    btn.addEventListener('click', () => goToStep(Number(btn.dataset.idx)));
+  });
+  const activeTab = progressEl.querySelector('.tab.active');
+  if (activeTab) activeTab.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
+function hasDataForStep(key) {
+  if (key === 'weight') return state.weight !== '';
+  if (key === 'review') return false;
+  return state.meals[key].length > 0;
 }
 
 function totalCaloriesForMeals(meals) {
@@ -123,6 +145,12 @@ function goBack() {
   }
 }
 
+function goToStep(index) {
+  stepIndex = index;
+  render();
+  window.scrollTo(0, 0);
+}
+
 function renderWeightStep() {
   const card = document.createElement('div');
   card.className = 'card';
@@ -137,6 +165,11 @@ function renderWeightStep() {
   `;
   stepContainer.appendChild(card);
 
+  const weightInput = card.querySelector('#weightInput');
+  weightInput.addEventListener('input', () => {
+    state.weight = weightInput.value;
+  });
+
   const dateInput = card.querySelector('#dateInput');
   dateInput.addEventListener('change', async () => {
     state.date = dateInput.value;
@@ -144,10 +177,7 @@ function renderWeightStep() {
     render();
   });
 
-  card.querySelector('#nextBtn').addEventListener('click', () => {
-    state.weight = card.querySelector('#weightInput').value;
-    goNext();
-  });
+  card.querySelector('#nextBtn').addEventListener('click', goNext);
 }
 
 function renderMealStep(mealDef) {

@@ -51,19 +51,36 @@ body {
 
 .progress {
   display: flex;
-  gap: 4px;
-  padding: 0 20px 12px;
+  gap: 8px;
+  padding: 0 20px 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.progress .dot {
-  flex: 1;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
+.progress::-webkit-scrollbar { display: none; }
+
+.progress .tab {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.progress .dot.done { background: var(--accent-dark); }
-.progress .dot.active { background: var(--accent); }
+.progress .tab.filled {
+  border-color: var(--accent-dark);
+  color: var(--text);
+}
+
+.progress .tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #052e16;
+}
 
 .step-container {
   flex: 1;
