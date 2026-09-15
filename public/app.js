@@ -207,46 +207,63 @@ async function renderDashboard() {
 }
 
 function renderTodayFoods(container) {
-  const mealsWithItems = MEAL_STEPS.filter((m) => state.meals[m.key].length > 0);
-  if (mealsWithItems.length === 0) {
-    container.innerHTML = '<p class="empty-hint">No foods logged for this day yet</p>';
-    return;
-  }
   container.innerHTML = '';
-  mealsWithItems.forEach((m) => {
+  MEAL_STEPS.forEach((m) => {
     const section = document.createElement('div');
     section.className = 'summary-meal';
     const h = document.createElement('h3');
     h.textContent = m.label;
     section.appendChild(h);
 
-    state.meals[m.key].forEach((f, idx) => {
-      const row = document.createElement('div');
-      row.className = 'food-item';
-      const info = document.createElement('div');
-      const name = document.createElement('div');
-      name.className = 'name';
-      name.textContent = f.name;
-      const meta = document.createElement('div');
-      meta.className = 'meta';
-      meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
-      info.appendChild(name);
-      info.appendChild(meta);
+    const items = state.meals[m.key];
 
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'remove';
-      removeBtn.type = 'button';
-      removeBtn.textContent = '×';
-      removeBtn.addEventListener('click', async () => {
-        state.meals[m.key].splice(idx, 1);
-        await persistEntry();
+    if (items.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'meal-empty';
+      const hint = document.createElement('span');
+      hint.className = 'empty-hint';
+      hint.textContent = 'No foods logged yet';
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'meal-add-link';
+      addBtn.textContent = '+ Add';
+      addBtn.addEventListener('click', () => {
+        logMealKey = m.key;
+        mode = 'log';
         render();
       });
+      empty.appendChild(hint);
+      empty.appendChild(addBtn);
+      section.appendChild(empty);
+    } else {
+      items.forEach((f, idx) => {
+        const row = document.createElement('div');
+        row.className = 'food-item';
+        const info = document.createElement('div');
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = f.name;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = `${f.calories} cal · ${f.percent}% eaten`;
+        info.appendChild(name);
+        info.appendChild(meta);
 
-      row.appendChild(info);
-      row.appendChild(removeBtn);
-      section.appendChild(row);
-    });
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove';
+        removeBtn.type = 'button';
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', async () => {
+          state.meals[m.key].splice(idx, 1);
+          await persistEntry();
+          render();
+        });
+
+        row.appendChild(info);
+        row.appendChild(removeBtn);
+        section.appendChild(row);
+      });
+    }
 
     container.appendChild(section);
   });
