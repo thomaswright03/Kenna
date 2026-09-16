@@ -14,11 +14,30 @@ function ensureDataFiles() {
   if (!fs.existsSync(FOODS_FILE)) fs.writeFileSync(FOODS_FILE, '[]');
 }
 
+// Every write keeps the previous file content in a ".bak" sibling first. If
+// the primary file is ever found corrupted, readJson recovers from that
+// one-generation-behind backup instead of throwing — a thrown error inside a
+// synchronous route handler already fails safe (no write happens), but the
+// backup lets the app keep working instead of returning 500s until someone
+// fixes the file by hand.
 function readJson(file) {
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (e) {
+    const bakFile = `${file}.bak`;
+    if (fs.existsSync(bakFile)) {
+      const recovered = JSON.parse(fs.readFileSync(bakFile, 'utf8'));
+      fs.writeFileSync(file, JSON.stringify(recovered, null, 2));
+      return recovered;
+    }
+    throw e;
+  }
 }
 
 function writeJson(file, data) {
+  if (fs.existsSync(file)) {
+    fs.copyFileSync(file, `${file}.bak`);
+  }
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 

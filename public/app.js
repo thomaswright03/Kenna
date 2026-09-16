@@ -456,6 +456,7 @@ async function renderHistory() {
     const list = await res.json();
     if (list.length === 0) {
       card.innerHTML = '<div class="step-title">History</div><p class="empty-hint">No days logged yet</p>';
+      stepContainer.appendChild(buildBackupCard());
       return;
     }
     card.innerHTML =
@@ -472,6 +473,100 @@ async function renderHistory() {
   } catch (e) {
     card.innerHTML = '<div class="step-title">History</div><p class="empty-hint">Could not load history</p>';
   }
+
+  stepContainer.appendChild(buildBackupCard());
+}
+
+async function exportBackup() {
+  const [entriesRes, foodsRes] = await Promise.all([fetch('/api/entries'), fetch('/api/foods')]);
+  const list = await entriesRes.json();
+  const foods = await foodsRes.json();
+  const entries = {};
+  list.forEach((e) => {
+    entries[e.date] = { date: e.date, weight: e.weight, meals: e.meals };
+  });
+  const payload = { exportedAt: new Date().toISOString(), entries, foods };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `kenna-backup-${todayStr()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFile(file) {
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch (e) {
+      alert('That file could not be read as a Kenna backup.');
+      return;
+    }
+
+    const importedEntries = payload.entries && typeof payload.entries === 'object' ? payload.entries : {};
+    const dates = Object.keys(importedEntries);
+
+    for (const date of dates) {
+      const entry = importedEntries[date];
+      await fetch('/api/entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, weight: entry.weight, meals: entry.meals }),
+      });
+    }
+
+    await fetchFoods();
+    alert(`Restored ${dates.length} day(s) from backup.`);
+    await loadEntryForDate(state.date);
+    render();
+  };
+  reader.readAsText(file);
+}
+
+function buildBackupCard() {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const title = document.createElement('div');
+  title.className = 'step-title';
+  title.textContent = 'Backup';
+  card.appendChild(title);
+
+  const sub = document.createElement('p');
+  sub.className = 'step-sub';
+  sub.textContent =
+    'Your data lives in a file on whatever computer is running the server. Export a backup file now and then so you always have an off-device copy.';
+  card.appendChild(sub);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn btn-secondary';
+  exportBtn.type = 'button';
+  exportBtn.textContent = 'Export Backup';
+  exportBtn.addEventListener('click', exportBackup);
+  card.appendChild(exportBtn);
+
+  const importLabel = document.createElement('label');
+  importLabel.className = 'btn btn-secondary import-label';
+  importLabel.textContent = 'Import Backup';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.accept = 'application/json';
+  importInput.className = 'import-input';
+  importInput.addEventListener('change', () => {
+    if (importInput.files && importInput.files[0]) {
+      importBackupFile(importInput.files[0]);
+      importInput.value = '';
+    }
+  });
+  importLabel.appendChild(importInput);
+  card.appendChild(importLabel);
+
+  return card;
 }
 
 function shiftDate(dateStr, days) {

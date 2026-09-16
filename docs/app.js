@@ -23,38 +23,74 @@ function emptyMeals() {
 }
 
 // --- Storage (all data lives in this browser's localStorage) ---
+//
+// Every write keeps the previous value in a ":backup" key first. If the
+// primary value ever turns out corrupted (unparseable) on a later read, we
+// recover from that one-generation-behind backup instead of silently
+// treating it as empty — which previously meant the very next save would
+// permanently overwrite real history with just that day's entry.
 
 function loadEntries() {
+  const raw = localStorage.getItem(ENTRIES_KEY);
+  if (raw === null) return {};
   try {
-    return JSON.parse(localStorage.getItem(ENTRIES_KEY)) || {};
+    return JSON.parse(raw);
   } catch (e) {
-    return {};
+    return recoverFromBackup(ENTRIES_KEY, {});
   }
 }
 
 function saveEntries(entries) {
+  return writeWithBackup(ENTRIES_KEY, entries);
+}
+
+function loadFoods() {
+  const raw = localStorage.getItem(FOODS_KEY);
+  if (raw === null) return [];
   try {
-    localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
+    return JSON.parse(raw);
+  } catch (e) {
+    return recoverFromBackup(FOODS_KEY, []);
+  }
+}
+
+function saveFoods(foods) {
+  writeWithBackup(FOODS_KEY, foods);
+}
+
+function writeWithBackup(key, value) {
+  try {
+    const previous = localStorage.getItem(key);
+    if (previous !== null) localStorage.setItem(`${key}:backup`, previous);
+    localStorage.setItem(key, JSON.stringify(value));
     return true;
   } catch (e) {
     return false;
   }
 }
 
-function loadFoods() {
-  try {
-    return JSON.parse(localStorage.getItem(FOODS_KEY)) || [];
-  } catch (e) {
-    return [];
+function recoverFromBackup(key, fallback) {
+  const backupRaw = localStorage.getItem(`${key}:backup`);
+  if (backupRaw !== null) {
+    try {
+      const recovered = JSON.parse(backupRaw);
+      // Heal the primary key immediately so this recovery doesn't have to
+      // repeat on every future load, and so the backup rotation keeps working.
+      try {
+        localStorage.setItem(key, backupRaw);
+      } catch (e) {
+        // Non-fatal: recovered value is still returned for this session.
+      }
+      alert(
+        "Your saved data looked corrupted, so it was restored from an automatic backup. The most recent change before that may be missing — please double-check."
+      );
+      return recovered;
+    } catch (e) {
+      // Backup is also unreadable — fall through to the caller's fallback.
+    }
   }
-}
-
-function saveFoods(foods) {
-  try {
-    localStorage.setItem(FOODS_KEY, JSON.stringify(foods));
-  } catch (e) {
-    // Non-fatal: food suggestions just won't persist this time.
-  }
+  alert('Your saved data appears to be corrupted and no backup could be recovered. Starting from empty for this — sorry.');
+  return fallback;
 }
 
 // --- App state ---
@@ -488,6 +524,7 @@ function renderHistory() {
   if (list.length === 0) {
     card.innerHTML = '<div class="step-title">History</div><p class="empty-hint">No days logged yet</p>';
     stepContainer.appendChild(card);
+    stepContainer.appendChild(buildBackupCard());
     return;
   }
 
@@ -503,6 +540,97 @@ function renderHistory() {
       )
       .join('');
   stepContainer.appendChild(card);
+
+  stepContainer.appendChild(buildBackupCard());
+}
+
+function exportBackup() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    entries: loadEntries(),
+    foods: loadFoods(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `kenna-backup-${todayStr()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function importBackupFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    let payload;
+    try {
+      payload = JSON.parse(reader.result);
+    } catch (e) {
+      alert('That file could not be read as a Kenna backup.');
+      return;
+    }
+
+    const importedEntries = payload.entries && typeof payload.entries === 'object' ? payload.entries : {};
+    const importedFoods = Array.isArray(payload.foods) ? payload.foods : [];
+
+    const mergedEntries = { ...loadEntries(), ...importedEntries };
+    saveEntries(mergedEntries);
+
+    const foodMap = new Map(loadFoods().map((f) => [f.name.toLowerCase(), f]));
+    importedFoods.forEach((f) => {
+      if (f && f.name) foodMap.set(f.name.toLowerCase(), { name: f.name, calories: f.calories });
+    });
+    saveFoods(Array.from(foodMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
+    foodsLibrary = loadFoods();
+
+    alert(`Restored ${Object.keys(importedEntries).length} day(s) from backup.`);
+    loadEntryForDate(state.date);
+    render();
+  };
+  reader.readAsText(file);
+}
+
+function buildBackupCard() {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const title = document.createElement('div');
+  title.className = 'step-title';
+  title.textContent = 'Backup';
+  card.appendChild(title);
+
+  const sub = document.createElement('p');
+  sub.className = 'step-sub';
+  sub.textContent =
+    'Your data lives only in this browser. Export a backup file now and then so a lost or cleared browser never costs you your history.';
+  card.appendChild(sub);
+
+  const exportBtn = document.createElement('button');
+  exportBtn.className = 'btn btn-secondary';
+  exportBtn.type = 'button';
+  exportBtn.textContent = 'Export Backup';
+  exportBtn.addEventListener('click', exportBackup);
+  card.appendChild(exportBtn);
+
+  const importLabel = document.createElement('label');
+  importLabel.className = 'btn btn-secondary import-label';
+  importLabel.textContent = 'Import Backup';
+  const importInput = document.createElement('input');
+  importInput.type = 'file';
+  importInput.accept = 'application/json';
+  importInput.className = 'import-input';
+  importInput.addEventListener('change', () => {
+    if (importInput.files && importInput.files[0]) {
+      importBackupFile(importInput.files[0]);
+      importInput.value = '';
+    }
+  });
+  importLabel.appendChild(importInput);
+  card.appendChild(importLabel);
+
+  return card;
 }
 
 function shiftDate(dateStr, days) {

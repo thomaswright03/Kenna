@@ -181,7 +181,13 @@ input:focus, select:focus {
   border: none;
   font-size: 16px;
   font-weight: 600;
+  text-align: center;
   cursor: pointer;
+  box-sizing: border-box;
+}
+
+.import-input {
+  display: none;
 }
 
 .btn-primary {

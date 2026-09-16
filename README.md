@@ -43,8 +43,16 @@ device.
    a normal app.
 
 Data lives only in that browser, on that device (`localStorage`). Clearing
-Safari's website data, or switching browsers/devices, means starting fresh —
-there's no sync or backup. If you outgrow that limitation later, the
+Safari's website data, switching browsers/devices, or just a new day rolling
+over on the dashboard (which is normal — the dashboard always shows *today*;
+past days still live in History) can all look like data loss at a glance. To
+protect against the real kind — a cleared browser, a lost phone, storage
+corruption — use **Backup** on the History tab regularly: **Export Backup**
+downloads a JSON file with everything in it; **Import Backup** restores from
+one. The app also keeps one automatic generation of backup internally and
+self-heals if its storage ever gets corrupted, but that's not a substitute
+for an actual exported file living somewhere else (Files app, email to
+yourself, iCloud Drive). If you outgrow local storage entirely, the
 server-backed version below is the upgrade path.
 
 ## Alternative: real backend server (`server.js`)
