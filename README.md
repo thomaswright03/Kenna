@@ -27,7 +27,9 @@ past day with its total calories and weight.
 A **Compare** tab shows today's weight, total calories, and calories for each
 meal/snack, each against yesterday and against your all-time average for that
 stat (averages exclude today itself, so it's "today vs your typical day," not
-today diluting its own baseline).
+today diluting its own baseline). Below that, a **Trends** section plots
+weight and daily calorie intake over time as line graphs across every day
+you've logged.
 
 ## Using it on your phone (recommended — `docs/`)
 

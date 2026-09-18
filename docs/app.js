@@ -767,6 +767,38 @@ function renderCompareMetric(container, metric, todayVal, yesterdayVal, avgVal) 
   container.appendChild(wrap);
 }
 
+function buildTrendsCard() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = '<div class="step-title">Trends</div>';
+
+  const rows = buildGraphRows();
+
+  const caloriesWrap = document.createElement('div');
+  caloriesWrap.className = 'graph-wrap';
+  card.appendChild(caloriesWrap);
+  buildLineChart(caloriesWrap, rows, {
+    accessor: (r) => r.calories,
+    color: CHART_COLORS.calories,
+    title: 'Calories',
+    subtitle: 'Daily total intake over time',
+    unit: 'cal',
+  });
+
+  const weightWrap = document.createElement('div');
+  weightWrap.className = 'graph-wrap';
+  card.appendChild(weightWrap);
+  buildLineChart(weightWrap, rows, {
+    accessor: (r) => r.weight,
+    color: CHART_COLORS.weight,
+    title: 'Weight',
+    subtitle: 'Weight over time',
+    unit: 'lbs',
+  });
+
+  return card;
+}
+
 function renderCompare() {
   const card = document.createElement('div');
   card.className = 'card';
@@ -783,6 +815,7 @@ function renderCompare() {
     empty.className = 'empty-hint';
     empty.textContent = 'Nothing logged for today yet. Log a weight or food from the dashboard to see how today compares.';
     card.appendChild(empty);
+    stepContainer.appendChild(buildTrendsCard());
     return;
   }
 
@@ -799,6 +832,8 @@ function renderCompare() {
   metrics.forEach((metric) => {
     renderCompareMetric(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
   });
+
+  stepContainer.appendChild(buildTrendsCard());
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -972,7 +1007,7 @@ function buildLineChart(container, rows, opts) {
       'text-anchor': 'end',
       fill: color,
     });
-    endLabel.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    endLabel.textContent = `${formatMetricValue(v, unit).toLocaleString()} ${unit}`;
     svg.appendChild(endLabel);
     break;
   }
@@ -1012,7 +1047,7 @@ function buildLineChart(container, rows, opts) {
     tooltip.innerHTML = '';
     const valueEl = document.createElement('div');
     valueEl.className = 'tt-value';
-    valueEl.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    valueEl.textContent = `${formatMetricValue(v, unit).toLocaleString()} ${unit}`;
     const dateEl = document.createElement('div');
     dateEl.className = 'tt-date';
     dateEl.textContent = row.date;

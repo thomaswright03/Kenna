@@ -731,6 +731,7 @@ async function renderCompare() {
     empty.className = 'empty-hint';
     empty.textContent = 'Nothing logged for today yet. Log a weight or food from the dashboard to see how today compares.';
     card.appendChild(empty);
+    stepContainer.appendChild(buildTrendsCard(list));
     return;
   }
 
@@ -747,6 +748,8 @@ async function renderCompare() {
   metrics.forEach((metric) => {
     renderCompareMetric(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
   });
+
+  stepContainer.appendChild(buildTrendsCard(list));
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -794,20 +797,56 @@ function formatShortDate(dateStr) {
   return `${Number(parts[1])}/${Number(parts[2])}`;
 }
 
+function toGraphRows(list) {
+  return list
+    .map((e) => ({
+      date: e.date,
+      calories: e.totalCalories,
+      weight: e.weight === null || e.weight === undefined ? null : Number(e.weight),
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+}
+
 async function fetchGraphRows() {
   try {
     const res = await fetch('/api/entries');
     const list = await res.json();
-    return list
-      .map((e) => ({
-        date: e.date,
-        calories: e.totalCalories,
-        weight: e.weight === null || e.weight === undefined ? null : Number(e.weight),
-      }))
-      .sort((a, b) => (a.date < b.date ? -1 : 1));
+    return toGraphRows(list);
   } catch (e) {
     return [];
   }
+}
+
+function buildTrendsCard(list) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = '<div class="step-title">Trends</div>';
+
+  const rows = toGraphRows(list);
+
+  const caloriesWrap = document.createElement('div');
+  caloriesWrap.className = 'graph-wrap';
+  card.appendChild(caloriesWrap);
+  buildLineChart(caloriesWrap, rows, {
+    accessor: (r) => r.calories,
+    color: CHART_COLORS.calories,
+    title: 'Calories',
+    subtitle: 'Daily total intake over time',
+    unit: 'cal',
+  });
+
+  const weightWrap = document.createElement('div');
+  weightWrap.className = 'graph-wrap';
+  card.appendChild(weightWrap);
+  buildLineChart(weightWrap, rows, {
+    accessor: (r) => r.weight,
+    color: CHART_COLORS.weight,
+    title: 'Weight',
+    subtitle: 'Weight over time',
+    unit: 'lbs',
+  });
+
+  return card;
 }
 
 function buildLineChart(container, rows, opts) {
@@ -925,7 +964,7 @@ function buildLineChart(container, rows, opts) {
       'text-anchor': 'end',
       fill: color,
     });
-    endLabel.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    endLabel.textContent = `${formatMetricValue(v, unit).toLocaleString()} ${unit}`;
     svg.appendChild(endLabel);
     break;
   }
@@ -965,7 +1004,7 @@ function buildLineChart(container, rows, opts) {
     tooltip.innerHTML = '';
     const valueEl = document.createElement('div');
     valueEl.className = 'tt-value';
-    valueEl.textContent = `${Math.round(v).toLocaleString()} ${unit}`;
+    valueEl.textContent = `${formatMetricValue(v, unit).toLocaleString()} ${unit}`;
     const dateEl = document.createElement('div');
     dateEl.className = 'tt-date';
     dateEl.textContent = row.date;
