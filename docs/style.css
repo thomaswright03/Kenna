@@ -401,20 +401,21 @@ input:focus, select:focus {
 }
 
 .graph-title {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
   margin: 4px 0 2px;
 }
 
 .graph-sub {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
-  margin: 0 0 10px;
+  margin: 0 0 14px;
 }
 
 .graph-wrap {
   position: relative;
+  margin-bottom: 8px;
 }
 
 .graph-scroll {
@@ -424,12 +425,12 @@ input:focus, select:focus {
 
 .chart-svg { display: block; }
 .chart-svg .gridline { stroke: var(--border); stroke-width: 1; }
-.chart-svg .axis-label { fill: var(--muted); font-size: 10px; }
-.chart-svg .x-label { fill: var(--muted); font-size: 10px; }
+.chart-svg .axis-label { fill: var(--muted); font-size: 13px; }
+.chart-svg .x-label { fill: var(--muted); font-size: 13px; }
 .chart-svg .area-fill { opacity: 0.12; }
 .chart-svg .line-path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chart-svg .end-dot { stroke-width: 2; }
-.chart-svg .end-label { font-size: 12px; font-weight: 700; }
+.chart-svg .end-label { font-size: 16px; font-weight: 700; }
 .chart-svg .crosshair { stroke: var(--muted); stroke-width: 1; }
 .chart-svg .hover-dot { stroke-width: 2; }
 .chart-svg .hit-target { fill: transparent; }
@@ -440,8 +441,8 @@ input:focus, select:focus {
   background: var(--card-2);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
   color: var(--text);
   transform: translate(-50%, -110%);
   white-space: nowrap;
@@ -452,7 +453,7 @@ input:focus, select:focus {
 }
 
 .graph-tooltip.visible { opacity: 1; }
-.graph-tooltip .tt-value { font-weight: 700; color: var(--text); }
+.graph-tooltip .tt-value { font-weight: 700; color: var(--text); font-size: 15px; }
 .graph-tooltip .tt-date { color: var(--muted); }
 
 .graphs-note {

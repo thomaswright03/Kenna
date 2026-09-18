@@ -731,7 +731,7 @@ async function renderCompare() {
     empty.className = 'empty-hint';
     empty.textContent = 'Nothing logged for today yet. Log a weight or food from the dashboard to see how today compares.';
     card.appendChild(empty);
-    stepContainer.appendChild(buildTrendsCard(list));
+    buildTrendsCard(stepContainer, list);
     return;
   }
 
@@ -749,7 +749,7 @@ async function renderCompare() {
     renderCompareMetric(card, metric, todayStats[metric.key], yesterdayStats[metric.key], averages[metric.key]);
   });
 
-  stepContainer.appendChild(buildTrendsCard(list));
+  buildTrendsCard(stepContainer, list);
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -817,10 +817,11 @@ async function fetchGraphRows() {
   }
 }
 
-function buildTrendsCard(list) {
+function buildTrendsCard(parent, list) {
   const card = document.createElement('div');
   card.className = 'card';
   card.innerHTML = '<div class="step-title">Trends</div>';
+  parent.appendChild(card); // attach before building charts so clientWidth-based sizing works
 
   const rows = toGraphRows(list);
 
@@ -845,8 +846,6 @@ function buildTrendsCard(list) {
     subtitle: 'Weight over time',
     unit: 'lbs',
   });
-
-  return card;
 }
 
 function buildLineChart(container, rows, opts) {
@@ -871,17 +870,26 @@ function buildLineChart(container, rows, opts) {
     return;
   }
 
-  const ticks = niceTicks(Math.min(...values), Math.max(...values), 4);
+  const ticks = niceTicks(Math.min(...values), Math.max(...values), 5);
   const yMin = ticks[0];
   const yMax = ticks[ticks.length - 1];
 
-  const leftPad = 44;
-  const rightPad = 20;
-  const topPad = 16;
-  const plotHeight = 120;
-  const xAxisHeight = 22;
-  const pointSpacing = rows.length > 1 ? Math.max(40, Math.min(64, 320 / (rows.length - 1))) : 60;
-  const width = Math.max(260, leftPad + rightPad + (rows.length - 1) * pointSpacing + 20);
+  const leftPad = 52;
+  const rightPad = 24;
+  const topPad = 24;
+  const plotHeight = 260;
+  const xAxisHeight = 32;
+
+  // Fit point spacing to the space actually available so a handful of days
+  // stretches to fill the card instead of forcing a scroll to see the most
+  // recent (rightmost) point — but still cap it, and still fall back to a
+  // comfortable minimum (with horizontal scroll) once there are many days.
+  const minSpacing = 56;
+  const maxSpacing = 110;
+  const availableWidth = container.clientWidth || 320;
+  const fitSpacing = rows.length > 1 ? (availableWidth - leftPad - rightPad - 20) / (rows.length - 1) : maxSpacing;
+  const pointSpacing = rows.length > 1 ? Math.max(minSpacing, Math.min(maxSpacing, fitSpacing)) : maxSpacing;
+  const width = Math.max(availableWidth, leftPad + rightPad + (rows.length - 1) * pointSpacing + 20);
   const height = topPad + plotHeight + xAxisHeight;
 
   const xFor = (i) => leftPad + i * pointSpacing;
@@ -940,7 +948,7 @@ function buildLineChart(container, rows, opts) {
     const v = accessor(r);
     if (v === null || v === undefined || Number.isNaN(v)) return;
     svg.appendChild(
-      svgEl('circle', { class: 'end-dot', cx: xFor(i), cy: yFor(v), r: 4, fill: color, stroke: CHART_SURFACE_RING })
+      svgEl('circle', { class: 'end-dot', cx: xFor(i), cy: yFor(v), r: 5, fill: color, stroke: CHART_SURFACE_RING })
     );
   });
 
@@ -948,7 +956,7 @@ function buildLineChart(container, rows, opts) {
     const v = accessor(r);
     if (v === null || v === undefined || Number.isNaN(v)) return;
     svg.appendChild(
-      svgEl('circle', { class: 'hit-target', cx: xFor(i), cy: yFor(v), r: 14, 'data-idx': i, tabindex: 0 })
+      svgEl('circle', { class: 'hit-target', cx: xFor(i), cy: yFor(v), r: 18, 'data-idx': i, tabindex: 0 })
     );
   });
 
@@ -960,7 +968,7 @@ function buildLineChart(container, rows, opts) {
     const endLabel = svgEl('text', {
       class: 'end-label',
       x: Math.min(cx, width - rightPad - 4),
-      y: Math.max(cy - 10, topPad + 10),
+      y: Math.max(cy - 14, topPad + 14),
       'text-anchor': 'end',
       fill: color,
     });
@@ -978,7 +986,7 @@ function buildLineChart(container, rows, opts) {
     visibility: 'hidden',
   });
   svg.appendChild(crosshair);
-  const hoverDot = svgEl('circle', { class: 'hover-dot', r: 5, fill: color, stroke: CHART_SURFACE_RING, visibility: 'hidden' });
+  const hoverDot = svgEl('circle', { class: 'hover-dot', r: 7, fill: color, stroke: CHART_SURFACE_RING, visibility: 'hidden' });
   svg.appendChild(hoverDot);
 
   const tooltip = document.createElement('div');
