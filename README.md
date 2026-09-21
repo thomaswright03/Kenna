@@ -33,16 +33,21 @@ you've logged.
 
 ## Using it on your phone (recommended — `docs/`)
 
-The `docs/` folder is a self-contained, static version of the app: no server,
-no install. It saves everything in the browser's local storage on your
-device.
+The `docs/` folder is a self-contained, installable web app: no App Store, no
+server, no account. It's already live at
+`https://thomaswright03.github.io/Kenna/` — anyone with that link can install
+it on their own phone independently; nobody needs to redeploy anything, and
+each person's data stays local to their own device.
 
-1. In this repo on GitHub: **Settings → Pages → Source: Deploy from a
-   branch**, pick this branch and the `/docs` folder, then Save. GitHub gives
-   you a URL like `https://<your-username>.github.io/Kenna/`.
-2. Open that URL in Safari on your phone.
-3. Tap the Share icon → **Add to Home Screen**. It now opens full-screen like
-   a normal app.
+1. Open that URL in Safari (iPhone) or Chrome (Android).
+2. iPhone: tap the Share icon → **Add to Home Screen**. Android: tap the
+   **⋮** menu → **Add to Home screen** / **Install app**.
+3. It now opens full-screen with its own icon, like any other app — no
+   Safari/Chrome chrome around it, and no App Store listing.
+
+It also works **offline** once opened at least once: the app itself (not
+your data, which was always local) is cached on-device, so it still opens
+with no signal or on airplane mode.
 
 Data lives only in that browser, on that device (`localStorage`). Clearing
 Safari's website data, switching browsers/devices, or just a new day rolling

@@ -1,11 +1,15 @@
 {
   "name": "Kenna Calorie Tracker",
   "short_name": "Kenna",
+  "description": "A private, on-device calorie and weight tracker.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
   "icons": [
-    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

@@ -1098,3 +1098,11 @@ function escapeHtml(str) {
   loadEntryForDate(state.date);
   render();
 })();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {
+      // Non-fatal: the app still works online without offline caching.
+    });
+  });
+}
