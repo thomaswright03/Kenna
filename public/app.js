@@ -26,7 +26,7 @@ const state = {
 };
 
 let foodsLibrary = [];
-let mode = 'dashboard'; // 'dashboard' | 'log' | 'history' | 'compare'
+let mode = 'dashboard'; // 'dashboard' | 'log' | 'confirmLog' | 'history' | 'compare'
 let logMealKey = MEAL_STEPS[0].key;
 
 const stepContainer = document.getElementById('stepContainer');
@@ -140,6 +140,10 @@ function render() {
   }
   if (mode === 'log') {
     renderLogFood();
+    return;
+  }
+  if (mode === 'confirmLog') {
+    renderConfirmLog();
     return;
   }
   renderDashboard();
@@ -349,7 +353,10 @@ function renderLogFood() {
   doneBtn.className = 'btn btn-primary';
   doneBtn.type = 'button';
   doneBtn.textContent = 'Done';
-  doneBtn.addEventListener('click', goDashboard);
+  doneBtn.addEventListener('click', () => {
+    mode = 'confirmLog';
+    render();
+  });
   card.appendChild(doneBtn);
 
   stepContainer.appendChild(card);
@@ -457,6 +464,79 @@ function renderLogFood() {
   renderMealPicker();
   renderFoodList();
   updateDoneState();
+}
+
+function renderConfirmFoodSummary(container) {
+  const mealsWithItems = MEAL_STEPS.filter((m) => state.meals[m.key].length > 0);
+  if (mealsWithItems.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty-hint';
+    empty.textContent = 'No foods logged yet';
+    container.appendChild(empty);
+    return;
+  }
+  mealsWithItems.forEach((m) => {
+    const section = document.createElement('div');
+    section.className = 'summary-meal';
+    const h = document.createElement('h3');
+    h.textContent = m.label;
+    section.appendChild(h);
+
+    state.meals[m.key].forEach((f) => {
+      const row = document.createElement('div');
+      row.className = 'food-item';
+      const info = document.createElement('div');
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = f.name;
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = formatFoodMeta(f);
+      info.appendChild(name);
+      info.appendChild(meta);
+      row.appendChild(info);
+      section.appendChild(row);
+    });
+
+    container.appendChild(section);
+  });
+}
+
+function renderConfirmLog() {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const heading = document.createElement('div');
+  heading.className = 'step-title';
+  heading.textContent = 'Confirm';
+  card.appendChild(heading);
+
+  const total = totalCaloriesForMeals(state.meals);
+  const sub = document.createElement('p');
+  sub.className = 'step-sub';
+  sub.textContent = `This is what's logged for ${state.date} — ${total} total calories.`;
+  card.appendChild(sub);
+
+  renderConfirmFoodSummary(card);
+
+  const keepBtn = document.createElement('button');
+  keepBtn.className = 'btn btn-secondary';
+  keepBtn.type = 'button';
+  keepBtn.textContent = 'Keep Editing';
+  keepBtn.addEventListener('click', () => {
+    mode = 'log';
+    render();
+  });
+  card.appendChild(keepBtn);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn btn-primary';
+  confirmBtn.type = 'button';
+  confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', goDashboard);
+  card.appendChild(confirmBtn);
+
+  stepContainer.appendChild(card);
 }
 
 async function renderHistory() {
