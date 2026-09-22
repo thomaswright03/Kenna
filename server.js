@@ -4,14 +4,12 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const ENTRIES_FILE = path.join(DATA_DIR, 'entries.json');
-const FOODS_FILE = path.join(DATA_DIR, 'foods.json');
 
 const MEAL_KEYS = ['breakfast', 'snack1', 'lunch', 'snack2', 'dinner', 'snack3'];
 
 function ensureDataFiles() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(ENTRIES_FILE)) fs.writeFileSync(ENTRIES_FILE, '{}');
-  if (!fs.existsSync(FOODS_FILE)) fs.writeFileSync(FOODS_FILE, '[]');
 }
 
 // Every write keeps the previous file content in a ".bak" sibling first. If
@@ -43,8 +41,32 @@ function writeJson(file, data) {
 
 function emptyEntry(date) {
   const meals = {};
-  for (const key of MEAL_KEYS) meals[key] = [];
+  for (const key of MEAL_KEYS) meals[key] = null;
   return { date, weight: null, meals };
+}
+
+// A meal's value is a single calorie total (number) or null if not logged.
+// Older data logged individual foods per meal as an array; normalizing here
+// means old entry files keep working (as a summed total) without a
+// migration step.
+function normalizeMealValue(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) return null;
+    const total = raw.reduce((sum, f) => sum + ((Number(f.calories) || 0) * (Number(f.percent) || 0)) / 100, 0);
+    return Math.round(total);
+  }
+  const num = Number(raw);
+  return Number.isNaN(num) ? null : Math.round(num);
+}
+
+function totalCaloriesForMeals(meals) {
+  let total = 0;
+  for (const key of MEAL_KEYS) {
+    const v = normalizeMealValue(meals[key]);
+    if (v !== null) total += v;
+  }
+  return Math.round(total);
 }
 
 function isValidDate(str) {
@@ -62,11 +84,9 @@ app.get('/api/entries', (req, res) => {
   const entries = readJson(ENTRIES_FILE);
   const list = Object.values(entries)
     .map((entry) => {
-      const totalCalories = MEAL_KEYS.reduce((sum, key) => {
-        const foods = entry.meals[key] || [];
-        return sum + foods.reduce((s, f) => s + (f.calories * f.percent) / 100, 0);
-      }, 0);
-      return { date: entry.date, weight: entry.weight, totalCalories: Math.round(totalCalories), meals: entry.meals };
+      const meals = {};
+      for (const key of MEAL_KEYS) meals[key] = normalizeMealValue(entry.meals[key]);
+      return { date: entry.date, weight: entry.weight, totalCalories: totalCaloriesForMeals(entry.meals), meals };
     })
     .sort((a, b) => (a.date < b.date ? 1 : -1));
   res.json(list);
@@ -76,7 +96,10 @@ app.get('/api/entries/:date', (req, res) => {
   const { date } = req.params;
   if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
   const entries = readJson(ENTRIES_FILE);
-  res.json(entries[date] || emptyEntry(date));
+  const entry = entries[date] || emptyEntry(date);
+  const meals = {};
+  for (const key of MEAL_KEYS) meals[key] = normalizeMealValue(entry.meals[key]);
+  res.json({ date: entry.date, weight: entry.weight, meals });
 });
 
 app.post('/api/entries', (req, res) => {
@@ -86,33 +109,13 @@ app.post('/api/entries', (req, res) => {
 
   const entry = emptyEntry(date);
   entry.weight = weight === '' || weight === undefined || weight === null ? null : Number(weight);
-
-  const foods = readJson(FOODS_FILE);
-  const foodMap = new Map(foods.map((f) => [f.name.toLowerCase(), f]));
-
-  for (const key of MEAL_KEYS) {
-    const items = Array.isArray(meals[key]) ? meals[key] : [];
-    entry.meals[key] = items
-      .filter((item) => item && item.name && item.name.trim())
-      .map((item) => {
-        const name = item.name.trim();
-        const calories = Number(item.calories) || 0;
-        const percent = item.percent === '' || item.percent === undefined ? 100 : Number(item.percent);
-        foodMap.set(name.toLowerCase(), { name, calories });
-        return { name, calories, percent };
-      });
-  }
+  for (const key of MEAL_KEYS) entry.meals[key] = normalizeMealValue(meals[key]);
 
   const entries = readJson(ENTRIES_FILE);
   entries[date] = entry;
   writeJson(ENTRIES_FILE, entries);
-  writeJson(FOODS_FILE, Array.from(foodMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
 
   res.json(entry);
-});
-
-app.get('/api/foods', (req, res) => {
-  res.json(readJson(FOODS_FILE));
 });
 
 const PORT = process.env.PORT || 3000;

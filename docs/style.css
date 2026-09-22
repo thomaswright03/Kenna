@@ -167,13 +167,6 @@ input:focus, select:focus {
   border-color: var(--accent);
 }
 
-.row {
-  display: flex;
-  gap: 10px;
-}
-
-.row > div { flex: 1; }
-
 .btn {
   display: block;
   width: 100%;
@@ -212,13 +205,6 @@ input:focus, select:focus {
   border: 1px solid var(--border);
 }
 
-.food-list {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .food-item {
   display: flex;
   align-items: center;
@@ -237,7 +223,7 @@ input:focus, select:focus {
   font-size: 13px;
 }
 
-.food-item .remove {
+.remove {
   background: none;
   border: none;
   color: var(--danger);
@@ -285,6 +271,18 @@ input:focus, select:focus {
   font-size: 13px;
   font-weight: 600;
   padding: 4px 8px;
+}
+
+.meal-total-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.meal-total-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .total-box {

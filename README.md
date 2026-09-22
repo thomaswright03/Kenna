@@ -9,20 +9,15 @@ The home screen is a **dashboard**: today's date and weight, a running total
 of calories logged so far today, and the Calories/Weight trend graphs — all
 in one place.
 
-Tapping **Log Food** opens a form to add a food or drink:
+Tapping **Log Meal** lets you enter one total-calorie number per meal or
+snack — Breakfast, Snack 1, Lunch, Snack 2, Dinner, or Snack 3, in any order
+— rather than itemizing individual foods and having the app add them up.
+Pick a meal, type its total, move to the next one; each saves the moment you
+leave the field. Tapping **Done** shows a **Confirm** screen listing what
+you've logged for the day before returning to the dashboard, so nothing gets
+lost by accident.
 
-- Which meal or snack it was eaten at (Breakfast, Snack 1, Lunch, Snack 2,
-  Dinner, or Snack 3 — pick any one, in any order)
-- Food name (start typing to pick a previously logged food — its serving
-  size auto-fills)
-- % Eaten / Servings — `100` = one whole serving, `200` = two servings,
-  `50` = half a serving
-- Serving size, in calories (e.g. what's on the label for one serving)
-
-Everything saves immediately as you go — there's no separate "save" step.
-Once submitted, a food's name/calories are remembered so it shows up as a
-suggestion next time, instead of retyping it. A **History** tab lists every
-past day with its total calories and weight.
+A **History** tab lists every past day with its total calories and weight.
 
 A **Compare** tab shows today's weight, total calories, and calories for each
 meal/snack, each against yesterday and against your all-time average for that
@@ -90,5 +85,4 @@ Kenna calorie tracker running at http://localhost:3000
 Open `http://localhost:3000` in the browser on the same device running the
 server.
 
-Entries and the saved-food list live in `data/entries.json` and
-`data/foods.json`, created automatically on first run.
+Entries live in `data/entries.json`, created automatically on first run.
