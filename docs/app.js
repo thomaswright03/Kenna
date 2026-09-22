@@ -159,7 +159,13 @@ function persistEntry() {
     weight: state.weight === '' ? null : Number(state.weight),
     meals: state.meals,
   };
-  return saveEntries(entries);
+  const ok = saveEntries(entries);
+  if (!ok) {
+    alert(
+      "Couldn't save that — this browser is blocking storage (common in Private Browsing, or an in-app browser like Messages/Instagram/TikTok's built-in one). Open this link in Safari directly, or from the Home Screen icon, instead."
+    );
+  }
+  return ok;
 }
 
 function rememberFood(name, calories) {
@@ -1093,7 +1099,29 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function storageWorks() {
+  try {
+    const testKey = '__kenna_storage_test__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
 (function init() {
+  if (!storageWorks()) {
+    stepContainer.innerHTML = `
+      <div class="card">
+        <div class="step-title">Storage Is Blocked Here</div>
+        <p class="step-sub">This browser or tab won't let Kenna save anything — nothing you log right now would actually be recorded, even though it looks normal.</p>
+        <p class="step-sub">This almost always means one of two things: you're in Private Browsing, or you opened this link inside another app's built-in browser (Messages, Instagram, TikTok, etc.) instead of Safari itself.</p>
+        <p class="step-sub"><strong>Fix:</strong> open this exact page in Safari directly, then Share &rarr; Add to Home Screen, and always launch it from that Home Screen icon from now on.</p>
+      </div>
+    `;
+    return;
+  }
   foodsLibrary = loadFoods();
   loadEntryForDate(state.date);
   render();
