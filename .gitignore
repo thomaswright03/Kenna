@@ -1,3 +1,4 @@
 node_modules/
 data/*.json
 data/*.json.bak
+data/photos/

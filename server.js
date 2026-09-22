@@ -1,15 +1,20 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const ENTRIES_FILE = path.join(DATA_DIR, 'entries.json');
+const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
+const PHOTOS_FILE = path.join(DATA_DIR, 'photos.json');
 
 const MEAL_KEYS = ['breakfast', 'snack1', 'lunch', 'snack2', 'dinner', 'snack3'];
 
 function ensureDataFiles() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(ENTRIES_FILE)) fs.writeFileSync(ENTRIES_FILE, '{}');
+  if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+  if (!fs.existsSync(PHOTOS_FILE)) fs.writeFileSync(PHOTOS_FILE, '[]');
 }
 
 // Every write keeps the previous file content in a ".bak" sibling first. If
@@ -76,8 +81,9 @@ function isValidDate(str) {
 ensureDataFiles();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '20mb' })); // photo uploads arrive as base64 JSON
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/photos', express.static(PHOTOS_DIR));
 
 // List every logged date with a quick summary, newest first.
 app.get('/api/entries', (req, res) => {
@@ -116,6 +122,45 @@ app.post('/api/entries', (req, res) => {
   writeJson(ENTRIES_FILE, entries);
 
   res.json(entry);
+});
+
+// Progress photos live as real files under data/photos/, with metadata (date,
+// filename, upload time) in photos.json — durable the same way entries.json
+// is, including the .bak self-healing from readJson/writeJson above.
+
+app.get('/api/photos', (req, res) => {
+  const photos = readJson(PHOTOS_FILE);
+  res.json([...photos].sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1)));
+});
+
+app.post('/api/photos', (req, res) => {
+  const { date, dataUrl } = req.body || {};
+  if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
+  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:image\/(\w+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return res.status(400).json({ error: 'Invalid image data' });
+
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1].replace(/[^a-z0-9]/gi, '');
+  const id = crypto.randomUUID();
+  const filename = `${id}.${ext}`;
+  fs.writeFileSync(path.join(PHOTOS_DIR, filename), Buffer.from(match[2], 'base64'));
+
+  const photos = readJson(PHOTOS_FILE);
+  const record = { id, date, filename, uploadedAt: new Date().toISOString() };
+  photos.push(record);
+  writeJson(PHOTOS_FILE, photos);
+
+  res.json(record);
+});
+
+app.delete('/api/photos/:id', (req, res) => {
+  const photos = readJson(PHOTOS_FILE);
+  const idx = photos.findIndex((p) => p.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: 'Not found' });
+  const [removed] = photos.splice(idx, 1);
+  writeJson(PHOTOS_FILE, photos);
+  const filePath = path.join(PHOTOS_DIR, removed.filename);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  res.json({ ok: true });
 });
 
 const PORT = process.env.PORT || 3000;

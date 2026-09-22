@@ -25,12 +25,13 @@ const state = {
   meals: emptyMeals(),
 };
 
-let mode = 'dashboard'; // 'dashboard' | 'log' | 'confirmLog' | 'history' | 'compare'
+let mode = 'dashboard'; // 'dashboard' | 'log' | 'confirmLog' | 'history' | 'compare' | 'photos'
 let logMealKey = MEAL_STEPS[0].key;
 
 const stepContainer = document.getElementById('stepContainer');
 const historyBtn = document.getElementById('historyBtn');
 const compareBtn = document.getElementById('compareBtn');
+const photosBtn = document.getElementById('photosBtn');
 const titleBtn = document.getElementById('titleBtn');
 
 function goDashboard() {
@@ -51,13 +52,21 @@ function goCompare() {
   render();
 }
 
+function goPhotos() {
+  mode = mode === 'photos' ? 'dashboard' : 'photos';
+  updateNav();
+  render();
+}
+
 function updateNav() {
   historyBtn.classList.toggle('active', mode === 'history');
   compareBtn.classList.toggle('active', mode === 'compare');
+  photosBtn.classList.toggle('active', mode === 'photos');
 }
 
 historyBtn.addEventListener('click', goHistory);
 compareBtn.addEventListener('click', goCompare);
+photosBtn.addEventListener('click', goPhotos);
 titleBtn.addEventListener('click', goDashboard);
 
 async function loadEntryForDate(date) {
@@ -119,6 +128,10 @@ function render() {
   }
   if (mode === 'confirmLog') {
     renderConfirmLog();
+    return;
+  }
+  if (mode === 'photos') {
+    renderPhotos();
     return;
   }
   renderDashboard();
@@ -1037,6 +1050,181 @@ function buildLineChart(container, rows, opts) {
     dot.addEventListener('focus', () => showAt(Number(dot.dataset.idx)));
   });
   svg.addEventListener('focusout', hideTooltip);
+}
+
+// --- Progress photos (stored as real files on the server, via /api/photos) ---
+
+function downscaleImageToDataUrl(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = (e) => {
+      URL.revokeObjectURL(url);
+      reject(e);
+    };
+    img.src = url;
+  });
+}
+
+function renderPhotos() {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="step-title">Progress Photos</div>
+    <p class="step-sub">Upload a photo and it's automatically logged under today's date (${todayStr()}). Saved on the server — refreshing or closing the app won't lose it.</p>
+  `;
+  stepContainer.appendChild(card);
+
+  const uploadLabel = document.createElement('label');
+  uploadLabel.className = 'btn btn-primary';
+  uploadLabel.textContent = 'Upload Photo';
+  const uploadInput = document.createElement('input');
+  uploadInput.type = 'file';
+  uploadInput.accept = 'image/*';
+  uploadInput.className = 'import-input';
+  uploadLabel.appendChild(uploadInput);
+  card.appendChild(uploadLabel);
+
+  const statusMsg = document.createElement('p');
+  statusMsg.className = 'field-hint';
+  statusMsg.style.display = 'none';
+  card.appendChild(statusMsg);
+
+  const galleryContainer = document.createElement('div');
+  stepContainer.appendChild(galleryContainer);
+
+  uploadInput.addEventListener('change', async () => {
+    const file = uploadInput.files && uploadInput.files[0];
+    uploadInput.value = '';
+    if (!file) return;
+    statusMsg.textContent = 'Uploading…';
+    statusMsg.style.display = 'block';
+    try {
+      const dataUrl = await downscaleImageToDataUrl(file, 1600);
+      const res = await fetch('/api/photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayStr(), dataUrl }),
+      });
+      if (!res.ok) throw new Error('upload failed');
+      statusMsg.style.display = 'none';
+      await renderPhotoGallery(galleryContainer);
+    } catch (e) {
+      statusMsg.textContent = "Couldn't save that photo — try again.";
+    }
+  });
+
+  renderPhotoGallery(galleryContainer);
+}
+
+async function renderPhotoGallery(container) {
+  container.innerHTML = '<p class="empty-hint">Loading…</p>';
+  let photos;
+  try {
+    const res = await fetch('/api/photos');
+    photos = await res.json();
+  } catch (e) {
+    container.innerHTML = '<p class="empty-hint">Could not load photos.</p>';
+    return;
+  }
+  container.innerHTML = '';
+  if (photos.length === 0) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<p class="empty-hint">No photos yet</p>';
+    container.appendChild(card);
+    return;
+  }
+
+  const groups = [];
+  let currentGroup = null;
+  photos.forEach((p) => {
+    if (!currentGroup || currentGroup.date !== p.date) {
+      currentGroup = { date: p.date, items: [] };
+      groups.push(currentGroup);
+    }
+    currentGroup.items.push(p);
+  });
+
+  groups.forEach((group) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const heading = document.createElement('div');
+    heading.className = 'section-label';
+    heading.textContent = group.date;
+    card.appendChild(heading);
+
+    const grid = document.createElement('div');
+    grid.className = 'photo-grid';
+    card.appendChild(grid);
+
+    group.items.forEach((p) => {
+      const thumbBtn = document.createElement('button');
+      thumbBtn.type = 'button';
+      thumbBtn.className = 'photo-thumb';
+      const img = document.createElement('img');
+      img.src = `/photos/${p.filename}`;
+      thumbBtn.appendChild(img);
+      thumbBtn.addEventListener('click', () => openPhotoViewer(p, () => renderPhotoGallery(container)));
+      grid.appendChild(thumbBtn);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function openPhotoViewer(photo, onDeleted) {
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-viewer';
+
+  const img = document.createElement('img');
+  img.src = `/photos/${photo.filename}`;
+  overlay.appendChild(img);
+
+  const bar = document.createElement('div');
+  bar.className = 'photo-viewer-bar';
+  const dateLabel = document.createElement('span');
+  dateLabel.textContent = photo.date;
+  bar.appendChild(dateLabel);
+
+  function close() {
+    document.body.removeChild(overlay);
+  }
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.type = 'button';
+  deleteBtn.className = 'btn btn-secondary';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.addEventListener('click', async () => {
+    await fetch(`/api/photos/${photo.id}`, { method: 'DELETE' });
+    close();
+    onDeleted();
+  });
+  bar.appendChild(deleteBtn);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'btn btn-secondary';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', close);
+  bar.appendChild(closeBtn);
+
+  overlay.appendChild(bar);
+  document.body.appendChild(overlay);
 }
 
 (async function init() {

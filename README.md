@@ -17,6 +17,14 @@ leave the field. Tapping **Done** shows a **Confirm** screen listing what
 you've logged for the day before returning to the dashboard, so nothing gets
 lost by accident.
 
+A **Photos** tab lets you upload progress pictures — each one is automatically
+logged under the date you uploaded it (no separate date field to fill in) and
+grouped by date in a gallery. Tap a photo to view it full-size or delete it.
+Photos are saved on-device (via IndexedDB, not localStorage — photos are far
+bigger than localStorage's quota allows for) or on the server, matching
+whichever version you're using; either way they survive a refresh or closing
+and reopening the app.
+
 A **History** tab lists every past day with its total calories and weight.
 
 A **Compare** tab shows today's weight, total calories, and calories for each
