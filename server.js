@@ -136,13 +136,20 @@ app.get('/api/photos', (req, res) => {
 app.post('/api/photos', (req, res) => {
   const { date, dataUrl } = req.body || {};
   if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
-  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:image\/(\w+);base64,([A-Za-z0-9+/=]+)$/);
+  // Usually "data:image/heic;base64,..." from the client's downscale step,
+  // but its fallback path (when the browser can't decode/re-encode a format
+  // in canvas, which can happen with HEIC photos from an iPhone library) reads
+  // the original file as-is, which can carry an empty or generic MIME type —
+  // so the MIME segment here is optional and defaults to a plain ".jpg".
+  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:(?:([\w.+-]+)\/([\w.+-]+))?;base64,([A-Za-z0-9+/=]+)$/);
   if (!match) return res.status(400).json({ error: 'Invalid image data' });
 
-  const ext = match[1] === 'jpeg' ? 'jpg' : match[1].replace(/[^a-z0-9]/gi, '');
+  const [, type, subtype, base64] = match;
+  const looksLikeImage = type === 'image' && /^[a-z0-9]+$/i.test(subtype);
+  const ext = looksLikeImage ? (subtype === 'jpeg' ? 'jpg' : subtype) : 'jpg';
   const id = crypto.randomUUID();
   const filename = `${id}.${ext}`;
-  fs.writeFileSync(path.join(PHOTOS_DIR, filename), Buffer.from(match[2], 'base64'));
+  fs.writeFileSync(path.join(PHOTOS_DIR, filename), Buffer.from(base64, 'base64'));
 
   const photos = readJson(PHOTOS_FILE);
   const record = { id, date, filename, uploadedAt: new Date().toISOString() };

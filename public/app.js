@@ -1054,8 +1054,22 @@ function buildLineChart(container, rows, opts) {
 
 // --- Progress photos (stored as real files on the server, via /api/photos) ---
 
-function downscaleImageToDataUrl(file, maxDim) {
+function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Downscales and re-encodes before uploading, so a multi-megabyte phone photo
+// doesn't send an oversized payload. Photos picked from an iPhone's library
+// are frequently HEIC — Safari itself decodes that fine here, but on the off
+// chance the browser can't decode/re-encode a given format, fall back to
+// uploading the original file untouched rather than losing the upload.
+function downscaleImageToDataUrl(file, maxDim) {
+  return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -1072,9 +1086,9 @@ function downscaleImageToDataUrl(file, maxDim) {
       URL.revokeObjectURL(url);
       resolve(canvas.toDataURL('image/jpeg', 0.85));
     };
-    img.onerror = (e) => {
+    img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(e);
+      fileToDataUrl(file).then(resolve);
     };
     img.src = url;
   });
@@ -1094,7 +1108,10 @@ function renderPhotos() {
   uploadLabel.textContent = 'Upload Photo';
   const uploadInput = document.createElement('input');
   uploadInput.type = 'file';
-  uploadInput.accept = 'image/*';
+  // Explicit .heic/.heif alongside image/* — iOS's "Browse" photo source
+  // (as opposed to the direct Photo Library picker) can otherwise filter
+  // out HEIC photos, the default format iPhones save camera photos in.
+  uploadInput.accept = 'image/*,.heic,.heif';
   uploadInput.className = 'import-input';
   uploadLabel.appendChild(uploadInput);
   card.appendChild(uploadLabel);

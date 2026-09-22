@@ -1161,9 +1161,13 @@ function deletePhoto(id) {
 }
 
 // Downscales and re-encodes before storing, so a multi-megabyte phone photo
-// doesn't eat through storage in a handful of uploads.
+// doesn't eat through storage in a handful of uploads. Photos picked from an
+// iPhone's library are frequently HEIC — Safari itself decodes that fine here,
+// but on the off chance the browser can't decode/re-encode a given format,
+// fall back to storing the original file untouched rather than losing the
+// upload entirely.
 function downscaleImage(file, maxDim) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -1178,15 +1182,11 @@ function downscaleImage(file, maxDim) {
       canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
       URL.revokeObjectURL(url);
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
-        'image/jpeg',
-        0.85
-      );
+      canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.85);
     };
-    img.onerror = (e) => {
+    img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(e);
+      resolve(file);
     };
     img.src = url;
   });
@@ -1218,7 +1218,10 @@ function renderPhotos() {
   uploadLabel.textContent = 'Upload Photo';
   const uploadInput = document.createElement('input');
   uploadInput.type = 'file';
-  uploadInput.accept = 'image/*';
+  // Explicit .heic/.heif alongside image/* — iOS's "Browse" photo source
+  // (as opposed to the direct Photo Library picker) can otherwise filter
+  // out HEIC photos, the default format iPhones save camera photos in.
+  uploadInput.accept = 'image/*,.heic,.heif';
   uploadInput.className = 'import-input';
   uploadLabel.appendChild(uploadInput);
   card.appendChild(uploadLabel);
