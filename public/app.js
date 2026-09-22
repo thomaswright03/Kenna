@@ -340,6 +340,11 @@ function renderLogFood() {
   listEl.className = 'food-list';
   card.appendChild(listEl);
 
+  const doneHint = document.createElement('p');
+  doneHint.className = 'field-hint';
+  doneHint.textContent = 'Tap + Add Food above before you can finish — filling in the fields alone doesn’t save anything.';
+  card.appendChild(doneHint);
+
   const doneBtn = document.createElement('button');
   doneBtn.className = 'btn btn-primary';
   doneBtn.type = 'button';
@@ -348,6 +353,12 @@ function renderLogFood() {
   card.appendChild(doneBtn);
 
   stepContainer.appendChild(card);
+
+  function updateDoneState() {
+    const hasAnyFood = MEAL_STEPS.some((m) => state.meals[m.key].length > 0);
+    doneBtn.disabled = !hasAnyFood;
+    doneHint.style.display = hasAnyFood ? 'none' : 'block';
+  }
 
   function renderMealPicker() {
     mealPicker.innerHTML = '';
@@ -399,6 +410,7 @@ function renderLogFood() {
         await persistEntry();
         renderFoodList();
         renderMealPicker();
+        updateDoneState();
       });
 
       row.appendChild(info);
@@ -439,10 +451,12 @@ function renderLogFood() {
     nameInput.focus();
     renderFoodList();
     renderMealPicker();
+    updateDoneState();
   });
 
   renderMealPicker();
   renderFoodList();
+  updateDoneState();
 }
 
 async function renderHistory() {

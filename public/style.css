@@ -197,6 +197,13 @@ input:focus, select:focus {
 
 .btn-primary:active { background: var(--accent-dark); }
 
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-primary:disabled:active { background: var(--accent); }
+
 .btn-secondary {
   background: var(--card-2);
   color: var(--text);
