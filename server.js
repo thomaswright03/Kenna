@@ -85,6 +85,8 @@ function requireDate(date) {
 // a time zone ahead of it, so that's tomorrow on the server's clock.
 const latestDay = () => core.shiftDate(core.todayStr(), 1);
 
+const FUTURE_PHOTO = "A photo can't be filed under a day that hasn't happened yet.";
+
 function requireNotFuture(date, message) {
   if (core.isFutureDate(date, latestDay())) throw new ApiError(400, message);
 }
@@ -252,6 +254,7 @@ function createApp(options) {
   app.post('/api/photos', (req, res) => {
     const { date, dataUrl, createdAt, thumbDataUrl } = req.body || {};
     requireDate(date);
+    requireNotFuture(date, FUTURE_PHOTO);
     if (createdAt !== undefined && (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)))) {
       throw new ApiError(400, 'The photo upload time is not a valid time.');
     }
@@ -303,7 +306,7 @@ function createApp(options) {
   app.patch('/api/photos/:id', (req, res) => {
     const date = req.body && req.body.date;
     requireDate(date);
-    requireNotFuture(date, "A photo can't be filed under a day that hasn't happened yet.");
+    requireNotFuture(date, FUTURE_PHOTO);
     const photos = store.readPhotos();
     const photo = photos.find((p) => p && p.id === req.params.id);
     if (!photo) throw new ApiError(404, 'That photo no longer exists.');

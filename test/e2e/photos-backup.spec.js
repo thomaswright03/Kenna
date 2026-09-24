@@ -123,6 +123,26 @@ test('a malformed backup is rejected and changes nothing', async ({ page, appURL
   await expect(page.locator('.history-item')).toContainText('700 cal');
 });
 
+test('photos in a backup dated after today are left out, and the import says so', async ({ page, appURL }, testInfo) => {
+  const file = testInfo.outputPath('future.json');
+  const photo = (date, createdAt) => ({ date, createdAt, type: 'image/png', data: PNG.toString('base64') });
+  fs.writeFileSync(
+    file,
+    JSON.stringify({
+      app: 'kenna',
+      version: 2,
+      entries: { '2026-09-20': day('2026-09-20', { dinner: 700 }) },
+      photos: [photo('2026-09-20', '2026-09-20T08:00:00.000Z'), photo('2031-01-01', '2031-01-01T08:00:00.000Z')],
+    })
+  );
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByText('Restored 1 day and 1 photo. 1 photo dated after today was left out.', { exact: true })).toBeVisible();
+  await page.goto(`${appURL}/#/photos`);
+  await expect(page.locator('.photo-thumb')).toHaveCount(1);
+});
+
 test('a photo can be filed under an earlier day and moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
   await page.goto(`${appURL}/#/photos`);
   const day = page.getByLabel('Day this photo was taken');

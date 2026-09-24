@@ -290,20 +290,23 @@ export function buildBackupSection() {
       // Second pass: add the photos one at a time.
       let added = 0;
       let skipped = 0;
+      let futurePhotos = 0;
       if (checked.photoCount > 0) {
         setProgress(0, checked.photoCount);
         const importer = await store.createPhotoImporter();
         await backupFile.forEachBackupPhoto(file, async (photo, n) => {
-          if (await importer.add(photo)) added += 1;
+          // A photo dated after today (a wrong clock) is left out, like such days.
+          if (core.isFutureDate(photo.date, today())) futurePhotos += 1;
+          else if (await importer.add(photo)) added += 1;
           else skipped += 1;
           setMessage('pending', `Restoring photos: ${n} of ${checked.photoCount}…`);
           setProgress(n, checked.photoCount);
         });
       }
       const skippedNote = skipped ? ` ${plural(skipped, 'photo')} ${skipped === 1 ? 'was' : 'were'} already here.` : '';
-      const futureNote = checked.futureDays
-        ? ` ${plural(checked.futureDays, 'day')} dated after today ${checked.futureDays === 1 ? 'was' : 'were'} left out.`
-        : '';
+      const leftOut = [checked.futureDays ? plural(checked.futureDays, 'day') : '', futurePhotos ? plural(futurePhotos, 'photo') : ''].filter(Boolean);
+      const leftOutCount = checked.futureDays + futurePhotos;
+      const futureNote = leftOut.length ? ` ${leftOut.join(' and ')} dated after today ${leftOutCount === 1 ? 'was' : 'were'} left out.` : '';
       setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}${futureNote}`);
     } catch (err) {
       setMessage('error', `Import stopped. ${errorText(err)} Days already restored are kept; importing the file again adds the photos that are missing.`);

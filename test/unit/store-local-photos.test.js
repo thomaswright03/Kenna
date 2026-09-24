@@ -131,3 +131,9 @@ test('importing skips photos already here, matched by the time they were first a
   assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-18T08:00:00.000Z', type: 'image/jpeg', data }), false);
   assert.equal((await store.listPhotos()).length, 2);
 });
+
+test('a photo cannot be filed under a day that has not happened yet', async () => {
+  const store = makeStore(new IDBFactory());
+  await assert.rejects(store.addPhoto({ date: '2999-01-01', blob: new Blob([JPEG(1)]) }), /hasn't happened yet/);
+  assert.equal(await store.countPhotos(), 0);
+});

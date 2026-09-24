@@ -369,6 +369,8 @@
 
     /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     async function addPhoto(photo) {
+      if (!core.isValidDateStr(photo.date)) throw new Error('Pick a valid day for this photo.');
+      if (core.isFutureDate(photo.date)) throw new Error("A photo can't be filed under a day that hasn't happened yet.");
       const { bytes, type } = await bytesOf(photo.blob);
       const record = { date: photo.date, bytes, type, createdAt: photo.createdAt || new Date().toISOString() };
       const id = Number(await photosTx((s) => s.add(record), 'readwrite'));

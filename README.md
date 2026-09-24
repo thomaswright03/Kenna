@@ -50,7 +50,8 @@ How the numbers work:
   read as the whole number.
 - A day after today can't be logged, whether picked, typed into the address
   bar or sent to the server's API (the server allows one day ahead of its
-  own clock, for a phone in a time zone ahead of it). A backup's days dated
+  own clock, for a phone in a time zone ahead of it). The same goes for filing a photo, on
+  the phone and through the server's API. A backup's days and photos dated
   after today are left out on import, and the import says how many. An
   address that doesn't lead anywhere opens Today and is replaced by Today's
   address.

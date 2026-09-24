@@ -258,3 +258,11 @@ test('photos keep a small preview, given on upload or added later, and removed w
   await call('DELETE', `/api/photos/${withThumb.json.id}`);
   assert.equal(fs.existsSync(path.join(dataDir, 'photos', withThumb.json.thumbFilename)), false);
 });
+
+test('a photo cannot be uploaded under a day that has not happened yet', async (t) => {
+  const { call } = await startServer(t);
+  const res = await call('POST', '/api/photos', { date: '2031-01-01', dataUrl: `data:image/png;base64,${PNG_1PX}` });
+  assert.equal(res.status, 400);
+  assert.equal(res.json.error, "A photo can't be filed under a day that hasn't happened yet.");
+  assert.deepEqual((await call('GET', '/api/photos')).json, []);
+});
