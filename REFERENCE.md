@@ -234,17 +234,17 @@ Days are stored in the browser's `localStorage` and photos in its IndexedDB,
 on that device only. On first launch the app asks the browser to keep this
 data even when the device runs low on space (Settings shows the answer
 where the browser supports asking). Every day is kept under the key
-`kenna:entries`, as every version of Kenna has stored it. So that a save
-doesn't rewrite years of history, a save writes only the days changed
-since, under `kenna:entries:recent`; those are folded into `kenna:entries`
-when Kenna is put away (another app, the phone locked, the page closed),
-when it starts, when a backup is restored, and once more than 40 days have
-piled up. The changes are marked with the length and a fingerprint of the
-`kenna:entries` they were made on, so changes left over days that another
-version of the app has changed since (after a rollback) are set aside as
-damaged data rather than applied over newer days, even when the days
-changed keep the same length. Both keys keep an automatic copy, and if the
-stored data is ever found damaged the app restores that copy and tells you.
+`kenna:entries`, as every version of Kenna has stored it, and every save
+writes the whole history there (ten years of days is well under a
+megabyte) along with an automatic copy under `kenna:entries:backup`. If
+the stored data is ever found damaged the app restores that copy and
+tells you. An earlier version saved changed days separately, under
+`kenna:entries:recent`; any such changes still on the phone are folded
+into `kenna:entries` the first time Kenna reads the days. They were marked
+with the length and a fingerprint of the `kenna:entries` they were made
+on, so changes left over days that another version of the app has changed
+since (after a rollback) are set aside as damaged data rather than applied
+over newer days.
 The damaged data itself is kept aside (the two most recent damaged copies,
 never more), and Settings then shows a card to **Download damaged data**
 as a file or **Delete damaged data**.

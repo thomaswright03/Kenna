@@ -152,8 +152,7 @@ Rolling back: `git revert` the commit(s) that caused the problem on a new
 branch, merge that through a pull request once both checks pass, and Pages redeploys the previous files. User data is never
 part of a deploy, so a rollback doesn't touch anyone's logged days or photos;
 the app reads every older storage format, and an older version still finds
-every day (the newest version folds the days saved in a visit into the
-format every version reads whenever the app is put away).
+every day (every save writes all the days in the format every version reads).
 
 ## Who looks after it
 

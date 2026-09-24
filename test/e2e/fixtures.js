@@ -84,19 +84,9 @@ const test = base.test.extend({
   },
 
   // Reads and writes the stored days in the page's localStorage: every day
-  // under kenna:entries, and the days saved since they were last folded in
-  // under kenna:entries:recent (see docs/store/entries.js).
+  // is under kenna:entries (see docs/store/entries.js).
   data: async ({ appURL, page }, use) => {
-    const all = () =>
-      page.evaluate(() => {
-        const days = JSON.parse(localStorage.getItem('kenna:entries') || '{}');
-        const recent = JSON.parse(localStorage.getItem('kenna:entries:recent') || 'null');
-        for (const [date, value] of Object.entries(recent ? recent.days : {})) {
-          if (value === null) delete days[date];
-          else days[date] = value;
-        }
-        return days;
-      });
+    const all = () => page.evaluate(() => JSON.parse(localStorage.getItem('kenna:entries') || '{}'));
     await use({
       async seed(entries) {
         await page.goto(appURL);

@@ -5,7 +5,7 @@ async function breakSaving(page) {
   await page.evaluate(() => {
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'kenna:entries' || key === 'kenna:entries:recent') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      if (key === 'kenna:entries' || key === 'kenna:entries:backup') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
       return setItem.call(this, key, value);
     };
   });

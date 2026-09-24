@@ -29,7 +29,6 @@
  * @property {() => Promise<Record<string, Entry>>} loadEntries
  * @property {(date: string) => Promise<Entry | null>} getEntry
  * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
- * @property {() => Promise<boolean>} settle folds the days saved since into the stored history (done when the app is put away); true when anything was written
  * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries replaces the given days, first keeping the days it replaces so undoImport can put them back
  * @property {() => Promise<number>} undoImport puts the days the last import replaced back as they were (and removes days it added)
  * @property {() => Promise<Photo[]>} listPhotos every photo's details, newest first (no images)
@@ -54,7 +53,7 @@
 
 const { StorageWriteError, blockedStorage } = require('./store/common.js');
 const { DamagedCopies, CORRUPT_KEY, MAX_CORRUPT_COPIES } = require('./store/damaged.js');
-const { DayStore, ENTRIES_KEY, BACKUP_KEY, UNDO_IMPORT_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS } = require('./store/entries.js');
+const { DayStore, ENTRIES_KEY, BACKUP_KEY, UNDO_IMPORT_KEY, RECENT_KEY, RECENT_BACKUP_KEY } = require('./store/entries.js');
 const { PhotoStore, HIDDEN_PHOTOS_KEY } = require('./store/photos.js');
 const { guardPhotos } = require('./store/photo-db.js');
 const device = require('./store/device.js');
@@ -75,7 +74,6 @@ function dayMethods(days, damaged) {
     /** @param {Record<string, Entry>} entries */
     importEntries: async (entries) => days.importEntries(entries),
     undoImport: async () => days.undoImport(),
-    settle: async () => days.settle(),
     damagedCopies: async () => damaged.list(),
     deleteDamagedCopies: async () => damaged.deleteAll(),
   };
@@ -124,8 +122,7 @@ function createLocalStore(options) {
 
   async function init() {
     if (!device.storageWorks(storage)) return { ok: false, reason: 'blocked' };
-    days.readRaw(); // surfaces any recovery notice straight away
-    days.settle();
+    days.readRaw(); // surfaces any recovery notice straight away, and folds in what an earlier version left
     // Photos deleted in an earlier visit, whose Undo has gone with it.
     if (photos.hidden().size) guardPhotos('write', () => photos.eraseHidden()).catch(() => undefined);
     return { ok: true };
@@ -148,7 +145,6 @@ module.exports = Object.freeze({
   BACKUP_KEY,
   RECENT_KEY,
   RECENT_BACKUP_KEY,
-  MAX_RECENT_DAYS,
   CORRUPT_KEY,
   UNDO_IMPORT_KEY,
   MAX_CORRUPT_COPIES,

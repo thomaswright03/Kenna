@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createLocalStore, ENTRIES_KEY, BACKUP_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS, CORRUPT_KEY } = require('../../docs/store-local.js');
+const { createLocalStore, ENTRIES_KEY, BACKUP_KEY, RECENT_KEY, RECENT_BACKUP_KEY, CORRUPT_KEY } = require('../../docs/store-local.js');
+const { textHash } = require('../../docs/store/entries.js');
 
 function fakeStorage(initial = {}, { failWrites = false } = {}) {
   const data = new Map(Object.entries(initial));
@@ -49,18 +50,14 @@ test('a day with nothing left in it is removed instead of lingering as an empty 
   assert.deepEqual(await store.loadEntries(), {});
 });
 
-test('each save keeps the previous changes as an automatic copy, and folding keeps a copy of every day', async () => {
+test('each save writes every day, with an automatic copy', async () => {
   const storage = fakeStorage();
   const { store } = makeStore(storage);
   await store.updateEntry('2026-09-23', { weight: 181 });
   await store.updateEntry('2026-09-24', { weight: 180 });
-  assert.deepEqual(Object.keys(JSON.parse(storage.getItem(RECENT_BACKUP_KEY)).days), ['2026-09-23']);
-  assert.equal(await store.settle(), true);
   assert.deepEqual(Object.keys(JSON.parse(storage.getItem(ENTRIES_KEY))), ['2026-09-23', '2026-09-24']);
   assert.equal(storage.getItem(BACKUP_KEY), storage.getItem(ENTRIES_KEY));
   assert.equal(storage.getItem(RECENT_KEY), null);
-  assert.equal(storage.getItem(RECENT_BACKUP_KEY), null);
-  assert.equal(await store.settle(), false, 'nothing left to fold');
 });
 
 /** A history of `days` days before Sep 24, 2026, as ENTRIES_KEY holds it. */
@@ -73,78 +70,80 @@ function history(days) {
   return all;
 }
 
-test('a save writes only the days changed since the last fold, however many years are logged', async () => {
-  const written = {};
-  for (const [label, days] of [['a month', 30], ['ten years', 3650]]) {
-    const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(history(days)) });
-    const before = storage.getItem(ENTRIES_KEY);
-    const { store } = makeStore(storage);
-    const setItem = storage.setItem;
-    let bytes = 0;
-    storage.setItem = (k, v) => {
-      bytes += String(v).length;
-      setItem(k, v);
-    };
-    await store.updateEntry('2026-09-24', { meals: { lunch: 600 } });
-    await store.updateEntry('2026-09-24', { meals: { dinner: 700 } });
-    written[label] = bytes;
-    assert.equal(storage.getItem(ENTRIES_KEY), before, `${label}: the whole history isn't rewritten`);
-    const entries = await store.loadEntries();
-    assert.equal(Object.keys(entries).length, days + 1);
-    assert.equal(entries['2026-09-24'].meals.dinner, 700);
-  }
-  // The same, give or take the digits of the history's length.
-  assert.ok(Math.abs(written['ten years'] - written['a month']) < 20, JSON.stringify(written));
-  assert.ok(written['ten years'] < 1000, `${written['ten years']} bytes`);
-});
-
-test('changes pile up to a limit, then the next save folds them in', async () => {
-  const storage = fakeStorage();
+test('with ten years logged, a save keeps every day and the history stays well under a megabyte', async () => {
+  const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(history(3650)) });
   const { store } = makeStore(storage);
-  for (let i = 1; i <= MAX_RECENT_DAYS; i += 1) {
-    await store.updateEntry(new Date(Date.UTC(2026, 7, i)).toISOString().slice(0, 10), { weight: 180 });
-  }
-  assert.equal(storage.getItem(ENTRIES_KEY), null);
-  await store.updateEntry('2026-09-24', { weight: 179 });
-  assert.equal(Object.keys(JSON.parse(storage.getItem(ENTRIES_KEY))).length, MAX_RECENT_DAYS + 1);
-  assert.equal(storage.getItem(RECENT_KEY), null);
+  await store.updateEntry('2026-09-24', { meals: { lunch: 600 } });
+  await store.updateEntry('2026-09-24', { meals: { dinner: 700 } });
+  const stored = JSON.parse(storage.getItem(ENTRIES_KEY));
+  assert.equal(Object.keys(stored).length, 3651);
+  assert.equal(stored['2026-09-24'].meals.dinner, 700);
+  assert.ok(storage.getItem(ENTRIES_KEY).length < 1024 * 1024, `${storage.getItem(ENTRIES_KEY).length} characters`);
+  const entries = await makeStore(storage).store.loadEntries();
+  assert.equal(entries['2026-09-24'].meals.lunch, 600);
 });
 
-test('a day removed since the last fold stays removed, and an older version reads every day once folded', async () => {
+test('a day with nothing left in it is removed from what an older version reads too', async () => {
   const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(history(3)) });
   const { store } = makeStore(storage);
   await store.updateEntry('2026-09-23', { weight: null, meals: { breakfast: null, lunch: null, dinner: null } });
   assert.equal(await store.getEntry('2026-09-23'), null);
-  assert.deepEqual(Object.keys(await store.loadEntries()).sort(), ['2026-09-21', '2026-09-22']);
-  // Starting again folds what an earlier visit left.
-  await makeStore(storage).store.init();
   assert.deepEqual(Object.keys(JSON.parse(storage.getItem(ENTRIES_KEY))).sort(), ['2026-09-21', '2026-09-22']);
 });
 
-test('damaged recent changes are restored from their copy', async () => {
-  const storage = fakeStorage();
-  const { store } = makeStore(storage);
-  await store.updateEntry('2026-09-23', { weight: 181 });
-  await store.updateEntry('2026-09-24', { weight: 180 });
-  storage.setItem(RECENT_KEY, '{"base": 0, "da');
+/**
+ * Changes an earlier version left under RECENT_KEY, made on top of the
+ * ENTRIES_KEY text `on` (null for none).
+ * @param {string | null} on
+ * @param {Record<string, unknown>} days
+ */
+function leftChanges(on, days) {
+  return JSON.stringify({ base: on === null ? 0 : on.length, hash: on === null ? '' : textHash(on), days });
+}
+
+test('changes an earlier version left unfolded are folded in when the days are first read', async () => {
+  const text = JSON.stringify(history(3));
+  const storage = fakeStorage({
+    [ENTRIES_KEY]: text,
+    [BACKUP_KEY]: text,
+    [RECENT_KEY]: leftChanges(text, { '2026-09-23': null, '2026-09-24': { date: '2026-09-24', weight: 179, meals: {} } }),
+    [RECENT_BACKUP_KEY]: leftChanges(text, { '2026-09-23': null }),
+  });
+  const { store, notices } = makeStore(storage);
+  await store.init();
+  assert.deepEqual(Object.keys(JSON.parse(storage.getItem(ENTRIES_KEY))).sort(), ['2026-09-21', '2026-09-22', '2026-09-24']);
+  assert.equal(storage.getItem(BACKUP_KEY), storage.getItem(ENTRIES_KEY));
+  assert.equal(storage.getItem(RECENT_KEY), null);
+  assert.equal(storage.getItem(RECENT_BACKUP_KEY), null);
+  assert.equal((await store.getEntry('2026-09-24')).weight, 179);
+  assert.equal(notices.length, 0);
+
+  // Left over a history that didn't exist yet, too.
+  const empty = fakeStorage({ [RECENT_KEY]: leftChanges(null, { '2026-09-24': { date: '2026-09-24', weight: 178, meals: {} } }) });
+  assert.equal((await makeStore(empty).store.getEntry('2026-09-24')).weight, 178);
+  assert.equal(empty.getItem(RECENT_KEY), null);
+});
+
+test('damaged changes an earlier version left are restored from their copy', async () => {
+  const storage = fakeStorage({
+    [RECENT_KEY]: '{"base": 0, "da',
+    [RECENT_BACKUP_KEY]: leftChanges(null, { '2026-09-23': { date: '2026-09-23', weight: 181, meals: {} } }),
+  });
   const again = makeStore(storage);
   const entries = await again.store.loadEntries();
   assert.equal(entries['2026-09-23'].weight, 181);
-  assert.equal(entries['2026-09-24'], undefined, 'only the very last change is missing');
   assert.equal(again.notices[0].tone, 'warning');
   assert.deepEqual(
     (await again.store.damagedCopies()).map((c) => c.text),
     ['{"base": 0, "da']
   );
+  assert.equal(storage.getItem(RECENT_KEY), null);
 });
 
 test('changes left on top of days another version has changed since are set aside, not applied', async () => {
-  const storage = fakeStorage();
-  const { store } = makeStore(storage);
-  await store.updateEntry('2026-09-23', { weight: 181 });
-  const left = storage.getItem(RECENT_KEY);
-  // An older version (after a rollback) knows only ENTRIES_KEY, and saves there.
-  storage.setItem(ENTRIES_KEY, JSON.stringify(history(2)));
+  const left = leftChanges(null, { '2026-09-23': { date: '2026-09-23', weight: 181, meals: {} } });
+  // An older version (after a rollback) knows only ENTRIES_KEY, and saved there.
+  const storage = fakeStorage({ [RECENT_KEY]: left, [ENTRIES_KEY]: JSON.stringify(history(2)) });
   const again = makeStore(storage);
   const entries = await again.store.loadEntries();
   assert.equal(entries['2026-09-23'].weight, history(2)['2026-09-23'].weight);
@@ -158,15 +157,13 @@ test('changes left on top of days another version has changed since are set asid
 
 test('changes are set aside when every day was replaced by different days of exactly the same length', async () => {
   const days = history(2);
-  const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(days) });
-  const { store } = makeStore(storage);
-  await store.updateEntry('2026-09-24', { weight: 179 });
-  const left = storage.getItem(RECENT_KEY);
-  // An older version changes one weight for another of the same width.
-  const changed = JSON.stringify(days).replace('"weight":180.1', '"weight":180.9');
-  assert.notEqual(changed, storage.getItem(ENTRIES_KEY));
-  assert.equal(changed.length, storage.getItem(ENTRIES_KEY).length);
-  storage.setItem(ENTRIES_KEY, changed);
+  const text = JSON.stringify(days);
+  const left = leftChanges(text, { '2026-09-24': { date: '2026-09-24', weight: 179, meals: {} } });
+  // An older version changed one weight for another of the same width.
+  const changed = text.replace('"weight":180.1', '"weight":180.9');
+  assert.notEqual(changed, text);
+  assert.equal(changed.length, text.length);
+  const storage = fakeStorage({ [ENTRIES_KEY]: changed, [RECENT_KEY]: left });
   const again = makeStore(storage);
   const entries = await again.store.loadEntries();
   assert.equal(entries['2026-09-23'].weight, 180.9);
@@ -191,16 +188,16 @@ test('changes written before they were marked with more than a length still appl
   assert.equal(again.notices.length, 0);
 });
 
-test('days recovered from their copy keep the changes made since', async () => {
-  const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(history(2)) });
-  const { store } = makeStore(storage);
-  await store.updateEntry('2026-09-21', { weight: 182 });
-  await store.settle();
-  await store.updateEntry('2026-09-24', { weight: 179 });
-  storage.setItem(ENTRIES_KEY, '{damaged');
+test('days recovered from their copy keep the changes an earlier version left since', async () => {
+  const text = JSON.stringify(history(2));
+  const storage = fakeStorage({
+    [ENTRIES_KEY]: '{damaged',
+    [BACKUP_KEY]: text,
+    [RECENT_KEY]: leftChanges('{damaged', { '2026-09-24': { date: '2026-09-24', weight: 179, meals: {} } }),
+  });
   const again = makeStore(storage);
   const entries = await again.store.loadEntries();
-  assert.deepEqual(Object.keys(entries).sort(), ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24']);
+  assert.deepEqual(Object.keys(entries).sort(), ['2026-09-22', '2026-09-23', '2026-09-24']);
   assert.equal(entries['2026-09-24'].weight, 179);
   assert.equal(again.notices[0].tone, 'warning');
   assert.equal(storage.getItem(RECENT_KEY), null, 'folded in straight away');
@@ -249,7 +246,6 @@ test('malformed stored days are skipped when reading but never deleted by a save
   const { store } = makeStore(storage);
   assert.deepEqual(Object.keys(await store.loadEntries()), ['2026-09-21']);
   await store.updateEntry('2026-09-24', { weight: 180 });
-  await store.settle();
   const raw = JSON.parse(storage.getItem(ENTRIES_KEY));
   assert.deepEqual(raw[''], { weight: 150 });
   assert.equal(raw['2026-09-20'], 'junk');
@@ -262,6 +258,25 @@ test('legacy per-food meal arrays are still read correctly', async () => {
   const { store } = makeStore(storage);
   const entry = await store.getEntry('2025-01-01');
   assert.equal(entry.meals.lunch, 300);
+});
+
+test('a save the browser refuses leaves the days and their copy as they were', async () => {
+  const text = JSON.stringify(history(2));
+  const storage = fakeStorage({ [ENTRIES_KEY]: text, [BACKUP_KEY]: text });
+  const setItem = storage.setItem;
+  storage.setItem = (k, v) => {
+    if (k === ENTRIES_KEY) {
+      const err = new Error('quota');
+      err.name = 'QuotaExceededError';
+      throw err;
+    }
+    setItem(k, v);
+  };
+  const { store } = makeStore(storage);
+  await assert.rejects(store.updateEntry('2026-09-24', { weight: 180 }), /no room left/);
+  assert.equal(storage.getItem(ENTRIES_KEY), text);
+  assert.equal(storage.getItem(BACKUP_KEY), text);
+  assert.equal(await store.getEntry('2026-09-24'), null);
 });
 
 test('saves to an invalid date are refused', async () => {
@@ -331,7 +346,6 @@ test('an import can be undone: replaced days come back exactly, added days go', 
   const storage = fakeStorage();
   const { store } = makeStore(storage);
   await store.updateEntry('2026-09-24', { meals: { breakfast: 700 } });
-  await store.settle();
   // A day stored by the first version, exactly as it was written then.
   const legacy = { date: '2026-09-01', weight: 165.333, meals: { lunch: [{ calories: 600, percent: 50 }] } };
   const raw = JSON.parse(storage.getItem(ENTRIES_KEY));

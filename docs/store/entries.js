@@ -1,23 +1,22 @@
 // The days, in localStorage.
 //
 // Every day is kept under ENTRIES_KEY, as every version of Kenna has
-// stored it. So that a save doesn't rewrite years of history, a save
-// writes only the days changed since then, under RECENT_KEY
-// ({ base, hash, days: { date: day or null for removed } }); they're
-// folded into ENTRIES_KEY when the app is put away or closed (settle),
-// when it starts, when an import rewrites the days anyway, and once
-// more than MAX_RECENT_DAYS have piled up. `base` and `hash` are the
-// length and a hash of the ENTRIES_KEY text the changes were made on
-// top of, so they're applied only on top of exactly that text: changes
-// left by a version that knew nothing of them (after a rollback) are
-// never applied over newer days, even of the same length; they're kept
-// as a damaged copy instead. (The first versions of this wrote `base`
-// alone; their changes are matched by length.)
+// stored it, and every save writes the whole history there (ten years of
+// days is well under a megabyte), with an automatic copy under BACKUP_KEY.
+// If the stored days are ever unreadable, we restore from that copy
+// instead of treating the history as empty; if both are unreadable, the
+// damaged text is kept (damaged.js) so the next save can't erase what's
+// left.
 //
-// Each key has an automatic copy (":backup"). If a stored value is
-// ever unreadable, we restore from that copy instead of treating the
-// history as empty; if both are unreadable, the damaged text is kept
-// (damaged.js) so the next save can't erase what's left.
+// An earlier version wrote a save's changed days under RECENT_KEY instead
+// ({ base, hash, days: { date: day or null for removed } }, with its own
+// copy), folding them into ENTRIES_KEY later. Such changes, if any are
+// left, are folded in the first time the days are read. `base` and `hash`
+// are the length and a hash of the ENTRIES_KEY text they were made on top
+// of, so they're applied only on top of exactly that text: changes left
+// before a version that knew nothing of them saved newer days are never
+// applied over those; they're kept as a damaged copy instead. (The first
+// of those versions wrote `base` alone; its changes are matched by length.)
 'use strict';
 
 const core = require('../core.js');
@@ -35,9 +34,6 @@ const BACKUP_KEY = `${ENTRIES_KEY}:backup`;
 const UNDO_IMPORT_KEY = `${ENTRIES_KEY}:before-import`;
 const RECENT_KEY = `${ENTRIES_KEY}:recent`;
 const RECENT_BACKUP_KEY = `${RECENT_KEY}:backup`;
-// Days changed since they were last folded into ENTRIES_KEY, at most:
-// past this many, the next save folds them in.
-const MAX_RECENT_DAYS = 40;
 
 const NOTICES = {
   restored:
@@ -51,22 +47,21 @@ const NOTICES = {
 };
 
 /**
- * Every day as last folded in (ENTRIES_KEY). length and hash are of its
- * text (0 and '' when there is none), which recent changes are stamped
- * with; recovered: it was just restored from its copy.
- * @typedef {{ raw: Record<string, unknown>, length: number, hash: string, recovered: boolean }} Snapshot
+ * Every day as stored (ENTRIES_KEY), and its text (null when there is
+ * none); recovered: it was just restored from its copy.
+ * @typedef {{ raw: Record<string, unknown>, text: string | null, recovered: boolean }} Snapshot
  */
 
 /**
- * The days changed since the last fold.
+ * Days an earlier version changed and hadn't folded in yet.
  * @typedef {{ base: number, hash?: string, days: Record<string, unknown> }} Recent
- *   hash is missing only from changes the first versions of this wrote
+ *   hash is missing only from changes the first of those versions wrote
  */
 
 /**
- * A hash of the whole text (53 bits, cyrb53), so recent changes can tell
- * whether the history under them is still exactly the one they were made
- * on.
+ * A hash of the whole text (53 bits, cyrb53), which recent changes were
+ * stamped with, so they can tell whether the history under them is still
+ * exactly the one they were made on.
  * @param {string} text
  */
 function textHash(text) {
@@ -93,9 +88,15 @@ function parseRecent(text) {
   return typeof value.hash === 'string' ? { base: value.base, hash: value.hash, days: value.days } : { base: value.base, days: value.days };
 }
 
-/** Whether recent changes were made on top of exactly `snapshot`. @param {Recent} recent @param {Snapshot} snapshot */
-function madeOn(recent, snapshot) {
-  return recent.base === snapshot.length && (recent.hash === undefined || recent.hash === snapshot.hash);
+/**
+ * Whether recent changes were made on top of exactly this ENTRIES_KEY text
+ * (length 0 and hash '' stood for none).
+ * @param {Recent} recent
+ * @param {string | null} text
+ */
+function madeOn(recent, text) {
+  const length = text === null ? 0 : text.length;
+  return recent.base === length && (recent.hash === undefined || recent.hash === (text === null ? '' : textHash(text)));
 }
 
 /**
@@ -111,18 +112,6 @@ function withChanges(snapshot, changes) {
   return raw;
 }
 
-/**
- * One day as stored, without reading every day. Undefined when there is
- * none (or it was removed).
- * @param {{ snapshot: { raw: Record<string, unknown> }, recent: { days: Record<string, unknown> } }} state
- * @param {string} date
- */
-function storedDay(state, date) {
-  const { days } = state.recent;
-  if (Object.prototype.hasOwnProperty.call(days, date)) return days[date] === null ? undefined : days[date];
-  return state.snapshot.raw[date];
-}
-
 class DayStore {
   /**
    * @param {Storage} storage
@@ -133,26 +122,23 @@ class DayStore {
     this.storage = storage;
     this.onNotice = onNotice;
     this.damaged = damaged;
-    // The parsed ENTRIES_KEY text and its hash, kept while that text is
+    // The ENTRIES_KEY text and its days, kept while that text is
     // unchanged, so a save doesn't read the whole history again. Never
     // changed in place.
-    /** @type {{ text: string | null, raw: Record<string, unknown>, hash: string }} */
-    this.parsed = { text: null, raw: {}, hash: '' };
+    /** @type {{ text: string | null, raw: Record<string, unknown> }} */
+    this.parsed = { text: null, raw: {} };
   }
 
-  /** @param {string} text @param {Record<string, unknown>} raw */
-  remember(text, raw) {
-    this.parsed = { text, raw, hash: textHash(text) };
-    return this.parsed;
-  }
-
-  /** Every day as last folded in (ENTRIES_KEY), recovering from damage. @returns {Snapshot} */
+  /** Every day as stored (ENTRIES_KEY), recovering from damage. @returns {Snapshot} */
   readSnapshot() {
     const text = this.storage.getItem(ENTRIES_KEY);
-    if (text === null) return { raw: {}, length: 0, hash: '', recovered: false };
-    if (text === this.parsed.text) return { raw: this.parsed.raw, length: text.length, hash: this.parsed.hash, recovered: false };
+    if (text === null) return { raw: {}, text: null, recovered: false };
+    if (text === this.parsed.text) return { raw: this.parsed.raw, text, recovered: false };
     const parsed = parseObject(text);
-    if (parsed) return { raw: parsed, length: text.length, hash: this.remember(text, parsed).hash, recovered: false };
+    if (parsed) {
+      this.parsed = { text, raw: parsed };
+      return { raw: parsed, text, recovered: false };
+    }
     this.damaged.keep(text);
     return this.recoverSnapshot();
   }
@@ -173,39 +159,52 @@ class DayStore {
       // successful write replaces the damaged text anyway).
     }
     this.onNotice(recovered ? { tone: 'warning', message: NOTICES.restored } : { tone: 'error', message: NOTICES.lost });
-    return { raw: recovered || {}, length: text.length, hash: textHash(text), recovered: true };
+    return { raw: recovered || {}, text, recovered: true };
   }
 
   /**
-   * The days changed since the last fold (RECENT_KEY), recovering from
-   * damage, stamped for `snapshot`; empty when there are none.
+   * Folds changes an earlier version left under RECENT_KEY into the days,
+   * when they were made on top of exactly these days (or the days were
+   * just recovered from their copy, which the changes are newer than);
+   * otherwise, or when they're damaged beyond their own copy, they're kept
+   * aside. Either way RECENT_KEY is gone afterwards.
    * @param {Snapshot} snapshot
-   * @returns {Recent}
+   * @returns {Record<string, unknown>} every day
    */
-  readRecent(snapshot) {
-    const text = this.storage.getItem(RECENT_KEY);
-    const empty = { base: snapshot.length, hash: snapshot.hash, days: {} };
-    if (text === null) return empty;
+  foldRecent(snapshot) {
+    const text = /** @type {string} */ (this.storage.getItem(RECENT_KEY));
     let recent = parseRecent(text);
     if (!recent) {
       this.damaged.keep(text);
       recent = parseRecent(this.storage.getItem(RECENT_BACKUP_KEY));
       this.onNotice({ tone: 'warning', message: recent ? NOTICES.recentRestored : NOTICES.recentLost });
-      if (!recent) {
-        this.dropRecent();
-        return empty;
-      }
     }
-    // Changes made on top of other days than these (a version that knew
-    // nothing of them saved since) are kept aside, never applied. After
-    // recovering the days from their copy, the changes are newer still.
-    if (!snapshot.recovered && !madeOn(recent, snapshot)) {
+    if (recent && !snapshot.recovered && !madeOn(recent, snapshot.text)) {
       this.damaged.keep(text);
-      this.dropRecent();
       this.onNotice({ tone: 'warning', message: NOTICES.setAside });
-      return empty;
+      recent = null;
     }
-    return recent;
+    if (!recent || Object.keys(recent.days).length === 0) {
+      this.dropRecent();
+      return snapshot.raw;
+    }
+    const raw = withChanges(snapshot.raw, recent.days);
+    try {
+      this.writeRaw(raw);
+    } catch {
+      // The changes stay where they are, and are folded in next time.
+    }
+    return raw;
+  }
+
+  restoreCopy() {
+    try {
+      const days = this.storage.getItem(ENTRIES_KEY);
+      if (days === null) this.storage.removeItem(BACKUP_KEY);
+      else this.storage.setItem(BACKUP_KEY, days);
+    } catch {
+      // The copy is newer than the days until the next save; both are readable.
+    }
   }
 
   dropRecent() {
@@ -217,80 +216,31 @@ class DayStore {
     }
   }
 
-  /**
-   * The stored days and the changes since, read once. Days just
-   * recovered from their copy get the changes folded in straight away,
-   * since those were made on top of the days that were damaged.
-   * @returns {{ snapshot: Snapshot, recent: Recent }}
-   */
-  readState() {
-    const snapshot = this.readSnapshot();
-    const recent = this.readRecent(snapshot);
-    if (!snapshot.recovered || Object.keys(recent.days).length === 0) return { snapshot, recent };
-    try {
-      this.writeRaw(withChanges(snapshot.raw, recent.days));
-      const { raw, text, hash } = this.parsed;
-      const folded = { raw, length: String(text).length, hash, recovered: false };
-      return { snapshot: folded, recent: { base: folded.length, hash, days: {} } };
-    } catch {
-      // The changes stay where they are, now on top of the recovered days.
-      try {
-        this.writeRecent({ base: snapshot.length, hash: snapshot.hash, days: recent.days });
-      } catch {
-        // Read again next time, the same way.
-      }
-      return { snapshot, recent };
-    }
-  }
-
-  /** Every day, with the recent changes applied. */
+  /** Every day. */
   readRaw() {
-    const { snapshot, recent } = this.readState();
-    return withChanges(snapshot.raw, recent.days);
+    const snapshot = this.readSnapshot();
+    return this.storage.getItem(RECENT_KEY) === null ? snapshot.raw : this.foldRecent(snapshot);
   }
 
   /**
-   * Writes every day (and its automatic copy) and clears the recent
-   * changes, which it includes.
-   * @param {Record<string, unknown>} obj
+   * Writes every day, and its automatic copy.
+   * @param {Record<string, unknown>} obj never changed in place afterwards
    * @param {string} [what] how a failure starts ("Nothing was restored.")
    */
   writeRaw(obj, what) {
     const text = JSON.stringify(obj);
+    let copied = false;
     try {
       this.storage.setItem(BACKUP_KEY, text);
+      copied = true;
       this.storage.setItem(ENTRIES_KEY, text);
     } catch (e) {
+      // The copy goes back to matching the days, which weren't changed.
+      if (copied) this.restoreCopy();
       throw writeError(e, what);
     }
-    this.remember(text, /** @type {Record<string, unknown>} */ (JSON.parse(text)));
+    this.parsed = { text, raw: obj };
     this.dropRecent();
-  }
-
-  /** @param {Recent} recent */
-  writeRecent(recent) {
-    try {
-      const previous = this.storage.getItem(RECENT_KEY);
-      if (previous !== null && parseRecent(previous)) this.storage.setItem(RECENT_BACKUP_KEY, previous);
-      this.storage.setItem(RECENT_KEY, JSON.stringify(recent));
-    } catch (e) {
-      throw writeError(e);
-    }
-  }
-
-  // Folds the recent changes into ENTRIES_KEY. Nothing is written when
-  // there are none. A fold that fails (storage full) leaves the changes
-  // where they are.
-  settle() {
-    try {
-      if (this.storage.getItem(RECENT_KEY) === null) return false;
-      const { snapshot, recent } = this.readState();
-      if (Object.keys(recent.days).length === 0) return false;
-      this.writeRaw(withChanges(snapshot.raw, recent.days));
-      return true;
-    } catch {
-      return false;
-    }
   }
 
   loadEntries() {
@@ -299,7 +249,7 @@ class DayStore {
 
   /** @param {string} date */
   getEntry(date) {
-    return core.normalizeEntry(date, storedDay(this.readState(), date));
+    return core.normalizeEntry(date, this.readRaw()[date]);
   }
 
   // Applies only the fields in `patch` to the stored day, so edits made
@@ -311,13 +261,9 @@ class DayStore {
     if (core.isFutureDate(date)) throw new core.InputError(`Not saved. ${core.FUTURE_DAY}`);
     const checked = core.validatePatch(patch);
     if (!checked.ok) throw checked.fault ? new core.KennaError(checked.error) : new core.InputError(checked.error);
-    const state = this.readState();
-    const next = core.applyPatch(date, storedDay(state, date), checked.patch);
-    // Only this day is written, with the others changed since the last
-    // fold: the cost of a save doesn't grow with the years logged.
-    const days = { ...state.recent.days, [date]: core.isEntryEmpty(next) ? null : next };
-    this.writeRecent({ base: state.snapshot.length, hash: state.snapshot.hash, days });
-    if (Object.keys(days).length > MAX_RECENT_DAYS) this.settle();
+    const raw = this.readRaw();
+    const next = core.applyPatch(date, raw[date], checked.patch);
+    this.writeRaw(withChanges(raw, { [date]: core.isEntryEmpty(next) ? null : next }));
     return next;
   }
 
@@ -352,4 +298,4 @@ class DayStore {
   }
 }
 
-module.exports = { DayStore, ENTRIES_KEY, BACKUP_KEY, UNDO_IMPORT_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS };
+module.exports = { DayStore, ENTRIES_KEY, BACKUP_KEY, UNDO_IMPORT_KEY, RECENT_KEY, RECENT_BACKUP_KEY, textHash };

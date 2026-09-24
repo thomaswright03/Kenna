@@ -218,7 +218,7 @@ test.describe('phone version', () => {
     await page.evaluate(() => {
       const setItem = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key === 'kenna:entries' || key === 'kenna:entries:recent') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        if (key === 'kenna:entries' || key === 'kenna:entries:backup') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
         return setItem.call(this, key, value);
       };
     });
@@ -258,7 +258,7 @@ test('damaged data is kept at most twice, and Settings offers it for download or
   await expect(page.locator('[data-damaged-data]')).toHaveCount(0);
 });
 
-test('with ten years logged, a save writes only that day; the history is brought up to date when the app is put away', async ({ page, data }) => {
+test('with ten years logged, a save keeps every day where every version reads them, and a change left by an earlier version is folded in', async ({ page, data }) => {
   const days = {};
   for (let i = 1; i <= 3650; i += 1) {
     const date = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
@@ -266,21 +266,25 @@ test('with ten years logged, a save writes only that day; the history is brought
   }
   await data.seed(days);
   await page.reload();
-  const history = () => page.evaluate(() => localStorage.getItem('kenna:entries'));
-  const before = await history();
+  const history = () => page.evaluate(() => JSON.parse(localStorage.getItem('kenna:entries')));
   await page.getByLabel('Weight (lbs)').fill('179.4');
   await page.getByLabel('Weight (lbs)').press('Enter');
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  expect(await history()).toBe(before);
-  expect((await data.entry(TODAY)).weight).toBe(179.4);
+  const saved = await history();
+  expect(saved[TODAY].weight).toBe(179.4);
+  expect(Object.keys(saved)).toHaveLength(3651);
+  expect(await page.evaluate(() => localStorage.getItem('kenna:entries:backup') === localStorage.getItem('kenna:entries'))).toBe(true);
 
-  // Switching to another app folds the day in, so the history under
-  // kenna:entries (all an older version reads) is whole again.
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect.poll(async () => JSON.parse(await history())[TODAY]?.weight).toBe(179.4);
+  // A change an earlier version saved separately, made on these very days
+  // (it recorded their length; the first such versions recorded nothing else).
+  await page.evaluate((date) => {
+    const text = localStorage.getItem('kenna:entries');
+    localStorage.setItem('kenna:entries:recent', JSON.stringify({ base: text.length, days: { [date]: null } }));
+  }, '2026-09-23');
+  await page.reload();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('179.4');
   expect(await page.evaluate(() => localStorage.getItem('kenna:entries:recent'))).toBeNull();
-  expect(Object.keys(JSON.parse(await history()))).toHaveLength(3651);
+  const folded = await history();
+  expect(folded['2026-09-23']).toBeUndefined();
+  expect(Object.keys(folded)).toHaveLength(3650);
 });
