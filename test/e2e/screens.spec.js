@@ -152,6 +152,47 @@ test('the calorie axis never shows a negative value', async ({ page, appURL, dat
   expect(labels.join(' ')).not.toMatch(/[-−]\d/);
 });
 
+test('a weight is shown everywhere as it was entered, to two decimals', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-23': day('2026-09-23', {}, 166) });
+  await page.goto(appURL);
+  await page.getByLabel('Weight (lbs)').fill('165.25');
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('165.25 lbs');
+  await page.goto(`${appURL}/#/history`);
+  await expect(page.locator('.history-item', { hasText: 'Today' })).toContainText('165.25 lbs');
+  await page.goto(`${appURL}/#/compare`);
+  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
+  await expect(weight.locator('.compare-row').first()).toContainText('165.25 lbs');
+  await expect(weight.locator('.compare-caption')).toContainText('▼ −0.75 lbs vs yesterday');
+});
+
+test('Compare bars show the difference from the all-time average', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-22': day('2026-09-22', { lunch: 1900 }, 174.7),
+    '2026-09-23': day('2026-09-23', { lunch: 2100 }, 180.3),
+    [TODAY]: day(TODAY, { lunch: 1800 }, 179),
+  });
+  await page.goto(`${appURL}/#/compare`);
+  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
+  const rows = weight.locator('.compare-row');
+  await expect(rows.nth(2)).toContainText('177.5 lbs');
+  await expect(rows.nth(2).locator('.compare-bar')).toHaveCount(0);
+  const track = await rows.nth(1).locator('.compare-track').boundingBox();
+  const yBar = await rows.nth(1).locator('.compare-bar.is-above').boundingBox();
+  const tBar = await rows.nth(0).locator('.compare-bar.is-above').boundingBox();
+  // Yesterday is the furthest from average (2.8 lbs), so its bar fills half the track.
+  expect(yBar.width).toBeGreaterThan(track.width * 0.45);
+  expect(tBar.width).toBeGreaterThan(track.width * 0.2);
+  expect(tBar.width).toBeLessThan(yBar.width * 0.7);
+  expect(Math.abs(yBar.x - (track.x + track.width / 2))).toBeLessThan(2);
+
+  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
+  await expect(total.locator('.compare-row').nth(0).locator('.compare-bar.is-below')).toHaveCount(1);
+  await expect(total.locator('.compare-row').nth(1).locator('.compare-bar.is-above')).toHaveCount(1);
+});
+
 test('Compare shows 7-day averages instead of repeating the daily charts', async ({ page, appURL, data }) => {
   await data.seed({
     '2026-09-22': day('2026-09-22', { lunch: 1000 }),

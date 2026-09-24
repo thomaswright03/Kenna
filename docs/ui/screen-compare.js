@@ -10,39 +10,49 @@ import { buildChartsCard } from './charts.js';
  * @typedef {{ key: string, label: string, unit: Unit, empty: string, emptyToday: string, optional?: boolean }} Metric
  */
 
-/** @param {number} value @param {Unit} unit */
-function formatMetric(value, unit) {
-  return unit === 'lbs' ? core.formatWeight(value) : core.formatCalories(value);
+// Weights logged on a day are shown as entered (up to two decimals);
+// averages, and differences from them, to one.
+/** @param {number} value @param {Unit} unit @param {number} [decimals] */
+function formatMetric(value, unit, decimals) {
+  return unit === 'lbs' ? core.formatWeight(value, decimals) : core.formatCalories(value);
 }
 
-/** @param {number} diff @param {Unit} unit */
-function formatDelta(diff, unit) {
-  const rounded = unit === 'lbs' ? Math.round(diff * 10) / 10 : Math.round(diff);
+/** @param {number} diff @param {Unit} unit @param {number} decimals */
+function formatDelta(diff, unit, decimals) {
+  const scale = 10 ** decimals;
+  const rounded = unit === 'lbs' ? Math.round(diff * scale) / scale : Math.round(diff);
   const arrow = rounded > 0 ? '▲' : rounded < 0 ? '▼' : '=';
   const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '';
-  return `${arrow} ${sign}${formatMetric(Math.abs(rounded), unit)}`;
+  return `${arrow} ${sign}${formatMetric(Math.abs(rounded), unit, decimals)}`;
 }
 
+// Bars show each day's difference from the all-time average (the line down
+// the middle of each track): right of it is above average, left below. The
+// scale is set by the largest difference shown, but never finer than these,
+// so a trivial difference doesn't look dramatic.
+/** @type {Record<Unit, number>} */
+const MIN_SCALE = { lbs: 1, cal: 100 };
+
 /**
- * @param {string} catLabel
- * @param {number | null} value
- * @param {Unit} unit
- * @param {number} maxVal
- * @param {boolean} isToday
- * @param {string} emptyText
+ * @param {{ label: string, value: number | null, unit: Unit, decimals: number, isToday: boolean, emptyText: string, baseline: number | null, scale: number, isBaseline?: boolean }} row
  */
-function compareRow(catLabel, value, unit, maxVal, isToday, emptyText) {
-  const row = h('div', { class: `compare-row${isToday ? ' is-today' : ''}` }, h('div', { class: 'compare-cat', text: catLabel }));
-  if (value === null || value === undefined) {
-    row.append(h('div', { class: 'compare-empty', text: emptyText }));
-    return row;
+function compareRow(row) {
+  const el = h('div', { class: `compare-row${row.isToday ? ' is-today' : ''}` }, h('div', { class: 'compare-cat', text: row.label }));
+  if (row.value === null || row.value === undefined) {
+    el.append(h('div', { class: 'compare-empty', text: row.emptyText }));
+    return el;
   }
-  const pct = maxVal > 0 ? Math.max((value / maxVal) * 100, value > 0 ? 3 : 0) : 0;
-  row.append(
-    h('div', { class: 'compare-track' }, h('div', { class: `compare-bar${isToday ? ' is-today' : ''}`, style: `width:${pct}%` })),
-    h('div', { class: 'compare-value', text: formatMetric(value, unit) })
-  );
-  return row;
+  const track = h('div', { class: `compare-track${row.baseline === null ? ' is-plain' : ''}`, 'aria-hidden': 'true' });
+  if (row.baseline !== null && !row.isBaseline) {
+    const diff = row.value - row.baseline;
+    const pct = Math.min(50, (Math.abs(diff) / row.scale) * 50);
+    if (pct > 0) {
+      const side = diff > 0 ? 'is-above' : 'is-below';
+      track.append(h('div', { class: `compare-bar ${side}${row.isToday ? ' is-today' : ''}`, style: `width:${Math.max(pct, 1.5)}%` }));
+    }
+  }
+  el.append(track, h('div', { class: 'compare-value', text: formatMetric(row.value, row.unit, row.decimals) }));
+  return el;
 }
 
 /**
@@ -53,22 +63,24 @@ function compareRow(catLabel, value, unit, maxVal, isToday, emptyText) {
  * @param {boolean} withCaption false when there's no earlier day: only today's value is shown
  */
 function compareMetric(metric, t, y, avg, withCaption) {
-  const values = [t, y, avg].filter((v) => v !== null && v !== undefined);
-  const maxVal = values.length ? Math.max(...values, 0) : 0;
+  const baseline = withCaption ? avg : null;
+  const diffs = [t, y].filter((v) => v !== null && v !== undefined && baseline !== null).map((v) => Math.abs(Number(v) - Number(baseline)));
+  const scale = Math.max(MIN_SCALE[metric.unit], ...diffs);
   const parts = [];
-  if (t !== null && y !== null) parts.push(`${formatDelta(t - y, metric.unit)} vs yesterday`);
-  if (t !== null && avg !== null) parts.push(`${formatDelta(t - avg, metric.unit)} vs average`);
+  if (t !== null && y !== null) parts.push(`${formatDelta(t - y, metric.unit, 2)} vs yesterday`);
+  if (t !== null && avg !== null) parts.push(`${formatDelta(t - avg, metric.unit, 1)} vs average`);
   // Today's calories are still being logged, so they're compared as "so far".
   const partial = metric.unit === 'cal';
   let caption = parts.length ? `${partial ? 'So far today: ' : ''}${parts.join(' · ')}` : '';
   if (!caption) caption = t === null ? `${metric.emptyToday} yet today.` : 'Not enough history to compare yet.';
+  const common = { unit: metric.unit, emptyText: metric.empty, baseline, scale };
   return h(
     'div',
     { class: 'compare-metric' },
     h('h3', { class: 'compare-label', text: metric.label }),
-    compareRow(partial ? 'Today so far' : 'Today', t, metric.unit, maxVal, true, metric.empty),
-    withCaption ? compareRow('Yesterday', y, metric.unit, maxVal, false, metric.empty) : null,
-    withCaption ? compareRow('All-time avg', avg, metric.unit, maxVal, false, metric.empty) : null,
+    compareRow({ ...common, label: partial ? 'Today so far' : 'Today', value: t, decimals: 2, isToday: true }),
+    withCaption ? compareRow({ ...common, label: 'Yesterday', value: y, decimals: 2, isToday: false }) : null,
+    withCaption ? compareRow({ ...common, label: 'All-time avg', value: avg, decimals: 1, isToday: false, isBaseline: true }) : null,
     withCaption ? h('p', { class: 'compare-caption', text: caption }) : null
   );
 }
@@ -99,7 +111,7 @@ export async function buildCompare() {
     h('h2', { class: 'card-title', text: 'Compare' }),
     h('p', {
       class: 'card-sub',
-      text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Today’s calories are what’s logged so far. Averages leave out today and days with nothing logged.`,
+      text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Bars run from the average (the middle line): right is above it, left is below. Averages leave out today and days with nothing logged.`,
     })
   );
   if (!earlier) {

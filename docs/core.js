@@ -151,8 +151,11 @@
     return `${formatNumber(Math.round(value))} cal`;
   }
 
-  function formatWeight(value) {
-    return `${formatNumber(value, 1)} lbs`;
+  // A logged weight is shown as it was entered (up to two decimals, the
+  // most the input accepts); averages pass 1 for one decimal.
+  /** @param {number} value @param {number} [decimals] */
+  function formatWeight(value, decimals) {
+    return `${formatNumber(value, decimals === undefined ? 2 : decimals)} lbs`;
   }
 
   // ---------------------------------------------------------------- entries

@@ -22,8 +22,11 @@ data never leaves your device.
 - **History** lists every logged day with its total calories and weight. Tap a
   day to open it.
 - **Compare** puts today's weight, total calories and each meal next to
-  yesterday and your all-time average, followed by 7-day rolling averages of
-  calories and weight.
+  yesterday and your all-time average, with bars showing how far each is
+  above or below the average, followed by 7-day rolling averages of
+  calories and weight. Today's calories are labelled "so far", and the
+  7-day calorie average leaves today out until the day is over (today's
+  running total is drawn hollow on the Today screen's Calories chart).
 - **Photos** stores progress pictures, filed under the day they were taken:
   pick the day before adding one (it starts at today, and future days aren't
   allowed), and change it later from the photo viewer. Deleting one asks for
@@ -55,7 +58,11 @@ How the numbers work:
   logged after midnight goes to the new day. A past day you opened on purpose
   stays open.
 - Charts use a real time axis: days you didn't log are gaps (a dashed line
-  bridges them), and each chart ends at today.
+  bridges them), and each chart ends at today. When a chart spans more
+  than one calendar year, every date on its axis shows the year. The
+  calorie axis never goes below 0.
+- A weight is shown as it was entered, to up to two decimals (165.25);
+  averages are shown to one.
 - Weight is in pounds (lbs) and dates and numbers are written the US English
   way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. There is
   no kilogram setting.

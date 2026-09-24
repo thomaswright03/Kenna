@@ -5,7 +5,7 @@ import { core, h, svg, prefs, today } from './dom.js';
 
 /**
  * @typedef {{ date: string, value: number }} Point
- * @typedef {{ field: 'calories' | 'weight', title: string, unit: 'cal' | 'lbs', sub: string, partialDay?: string | null }} SeriesInfo
+ * @typedef {{ field: 'calories' | 'weight', title: string, unit: 'cal' | 'lbs', sub: string, partialDay?: string | null, averaged?: boolean }} SeriesInfo
  *   partialDay: a day whose value is still growing (today's calories), drawn as "so far"
 
  */
@@ -51,7 +51,7 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
       sub: smoothing ? '7-day average of daily intake, not counting today until it’s over' : 'Total intake each day; today’s is so far',
       partialDay: smoothing ? null : now,
     },
-    { field: 'weight', title: 'Weight', unit: 'lbs', sub: smoothing ? '7-day average weight' : 'Weight each day' },
+    { field: 'weight', title: 'Weight', unit: 'lbs', sub: smoothing ? '7-day average weight' : 'Weight each day', averaged: smoothing },
   ];
   const series = infos.map((s) => {
     const points = smoothing ? core.trendSeries(rows, s.field, now, 7) : core.seriesFromRows(rows, s.field);
@@ -120,7 +120,7 @@ function drawChart(host, points, opts) {
     return d >= startDay && d <= endDay;
   });
   /** @param {number} v */
-  const fmt = (v) => (opts.unit === 'lbs' ? core.formatWeight(v) : core.formatCalories(v));
+  const fmt = (v) => (opts.unit === 'lbs' ? core.formatWeight(v, opts.averaged ? 1 : 2) : core.formatCalories(v));
   /** @param {Point} p */
   const isPartial = (p) => !!opts.partialDay && p.date === opts.partialDay;
   /** @param {Point} p */

@@ -529,8 +529,21 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .compare-cat { font-size: var(--fs-xs); color: var(--muted); }
 .compare-row.is-today .compare-cat { color: var(--text); font-weight: 600; }
 
-.compare-track { height: 20px; background: var(--card-2); border-radius: var(--s1); overflow: hidden; }
-.compare-bar { height: 100%; background: var(--bar-muted); border-radius: 0 var(--s1) var(--s1) 0; }
+.compare-track { position: relative; height: 20px; background: var(--card-2); border-radius: var(--s1); overflow: hidden; }
+/* The average: the line every bar starts from. */
+.compare-track::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 1px);
+  width: 2px;
+  background: var(--muted);
+}
+.compare-track.is-plain { visibility: hidden; }
+.compare-bar { position: absolute; top: 3px; bottom: 3px; background: var(--bar-muted); }
+.compare-bar.is-above { left: 50%; border-radius: 0 var(--s1) var(--s1) 0; }
+.compare-bar.is-below { right: 50%; border-radius: var(--s1) 0 0 var(--s1); }
 .compare-bar.is-today { background: var(--accent); }
 
 .compare-value { font-size: var(--fs-xs); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
