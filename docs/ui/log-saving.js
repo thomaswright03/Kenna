@@ -3,7 +3,7 @@
 // or closed) saves it first. A number far above the meal's usual size is
 // asked about before it's saved (see unusual.js).
 
-import { core, mealLabel, notSavedReason } from './dom.js';
+import { core, mealLabel, notSavedReason, errorText } from './dom.js';
 import { failureText } from './problems.js';
 import { toast } from './feedback.js';
 import { store } from './store.js';
@@ -46,14 +46,20 @@ export function mealSaver(state, input, status, onSaved, guard) {
   const track = { lastSave: null, failure: '', left: false, closed: false };
   /** @param {{ value: number | null }} result */
   const needsSave = (result) => result.value !== state.entry.meals[state.activeKey] || state.rolledOver;
+  // The save that last failed (day, meal and number), which is noted in
+  // the problem log. Leaving the box doesn't try it again (Retry is under
+  // the box), and it failing again as the screen is left isn't noted
+  // again; Retry is, since the user asked for it.
+  let failed = '';
 
-  /** @param {string} key @param {number | null} value */
-  async function save(key, value) {
+  /** @param {string} key @param {number | null} value @param {boolean} retry the user asked for it again (Retry) */
+  async function save(key, value, retry) {
     const target = saveDateFor(state);
     const previous = state.entry.meals[key];
     status.set('pending', 'Saving…');
     try {
       state.entry = await store.updateEntry(target, { meals: { [key]: value } });
+      failed = '';
       track.lastSave = { key, date: target, saved: value, previous };
       if (state.rolledOver) {
         if (!track.left) render();
@@ -63,8 +69,10 @@ export function mealSaver(state, input, status, onSaved, guard) {
       if (state.activeKey === key) status.set('saved', value === null ? `${mealLabel(key)} cleared` : `${mealLabel(key)} saved`);
       return true;
     } catch (err) {
-      track.failure = failureText('Save a meal', err);
-      if (state.activeKey === key) status.set('error', track.failure, { label: 'Retry', onClick: () => commit() });
+      const attempt = `${target} ${key} ${value}`;
+      track.failure = retry || attempt !== failed ? failureText('Save a meal', err) : errorText(err);
+      failed = attempt;
+      if (state.activeKey === key) status.set('error', track.failure, { label: 'Retry', onClick: () => commit({ retry: true }) });
       else toast(`${mealLabel(key)} not saved. ${notSavedReason(track.failure)}`, { tone: 'error' });
       return false;
     } finally {
@@ -73,8 +81,9 @@ export function mealSaver(state, input, status, onSaved, guard) {
   }
 
   /**
-   * @param {{ left?: boolean }} [how] left: the box was left (its change
-   *   event), so a number to ask about waits for the tap that left it
+   * @param {{ left?: boolean, retry?: boolean }} [how] left: the box was
+   *   left (its change event), so a number to ask about waits for the tap
+   *   that left it; retry: Retry was pressed
    * @returns {Promise<boolean>}
    */
   async function commit(how) {
@@ -89,9 +98,10 @@ export function mealSaver(state, input, status, onSaved, guard) {
       return true;
     }
     if (saving && saving.key === key && saving.value === result.value) return saving.promise;
+    if (how && how.left && failed === `${state.date} ${key} ${result.value}`) return false;
     const unusual = guard.question(key, result.value);
     if (unusual && result.value !== null) return how && how.left ? askSoon(key) : askFirst(key, result.value, unusual);
-    const promise = save(key, result.value);
+    const promise = save(key, result.value, !!(how && how.retry));
     saving = { key, value: result.value, promise };
     return promise;
   }

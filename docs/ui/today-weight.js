@@ -2,7 +2,7 @@
 // Enter), and says so under the box; keeps a value that can't be saved as
 // a draft, and offers Undo after clearing.
 
-import { core, h, uid, today } from './dom.js';
+import { core, h, uid, today, errorText } from './dom.js';
 import { failureText } from './problems.js';
 import { announce, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
@@ -44,13 +44,24 @@ function weightSaver(view, input, status, guard) {
   let saving = null;
   /** @type {WeightTrack} */
   const track = { lastSave: null, failure: '', left: false };
+  // The save that last failed (day and weight), which is noted in the
+  // problem log. Leaving the box doesn't try it again (Retry is under the
+  // box), and it failing again as the screen is left isn't noted again;
+  // Retry is, since the user asked for it.
+  let failed = '';
 
-  /** @param {number | null} value @param {number | null} previous @returns {Promise<boolean>} */
-  async function save(value, previous) {
+  /**
+   * @param {number | null} value
+   * @param {number | null} previous
+   * @param {boolean} retry the user asked for it again (Retry)
+   * @returns {Promise<boolean>}
+   */
+  async function save(value, previous, retry) {
     const target = saveDateFor(view);
     status.set('pending', 'Saving…');
     try {
       view.entry = await store.updateEntry(target, { weight: value });
+      failed = '';
       track.lastSave = { date: target, saved: value, previous };
       if (value !== null) status.set('saved', 'Saved');
       else if (previous !== null) status.set('saved', 'Weight cleared', { label: 'Undo', onClick: () => putBack(previous) });
@@ -58,8 +69,10 @@ function weightSaver(view, input, status, guard) {
       if (view.rolledOver && !track.left) render();
       return true;
     } catch (err) {
-      track.failure = failureText('Save the weight', err);
-      status.set('error', track.failure, { label: 'Retry', onClick: () => commit() });
+      const attempt = `${target} ${value}`;
+      track.failure = retry || attempt !== failed ? failureText('Save the weight', err) : errorText(err);
+      failed = attempt;
+      status.set('error', track.failure, { label: 'Retry', onClick: () => commit({ retry: true }) });
       return false;
     }
   }
@@ -70,8 +83,9 @@ function weightSaver(view, input, status, guard) {
   const question = (result) => (isSaved(result) ? null : guard.question('weight', result.value));
 
   /**
-   * @param {{ left?: boolean }} [how] left: the box was left (its change
-   *   event), so a weight to ask about waits for the tap that left it
+   * @param {{ left?: boolean, retry?: boolean }} [how] left: the box was
+   *   left (its change event), so a weight to ask about waits for the tap
+   *   that left it; retry: Retry was pressed
    * @returns {Promise<boolean>}
    */
   function commit(how) {
@@ -85,9 +99,10 @@ function weightSaver(view, input, status, guard) {
       return Promise.resolve(true);
     }
     if (saving) return saving;
+    if (how && how.left && failed === `${view.date} ${result.value}`) return Promise.resolve(false);
     const unusual = question(result);
     if (unusual && result.value !== null) return how && how.left ? askSoon() : askFirst(result.value, unusual);
-    saving = save(result.value, view.entry.weight).finally(() => (saving = null));
+    saving = save(result.value, view.entry.weight, !!(how && how.retry)).finally(() => (saving = null));
     return saving;
   }
 

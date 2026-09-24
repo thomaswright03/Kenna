@@ -243,8 +243,22 @@ export function createStatusLine(input) {
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
+  // What the line says now, and what its button does. The same message
+  // again keeps the line (and its button) as it is, so a tap on its button
+  // that has just set off the same message (a save failing again as the
+  // box loses focus to that tap) still lands.
+  let shown = '';
+  /** @type {StatusAction | undefined} */
+  let current;
   /** @type {StatusLine['set']} */
   function set(state, text, action) {
+    const key = `${state}\n${text || ''}\n${action ? action.label : ''}`;
+    if (key === shown && el.isConnected && state !== 'saved') {
+      current = action;
+      return;
+    }
+    shown = key;
+    current = action;
     clearTimeout(timer);
     el.className = `field-status${state ? ` is-${state}` : ''}`;
     el.replaceChildren();
@@ -261,7 +275,7 @@ export function createStatusLine(input) {
       return;
     }
     el.append(h('span', { text }));
-    if (action) el.append(h('button', { type: 'button', class: 'btn-text', text: action.label, onClick: action.onClick }));
+    if (action) el.append(h('button', { type: 'button', class: 'btn-text', text: action.label, onClick: () => current && current.onClick() }));
     if (input && state === 'saved' && !action) timer = setTimeout(() => set(null), 4000);
   }
   return { el, set };
