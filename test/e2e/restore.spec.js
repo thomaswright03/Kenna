@@ -92,7 +92,7 @@ test('restoring says how many days it will replace, and Undo restore puts them b
   const added = await data.entry('2026-09-20');
   expect(added ? added.meals.dinner : null).toBe(null);
   await page.goto(`${appURL}/#/photos`);
-  await expect(page.getByText('No photos yet.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
 });
 
 test('the restore dialog says when nothing already here will change', async ({ page, appURL, data }, testInfo) => {

@@ -135,3 +135,16 @@ test('while the viewer asks whether to delete, the arrow keys and swipes stay on
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Progress photo, Thu, Sep 10' })).toBeVisible();
 });
+
+test('with no photos, Photos says what they are for and offers to add the first one', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  const empty = page.locator('[data-photos-empty]');
+  await expect(empty.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
+  await expect(empty).toContainText('Add one every week or two');
+  await expect(empty).toContainText('Compare photos then puts two side by side, with your weight on each day');
+  const chooser = page.waitForEvent('filechooser');
+  await empty.getByRole('button', { name: 'Add your first photo' }).click();
+  await (await chooser).setFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+  await expect(page.locator('.photo-thumb')).toHaveCount(1);
+  await expect(empty).toHaveCount(0);
+});

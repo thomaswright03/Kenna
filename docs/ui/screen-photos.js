@@ -12,7 +12,11 @@ import { openPhotoCompare } from './photo-compare.js';
 
 /** @typedef {import('../store-local.js').Photo} Photo */
 
-/** The card with the day picker and Add Photo. */
+/**
+ * The card with the day picker and Add Photo, and a way to open the photo
+ * picker from elsewhere on the screen.
+ * @returns {{ card: HTMLElement, pick: () => void }}
+ */
 function buildAddCard() {
   const now = today();
   const where = BACKEND === 'server' ? 'on the Kenna server' : 'on this device';
@@ -61,7 +65,7 @@ function buildAddCard() {
     }
   });
 
-  return h(
+  const card = h(
     'section',
     { class: 'card' },
     h('h2', { class: 'card-title', text: 'Progress Photos' }),
@@ -73,6 +77,25 @@ function buildAddCard() {
     fileInput,
     uploadLabel,
     status.el
+  );
+  return { card, pick: () => fileInput.disabled || fileInput.click() };
+}
+
+/**
+ * What progress photos are for, and a first one to add, while there are none.
+ * @param {() => void} pick opens the photo picker
+ */
+function emptyCard(pick) {
+  const titleId = uid('photos-empty');
+  return h(
+    'section',
+    { class: 'card', 'aria-labelledby': titleId, 'data-photos-empty': '' },
+    h('h3', { class: 'section-title', id: titleId, text: 'No photos yet' }),
+    h('p', {
+      class: 'card-sub',
+      text: 'Progress photos show changes the scale doesn’t. Add one every week or two, in the same spot and light each time. Compare photos then puts two side by side, with your weight on each day.',
+    }),
+    h('button', { type: 'button', class: 'btn btn-secondary', text: 'Add your first photo', onClick: pick })
   );
 }
 
@@ -182,10 +205,11 @@ function comparePicker(photos, entries, stack) {
 export async function buildPhotos(ctx) {
   const now = today();
   const [photos, entries] = await Promise.all([store.listPhotos(), store.loadEntries()]);
-  const addCard = buildAddCard();
+  const add = buildAddCard();
+  const addCard = add.card;
   const stack = h('div', { class: 'screen-stack' }, addCard);
   if (photos.length === 0) {
-    stack.append(h('section', { class: 'card' }, h('p', { class: 'empty-hint', text: 'No photos yet.' })));
+    stack.append(emptyCard(add.pick));
     return { title: 'Photos', root: stack };
   }
 

@@ -55,7 +55,9 @@ data never leaves your device.
   leaves today out until the day is over (on the Today screen's Calories
   chart today's running total is a lone hollow marker labelled "so far",
   never joined to the line).
-- **Photos** stores progress pictures, filed under the day they were taken:
+- **Photos** stores progress pictures, filed under the day they were taken
+  (with none yet, it says what they're for and offers **Add your first
+  photo**):
   pick the day before adding one (it starts at today, and future days aren't
   allowed), and change it later from the photo viewer. The viewer steps
   through the photos oldest first with **Previous** and **Next**, a swipe or

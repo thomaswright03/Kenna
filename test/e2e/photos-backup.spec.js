@@ -54,7 +54,7 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await viewer.getByRole('button', { name: 'Delete…' }).click();
   await viewer.getByRole('button', { name: 'Delete photo' }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
-  await expect(page.getByText('No photos yet.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
 });
 
 test('tapping outside the photo closes the viewer', async ({ page, appURL }) => {
