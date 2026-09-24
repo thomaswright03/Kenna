@@ -645,3 +645,16 @@ test("today's calories so far are a lone marker, never a line diving from yester
   expect(reached).toBe(false);
   await expect(page.locator('.chart-latest.series-calories')).toContainText('Today so far');
 });
+
+test('a day with no meals says so in words, with no stand-in number, until a meal is logged', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  const total = page.locator('.total-box');
+  await expect(total).toHaveText('No meals logged yet today');
+  await expect(page.locator('.total-num')).toBeHidden();
+  await page.getByRole('link', { name: 'Log Meal' }).click();
+  await page.getByLabel('Breakfast calories').fill('0');
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  // A logged 0 is a number, shown as one.
+  await expect(page.locator('.total-num')).toHaveText('0');
+  await expect(total).toContainText('calories logged today');
+});

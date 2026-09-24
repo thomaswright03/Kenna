@@ -469,6 +469,8 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 }
 
 .total-label { color: var(--muted); font-size: var(--fs-sm); }
+.total-box.is-empty { padding: var(--s3) var(--s4); }
+.total-box.is-empty .total-label { color: var(--text); font-size: var(--fs-md); }
 
 .meal-list { list-style: none; margin: 0; padding: 0; }
 

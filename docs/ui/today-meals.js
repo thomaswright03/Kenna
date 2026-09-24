@@ -58,10 +58,16 @@ export function buildMealList(view, where) {
   /** Meals removed on this screen, not put back. @type {Map<string, Removed>} */
   const removed = new Map();
 
+  const totalBox = h('div', { class: 'total-box' }, totalNum, totalLabel);
+
+  // A day with no meals shows just the sentence: no number, which would
+  // read as a placeholder (a dash) or as a day of 0 calories.
   function refreshTotal() {
     const total = core.totalCalories(view.entry.meals);
-    totalNum.textContent = total === null ? '—' : core.formatNumber(total);
     const when = where.isToday ? 'today' : core.formatDate(view.date, today());
+    totalBox.classList.toggle('is-empty', total === null);
+    totalNum.hidden = total === null;
+    totalNum.textContent = total === null ? '' : core.formatNumber(total);
     totalLabel.textContent =
       total === null ? `No meals logged ${where.isToday ? 'yet today' : `for ${when}`}` : `calories logged ${where.isToday ? 'today' : `on ${when}`}`;
   }
@@ -139,7 +145,7 @@ export function buildMealList(view, where) {
     removed.clear();
   }
 
-  return { total: h('div', { class: 'total-box' }, totalNum, totalLabel), list, refresh, offerUndoAfterLeaving };
+  return { total: totalBox, list, refresh, offerUndoAfterLeaving };
 }
 
 /**
