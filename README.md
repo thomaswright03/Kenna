@@ -1,5 +1,10 @@
 # Kenna — Private Calorie and Weight Tracker
 
+[![Tests on the published branch](https://github.com/thomaswright03/kenna/actions/workflows/test.yml/badge.svg?branch=claude%2Fphone-calorie-tracker-gbxsn6)](https://github.com/thomaswright03/kenna/actions/workflows/test.yml?query=branch%3Aclaude%2Fphone-calorie-tracker-gbxsn6)
+
+The badge shows the latest test run (Chromium and WebKit) on the published
+branch, the one GitHub Pages serves.
+
 A lightweight calorie and weight tracker. No cloud account, no sign-up: your
 data never leaves your device.
 
@@ -230,6 +235,8 @@ npm test                                 # lint, type check, unit/API tests, the
 ```
 
 `npm run test:unit` and `npm run test:e2e` run the parts separately. The
+browser tests include an accessibility check (axe-core, WCAG 2 A and AA)
+of every screen in both themes. The
 browser tests run every scenario against both versions in Chromium with an
 iPhone-sized screen (projects `phone-app` and `server-app`), and the phone
 app again in WebKit, the engine behind Safari and iPhone Home Screen apps
