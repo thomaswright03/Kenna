@@ -54,3 +54,5 @@ failed and what was done about it.
 
 | Date | iPhone, iOS | Commit | Part | Result |
 |---|---|---|---|---|
+| 2026-09-24 | iPhone 14, iOS 18.7.2 | 64d7124 | Before merging | Steps 1–11 passed. In step 6, Show earlier months wasn't tried: the test copy held one day, so the button is rightly not shown. The pull request was merged while steps 9–11 were under way. |
+| 2026-09-24 | iPhone 14, iOS 18.7.2 | 64d7124 | After deploy | All passed: opened from the Home Screen online, then in Airplane Mode. |

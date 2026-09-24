@@ -130,22 +130,22 @@ Pages serves its `docs/` folder. Other branches, such as
    to one of them gives phones a new cache to pre-cache together. A unit
    test fails if either is out of date.
 2. Make sure `npm test` passes and both GitHub checks (**Tests / test**,
-   **Tests / webkit**) are green on the pull request. **Branch protection
-   is not on yet** (last checked 2026-09-24: the published branch has no
-   protection rule), so GitHub will still let a failing change be merged:
-   look at both checks yourself until the owner turns the rule on (steps
-   in [Development details](REFERENCE.md#development-details)). Go through the "Before merging" part
+   **Tests / webkit**) are green on the pull request. The published
+   branch's ruleset (**Settings → Rules → Rulesets**, "Protect live app",
+   on since 2026-09-24) requires both checks and a pull request, and
+   blocks force pushes and deleting the branch, so GitHub won't merge a
+   change while either check fails. Go through the "Before merging" part
    of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install to
    the Home Screen, log a meal, add a photo, export with Save to Files and
    import that file back) and add its row to the checklist's Record table;
-   the pull request template asks for both. Then merge or push to the
+   the pull request template asks for both. Then merge the pull request into the
    published branch.
 3. Pages redeploys within a minute or two (see the repository's Actions tab).
    Phones load the new version the next time the app is opened online.
    Finish the checklist's "After Pages deploys" part on the live app.
 
-Rolling back: `git revert` the commit(s) that caused the problem, push to the
-published branch, and Pages redeploys the previous files. User data is never
+Rolling back: `git revert` the commit(s) that caused the problem on a new
+branch, merge that through a pull request once both checks pass, and Pages redeploys the previous files. User data is never
 part of a deploy, so a rollback doesn't touch anyone's logged days or photos;
 the app reads every older storage format, and an older version still finds
 every day (the newest version folds the days saved in a visit into the
@@ -154,7 +154,7 @@ format every version reads whenever the app is put away).
 ## Who looks after it
 
 The repository, its **Settings → Pages** (what is published) and
-**Settings → Branches** (branch protection) belong to the GitHub account
+**Settings → Rules** (the ruleset that protects the published branch) belong to the GitHub account
 **thomaswright03**, the owner. Anyone else who is to deploy or roll back
 needs write access, which the owner gives under **Settings →
 Collaborators**; without it, open a pull request and ask the owner to
@@ -168,11 +168,16 @@ merge it.
 2. Find the change that broke it: `git log --oneline -10` lists the latest
    commits, newest first (the repository's Actions tab shows which one
    Pages deployed last).
-3. Undo it: `git revert --no-edit <commit>` (for a merge commit,
+3. Undo it on a new branch: `git checkout -b revert-broken-change`, then
+   `git revert --no-edit <commit>` (for a merge commit,
    `git revert --no-edit -m 1 <commit>`), then
-   `git push origin claude/phone-calorie-tracker-gbxsn6`.
-4. Wait for the "pages build and deployment" run in the Actions tab to
+   `git push -u origin revert-broken-change`.
+4. Open a pull request from that branch into
+   `claude/phone-calorie-tracker-gbxsn6` and merge it once **Tests / test**
+   and **Tests / webkit** are green (the ruleset doesn't allow pushing to
+   the published branch directly).
+5. Wait for the "pages build and deployment" run in the Actions tab to
    finish (a minute or two), then open the app online: it loads the
    previous version. Nobody's logged days or photos are affected.
-5. Tell the owner which commit was reverted, so the fix can be made on a
+6. Tell the owner which commit was reverted, so the fix can be made on a
    branch and released again as described above.
