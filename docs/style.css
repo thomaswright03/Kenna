@@ -893,6 +893,8 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .dialog-text { color: var(--muted); font-size: var(--fs-sm); margin: 0; }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-top: var(--s4); }
 .dialog-actions .btn { margin-top: 0; }
+/* A dialog that only tells something has one button, the width of the pair. */
+.dialog-actions > .btn:only-child { grid-column: 1 / -1; }
 
 .dialog-viewer {
   width: min(560px, calc(100vw - var(--s4)));
