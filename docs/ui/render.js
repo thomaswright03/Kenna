@@ -16,7 +16,7 @@ import { failureText, recordProblem } from './problems.js';
  * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
  * @property {() => void} [release] frees resources such as object URLs
  * @property {() => void} [flush] saves typed input now (the page is being hidden or closed)
- * @property {() => void} [leave] another screen, or another day, is being opened: saves typed input on the way out
+ * @property {() => Promise<void> | void} [leave] another screen, or another day, is being opened: saves typed input on the way out; the next screen loads its data once this has finished
  */
 
 /**
@@ -45,6 +45,11 @@ let currentView = null;
 /** @param {import('./router.js').Route} r */
 const placeOf = (r) => `${r.screen}/${r.date || ''}`;
 let currentPlace = '';
+// The save made on the way out of the last screen left. Every screen
+// opened after it waits for it before reading its data, so it never shows
+// a day from before that save.
+/** @type {Promise<void>} */
+let leaving = Promise.resolve();
 
 export const getCurrentView = () => currentView;
 
@@ -68,11 +73,13 @@ export async function render(options) {
   if (currentView && currentView.leave && place !== currentPlace) {
     const leave = currentView.leave;
     currentView.leave = undefined;
-    leave();
+    leaving = leaveScreen(leave);
   }
   closeAllDialogs();
   updateTabs();
   const stopLoading = startLoading(main);
+  await leaving;
+  if (!isCurrent()) return;
   /** @type {(() => void)[]} */
   const releases = [];
   /** @type {ScreenContext} */
@@ -104,6 +111,20 @@ export async function render(options) {
     window.scrollTo(0, 0);
   }
   if (view.mounted) view.mounted();
+}
+
+/**
+ * Runs a screen's leave, which never stops the next screen from opening.
+ * @param {() => Promise<void> | void} leave
+ * @returns {Promise<void>}
+ */
+function leaveScreen(leave) {
+  try {
+    return Promise.resolve(leave()).catch((err) => recordProblem('Leave a screen', err));
+  } catch (err) {
+    recordProblem('Leave a screen', err);
+    return Promise.resolve();
+  }
 }
 
 // While a screen loads, the screen being left can't be used (so nothing is

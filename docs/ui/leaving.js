@@ -4,7 +4,7 @@
 // message on the next screen says so, with Undo; a value that can't be
 // saved is kept for when that box is shown again, and the message says why.
 
-import { core, mealLabel, today } from './dom.js';
+import { core, mealLabel, today, notSavedReason } from './dom.js';
 import { toast } from './feedback.js';
 import { store } from './store.js';
 import { navigate } from './router.js';
@@ -56,7 +56,7 @@ async function undoSave(s) {
     }
     await store.updateEntry(s.date, patchFor(s.field, s.previous));
   } catch (err) {
-    toast(`${name} not put back. ${failureText('Undo a save', err)}`, { tone: 'error' });
+    toast(`${name} not put back. ${notSavedReason(failureText('Undo a save', err))}`, { tone: 'error' });
     return;
   }
   toast(s.previous === null ? `${name}${forDay(s.date)} is empty again` : `${name}${forDay(s.date)} is back to ${valueText(s.field, s.previous)}`);
@@ -82,5 +82,5 @@ export function sayLeftSaved(s) {
 export function keepLeftUnsaved(draft, backHash) {
   holdDraft(draft);
   const typed = draft.text.trim().slice(0, 20);
-  toast(`${fieldName(draft.field)} not saved (“${typed}”). ${draft.error}`, { action: { label: 'Fix it', onClick: () => navigate(backHash) } });
+  toast(`${fieldName(draft.field)} not saved (“${typed}”). ${notSavedReason(draft.error)}`, { action: { label: 'Fix it', onClick: () => navigate(backHash) } });
 }

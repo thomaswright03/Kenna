@@ -348,11 +348,14 @@ test('every way out of Log Meal saves the number in the box, and the next screen
   await expect(saved(333)).toBeVisible();
   await expect.poll(lunch).toBe(333);
 
-  // The browser's or phone's Back.
+  // The browser's or phone's Back. Today, drawn once the save is done,
+  // already includes it.
   await open(444);
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(saved(444)).toBeVisible();
+  await expect(page.locator('.meal-row[data-meal="lunch"]')).toContainText('444 cal');
+  await expect(page.locator('.total-num')).toHaveText('444');
   await expect.poll(lunch).toBe(444);
 
   // Undo on that message puts back what was there before.
@@ -406,6 +409,68 @@ test('leaving Today saves the weight typed in its box and says so; one that can�
   await nav.getByRole('link', { name: 'Today' }).click();
   await expect(page.getByLabel('Weight (lbs)')).toHaveValue('18l');
   await expect(page.getByText(/^Not saved yet\./)).toBeVisible();
+});
+
+/** Makes saving days fail, as when the phone's storage is full, until `fixSaving`. */
+async function breakSaving(page) {
+  await page.evaluate(() => {
+    const setItem = Storage.prototype.setItem;
+    window.fixSaving = () => {
+      Storage.prototype.setItem = setItem;
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      return setItem.call(this, key, value);
+    };
+  });
+}
+const fixSaving = (page) => page.evaluate(() => window.fixSaving());
+
+test('a number whose save fails on the way out is kept, the next screen says so, and it goes back in its box', async ({ page, appURL, data }) => {
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await page.goto(`${appURL}/#/log/dinner`);
+  await breakSaving(page);
+  await page.getByLabel('Dinner calories').fill('640');
+  await nav.getByRole('link', { name: 'Today' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  const mealMessage = page.locator('.toast').filter({ hasText: 'Dinner not saved (“640”). There\'s no room left for Kenna\'s data on this device.' });
+  await expect(mealMessage).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Dinner saved' })).toHaveCount(0);
+  expect(await data.entry(TODAY)).toBe(null);
+  await fixSaving(page);
+  await mealMessage.getByRole('button', { name: 'Fix it' }).click();
+  await expect(page.getByLabel('Dinner calories')).toHaveValue('640');
+  await expect(page.getByText(/^Not saved yet\. There's no room left/)).toBeVisible();
+  await page.getByLabel('Dinner calories').press('Enter');
+  await expect.poll(async () => (await data.entry(TODAY)).meals.dinner).toBe(640);
+
+  // The Weight box on Today, left for History.
+  await nav.getByRole('link', { name: 'Today' }).click();
+  await breakSaving(page);
+  await page.getByLabel('Weight (lbs)').fill('175.5');
+  await nav.getByRole('link', { name: 'History' }).click();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Weight not saved (“175.5”).' })).toBeVisible();
+  await fixSaving(page);
+  await nav.getByRole('link', { name: 'Today' }).click();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('175.5');
+  await expect(page.getByText(/^Not saved yet\./)).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(null);
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(175.5);
+});
+
+test('a number whose save fails as the page closes comes back in its box on the next visit', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/dinner`);
+  await breakSaving(page);
+  await page.getByLabel('Dinner calories').fill('640');
+  await page.reload();
+  await expect(page.getByLabel('Dinner calories')).toHaveValue('640');
+  await expect(page.getByText(/^Not saved yet\. There's no room left/)).toBeVisible();
+  expect(await data.entry(TODAY)).toBe(null);
+  await page.getByLabel('Dinner calories').press('Enter');
+  await expect.poll(async () => (await data.entry(TODAY)).meals.dinner).toBe(640);
 });
 
 test('Back from a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {

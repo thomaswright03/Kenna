@@ -5,7 +5,7 @@
 // banner). The same goes for leaving the screen with such a value in the
 // box. Valid values are simply saved instead.
 
-import { core, prefs, mealLabel } from './dom.js';
+import { core, prefs, mealLabel, notSavedReason } from './dom.js';
 import { showBanner } from './feedback.js';
 
 /** @typedef {{ field: string, date: string, text: string, error: string }} Draft field is 'weight' or a meal key */
@@ -15,9 +15,9 @@ const KEY = 'unsavedInput';
 /** @type {Draft | null} */
 let pending = null;
 
-/** @param {Draft} draft */
+/** @param {Draft} draft error: why it wasn't saved (a failed save's message, or what's wrong with it) */
 export function keepDraft(draft) {
-  prefs.set(KEY, JSON.stringify(draft));
+  prefs.set(KEY, JSON.stringify({ ...draft, error: notSavedReason(draft.error) }));
 }
 
 /**
@@ -26,8 +26,8 @@ export function keepDraft(draft) {
  * @param {Draft} draft
  */
 export function holdDraft(draft) {
-  pending = draft;
-  keepDraft(draft);
+  pending = { ...draft, error: notSavedReason(draft.error) };
+  keepDraft(pending);
 }
 
 /**

@@ -131,6 +131,17 @@ export function byId(id) {
 }
 
 /**
+ * Why something wasn't saved, for a sentence that already says it wasn't:
+ * a failed save's message without its leading "Not saved." ("Weight not
+ * saved (“181”). There's no room left…").
+ * @param {string} message
+ */
+export function notSavedReason(message) {
+  const m = /^Not saved[.:]\s+(.+)$/s.exec(message);
+  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : message;
+}
+
+/**
  * The message to show for a failed operation. Only messages Kenna wrote
  * (core.KennaError) are shown as they are; a browser's own error text never
  * is. Full storage gets its own advice; anything else gets `fallback`, a

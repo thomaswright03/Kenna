@@ -36,6 +36,8 @@ function weightSaver(view, input, status) {
   let lastSave = null;
   // Set once the screen is being left.
   let left = false;
+  // Why the last save failed, as shown under the box.
+  let failure = '';
 
   /** @param {number | null} value @param {number | null} previous @returns {Promise<boolean>} */
   async function save(value, previous) {
@@ -50,7 +52,8 @@ function weightSaver(view, input, status) {
       if (view.rolledOver && !left) render();
       return true;
     } catch (err) {
-      status.set('error', failureText('Save the weight', err), { label: 'Retry', onClick: () => commit() });
+      failure = failureText('Save the weight', err);
+      status.set('error', failure, { label: 'Retry', onClick: () => commit() });
       return false;
     }
   }
@@ -79,13 +82,16 @@ function weightSaver(view, input, status) {
   }
 
   // Saves what's in the box when the page is hidden or closed, exactly as
-  // leaving the box would; a value that can't be saved is kept as a draft.
+  // leaving the box would; a value that can't be saved, or whose save
+  // fails, is kept as a draft.
   function flush() {
     if (left) return;
     const text = input.value;
     const result = core.validateWeight(text);
     if (result.ok) {
-      commit();
+      commit().then((ok) => {
+        if (!ok) keepDraft({ field: 'weight', date: view.date, text, error: failure });
+      });
     } else {
       keepDraft({ field: 'weight', date: view.date, text, error: result.error });
       status.set('error', result.error);
@@ -95,8 +101,8 @@ function weightSaver(view, input, status) {
   // Leaving Today (for another screen or another day) saves what's in the
   // box, as leaving the box does, and the next screen says so, as it does
   // for a save whose "Saved" was still showing; a value that can't be
-  // saved is kept for when this day is shown again.
-  /** @param {string} backHash */
+  // saved, or whose save fails, is kept for when this day is shown again.
+  /** @param {string} backHash @returns {Promise<void> | undefined} */
   function leave(backHash) {
     if (left) return;
     left = true;
@@ -110,8 +116,9 @@ function weightSaver(view, input, status) {
       if (lastSave && status.el.classList.contains('is-saved')) sayLeftSaved({ field: 'weight', ...lastSave });
       return;
     }
-    commit().then((ok) => {
+    return commit().then((ok) => {
       if (ok && lastSave) sayLeftSaved({ field: 'weight', ...lastSave });
+      else if (!ok) keepLeftUnsaved({ field: 'weight', date: view.date, text, error: failure }, backHash);
     });
   }
 
@@ -120,7 +127,7 @@ function weightSaver(view, input, status) {
 
 /**
  * @param {DayView} view
- * @returns {{ root: HTMLElement, flush: () => void, leave: (backHash: string) => void, mounted: () => void, refresh: () => void }}
+ * @returns {{ root: HTMLElement, flush: () => void, leave: (backHash: string) => Promise<void> | undefined, mounted: () => void, refresh: () => void }}
  */
 export function buildWeightField(view) {
   const input = h('input', {

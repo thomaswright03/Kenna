@@ -3,7 +3,7 @@
 // Undo button in its row while the screen is open, and if the screen is
 // left soon after, the next screen offers Undo for a few seconds more.
 
-import { core, h, MEAL_STEPS, mealLabel, today } from './dom.js';
+import { core, h, MEAL_STEPS, mealLabel, today, notSavedReason } from './dom.js';
 import { failureText } from './problems.js';
 import { toast, announce } from './feedback.js';
 import { store } from './store.js';
@@ -39,7 +39,7 @@ async function putBackElsewhere(key, r) {
     }
     await store.updateEntry(r.date, { meals: { [key]: r.value } });
   } catch (err) {
-    toast(`${mealLabel(key)} not put back. ${failureText('Put back a meal', err)}`, { tone: 'error' });
+    toast(`${mealLabel(key)} not put back. ${notSavedReason(failureText('Put back a meal', err))}`, { tone: 'error' });
     return;
   }
   toast(`${mealLabel(key)} put back for ${dayWords(r.date)}: ${core.formatCalories(r.value)}`);
