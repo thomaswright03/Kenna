@@ -1,0 +1,173 @@
+const { test, expect, TODAY, day } = require('./fixtures');
+
+const nav = (page) => page.getByRole('navigation', { name: 'Main' });
+const ISO_DATE = /\d{4}-\d{2}-\d{2}/;
+
+async function visibleText(page) {
+  return page.locator('body').innerText();
+}
+
+test('days with only a weight are not counted as 0-calorie days', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-22': day('2026-09-22', { breakfast: 1200, dinner: 800 }, 181),
+    '2026-09-23': day('2026-09-23', {}, 180),
+    [TODAY]: day(TODAY, { lunch: 1000 }, 179.5),
+  });
+
+  await page.goto(`${appURL}/#/compare`);
+  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
+  await expect(total.locator('.compare-row').nth(1)).toContainText('No meals logged');
+  await expect(total.locator('.compare-row').nth(2)).toContainText('2,000 cal');
+  await expect(total).toContainText('▼ −1,000 cal vs average');
+  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
+  await expect(weight.locator('.compare-row').nth(1)).toContainText('180 lbs');
+  expect(await visibleText(page)).not.toMatch(ISO_DATE);
+
+  await page.goto(`${appURL}/#/history`);
+  const yesterday = page.locator('.history-item', { hasText: 'Yesterday' });
+  await expect(yesterday).toContainText('No meals logged · 180 lbs');
+  await expect(page.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('2,000 cal · 181 lbs');
+  expect(await visibleText(page)).not.toMatch(/\b0 cal/);
+  expect(await visibleText(page)).not.toMatch(ISO_DATE);
+
+  await page.goto(appURL);
+  await expect(page.locator('.chart-svg.series-calories .dot:not(.dot-hover)')).toHaveCount(2);
+  await expect(page.locator('.chart-svg.series-calories .line-gap')).toHaveCount(1);
+  await expect(page.locator('.chart-svg.series-weight .dot:not(.dot-hover)')).toHaveCount(3);
+  expect(await visibleText(page)).not.toMatch(ISO_DATE);
+});
+
+test('Back moves between screens inside the app and refresh keeps the screen', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  await nav(page).getByRole('link', { name: 'History' }).click();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await nav(page).getByRole('link', { name: 'Compare' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  expect(page.url().startsWith(appURL)).toBe(true);
+  await expect(nav(page).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+});
+
+test('Done returns to the screen the log was opened from without stacking history', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/history`);
+  await nav(page).getByRole('link', { name: 'Today' }).click();
+  await page.getByRole('link', { name: 'Log Meal' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+});
+
+test('tapping a History day opens it for editing, with a way back to today', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 182) });
+  await page.goto(`${appURL}/#/history`);
+  await page.locator('.history-item', { hasText: 'Sun, Sep 20' }).tap();
+  await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('182');
+  await page.getByRole('link', { name: 'Add Breakfast' }).click();
+  await page.getByLabel('Breakfast calories').fill('250');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
+  expect((await data.entry('2026-09-20')).meals.breakfast).toBe(250);
+  await page.getByRole('link', { name: 'Back to today' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+});
+
+test('the header controls are reachable by keyboard', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(nav(page).getByRole('link', { name: 'Today' })).toBeFocused();
+});
+
+test('charts use a time axis, open on the newest data and label ticks uniquely', async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 0; i < 40; i += 1) {
+    const d = new Date(Date.UTC(2026, 7, 1 + i)).toISOString().slice(0, 10); // Aug 1 .. Sep 9
+    entries[d] = day(d, { lunch: 1800 + (i % 5) * 10 }, 150 + (i % 4) * 0.4);
+  }
+  entries[TODAY] = day(TODAY, { lunch: 1900 }, 151.2);
+  await data.seed(entries);
+  await page.goto(appURL);
+  const weightChart = page.locator('.chart-svg.series-weight');
+  await expect(weightChart).toBeVisible();
+  // 30-day view ends today; the two-week gap before today is visible.
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
+  await expect(page.locator('.chart-svg.series-weight .line-gap')).toHaveCount(1);
+  const labels = await weightChart.locator('.axis-label').allTextContents();
+  const yLabels = labels.filter((t) => /^\d/.test(t));
+  expect(new Set(yLabels).size).toBe(yLabels.length);
+  expect(yLabels.some((t) => t.includes('.'))).toBe(true);
+
+  await page.getByRole('button', { name: 'All' }).first().click();
+  const box = await weightChart.boundingBox();
+  const card = await page.locator('.chart').nth(1).boundingBox();
+  expect(box.width).toBeLessThanOrEqual(card.width + 1);
+  const gap = page.locator('.chart-svg.series-weight .line-gap');
+  await expect(gap).toHaveCount(1);
+  const gapBox = await gap.boundingBox();
+  expect(gapBox.width).toBeGreaterThan(box.width * 0.15);
+
+  await weightChart.focus();
+  await page.keyboard.press('End');
+  await expect(page.locator('.chart-tooltip.visible').nth(0)).toContainText('151.2 lbs');
+});
+
+test('Compare shows 7-day averages instead of repeating the daily charts', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-22': day('2026-09-22', { lunch: 1000 }),
+    '2026-09-23': day('2026-09-23', { lunch: 2000 }),
+  });
+  await page.goto(`${appURL}/#/compare`);
+  await expect(page.getByText('7-day average of daily intake')).toBeVisible();
+  await expect(page.locator('.chart-latest.series-calories')).toContainText('1,500 cal');
+});
+
+test('light and dark themes follow the system and can be overridden', async ({ browser, appURL }) => {
+  const light = await browser.newContext({ colorScheme: 'light' });
+  const page = await light.newPage();
+  await page.goto(appURL);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('label', { hasText: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  expect(bg).toBe('rgb(15, 23, 42)');
+  const scheme = await page.evaluate(() => getComputedStyle(document.querySelector('input[type=radio]')).colorScheme);
+  expect(scheme).toBe('dark');
+  await light.close();
+
+  const dark = await browser.newContext({ colorScheme: 'dark' });
+  const page2 = await dark.newPage();
+  await page2.goto(appURL);
+  await expect(page2.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await dark.close();
+});
+
+test('every control is at least 44 by 44 pixels', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }, 180), '2026-09-20': day('2026-09-20', { dinner: 700 }) });
+  const small = [];
+  for (const hash of ['#/', '#/log', '#/history', '#/compare', '#/photos', '#/settings']) {
+    await page.goto(`${appURL}/${hash}`);
+    await page.locator('main h2').first().waitFor();
+    const found = await page.evaluate(() => {
+      const out = [];
+      for (const el of document.querySelectorAll('a, button, label.btn, label.segment, input:not(.visually-hidden)')) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.width < 44 || r.height < 44) out.push(`${el.tagName} "${(el.textContent || el.getAttribute('aria-label') || '').trim()}" ${Math.round(r.width)}x${Math.round(r.height)}`);
+      }
+      return out;
+    });
+    small.push(...found.map((f) => `${hash} ${f}`));
+  }
+  expect(small).toEqual([]);
+});

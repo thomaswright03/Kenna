@@ -1,0 +1,120 @@
+const fs = require('node:fs');
+const { test, expect, TODAY, day } = require('./fixtures');
+
+// A 2x2 PNG.
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==',
+  'base64'
+);
+const photoFile = (name = 'me.png') => ({ name, mimeType: 'image/png', buffer: PNG });
+
+async function addPhoto(page) {
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
+}
+
+test('photo viewer is an accessible dialog and deleting asks first', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  const thumb = page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' });
+  await expect(thumb).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
+
+  await thumb.click();
+  const viewer = page.getByRole('dialog', { name: 'Progress photo, Thu, Sep 24' });
+  await expect(viewer).toBeVisible();
+  await expect(viewer.getByRole('img', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
+  await expect(viewer.getByRole('button', { name: 'Close' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await expect(thumb).toBeFocused();
+
+  await thumb.click();
+  await viewer.getByRole('button', { name: 'Delete…' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Delete this photo from Thu, Sep 24?' });
+  await expect(confirm).toContainText("can't be undone");
+  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirm).toBeHidden();
+  await viewer.getByRole('button', { name: 'Close' }).click();
+  await expect(thumb).toBeVisible();
+
+  await thumb.click();
+  await viewer.getByRole('button', { name: 'Delete…' }).click();
+  await page.getByRole('button', { name: 'Delete photo' }).click();
+  await expect(page.getByText('No photos yet.')).toBeVisible();
+});
+
+test('tapping outside the photo closes the viewer', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  await page.locator('.photo-thumb').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.mouse.click(5, 5);
+  await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('files that are not photos are refused', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await page.locator('input[type=file]').setInputFiles({ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('hello, this is text') });
+  await expect(page.getByText("That file isn't a photo we can show.")).toBeVisible();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+});
+
+test('a backup file restores every day and photo, without duplicates on re-import', async ({ page, appURL, data, startApp, browser }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 182), [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await page.clock.setFixedTime(new Date('2026-09-20T09:00:00-05:00'));
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  await page.clock.setFixedTime(new Date('2026-09-24T09:00:00-05:00'));
+  await page.reload();
+  await addPhoto(page);
+  await expect(page.locator('.photo-thumb')).toHaveCount(2);
+
+  await page.goto(`${appURL}/#/settings`);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Backup' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('kenna-backup-2026-09-24.json');
+  const file = await download.path();
+  const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
+  expect(Object.keys(backup.entries).sort()).toEqual(['2026-09-20', TODAY]);
+  expect(backup.photos.map((p) => p.date).sort()).toEqual(['2026-09-20', TODAY]);
+  await expect(page.getByText(/Backup file saved: 2 days and 2 photos/)).toBeVisible();
+
+  // Restore into a completely empty app (fresh storage / fresh server).
+  const freshURL = await startApp();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', timezoneId: 'America/Chicago' });
+  const fresh = await ctx.newPage();
+  await fresh.clock.setFixedTime(new Date('2026-09-24T10:00:00-05:00'));
+  await fresh.goto(`${freshURL}/#/settings`);
+  await fresh.locator('input[type=file]').setInputFiles(file);
+  await fresh.getByRole('button', { name: 'Restore' }).click();
+  await expect(fresh.getByText('Restored 2 days and 2 photos.', { exact: true })).toBeVisible();
+
+  await fresh.goto(`${freshURL}/#/photos`);
+  await expect(fresh.getByRole('button', { name: 'Progress photo, Sun, Sep 20' })).toBeVisible();
+  await expect(fresh.getByRole('button', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
+  await fresh.goto(`${freshURL}/#/history`);
+  await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182 lbs');
+
+  await fresh.goto(`${freshURL}/#/settings`);
+  await fresh.locator('input[type=file]').setInputFiles(file);
+  await fresh.getByRole('button', { name: 'Restore' }).click();
+  await expect(fresh.getByText('Restored 2 days and 0 photos. 2 photos were already here.', { exact: true })).toBeVisible();
+  await fresh.goto(`${freshURL}/#/photos`);
+  await expect(fresh.locator('.photo-thumb')).toHaveCount(2);
+  await ctx.close();
+});
+
+test('a malformed backup is rejected and changes nothing', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }) });
+  const bad = testInfo.outputPath('bad.json');
+  fs.writeFileSync(bad, JSON.stringify({ entries: { '2026-01-01': 5, garbage: { weight: 'x' } } }));
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(bad);
+  await expect(page.getByRole('alert')).toContainText('Nothing was imported.');
+  await page.goto(`${appURL}/#/history`);
+  await expect(page.locator('.history-item')).toHaveCount(1);
+  await expect(page.locator('.history-item')).toContainText('700 cal');
+});
