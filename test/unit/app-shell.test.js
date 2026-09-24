@@ -40,8 +40,39 @@ test('every script, module and stylesheet the page loads is pre-cached for offli
   const shell = appShell();
   const files = loadedFiles();
   assert.ok(files.length >= 6);
-  assert.ok(files.includes('ui/screen-today.js'), 'imports are followed');
+  assert.ok(files.includes('build/app.js') && files.includes('build/data.js'), 'the built scripts are among them');
   for (const file of files) assert.ok(shell.includes(`./${file}`), `${file} is not in the service worker's APP_SHELL`);
+});
+
+test('the page loads the built scripts, not the sources, so a first visit needs few downloads', () => {
+  const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
+  const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(scripts, ['backend.js', 'build/data.js', 'build/app.js']);
+  assert.match(html, /<script type="module" src="build\/app.js"><\/script>/);
+  assert.doesNotMatch(html, /modulepreload/);
+  const shell = appShell();
+  for (const source of ['./core.js', './app.js', './ui/dom.js']) assert.ok(!shell.includes(source), `${source} is cached although the page never loads it`);
+});
+
+test('the page shows it is loading until the first screen is drawn', () => {
+  const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
+  assert.match(html, /<main id="main" class="main"><p class="boot-loading" role="status">[\s\S]*Loading Kenna…<\/p><\/main>/);
+});
+
+test("the browser's theme colours and the splash screen match the page background", () => {
+  const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8');
+  const bg = (block) => css.match(new RegExp(`^${block} \\{[\\s\\S]*?--bg: (#[0-9a-f]+);`, 'm'))[1];
+  const light = bg(':root');
+  const dark = bg(":root\\[data-theme='dark'\\]");
+  const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
+  assert.match(html, new RegExp(`<meta name="theme-color" content="${light}" media="\\(prefers-color-scheme: light\\)">`));
+  assert.match(html, new RegExp(`<meta name="theme-color" content="${dark}" media="\\(prefers-color-scheme: dark\\)">`));
+  const theme = fs.readFileSync(path.join(docs, 'ui', 'theme.js'), 'utf8');
+  assert.match(theme, new RegExp(`THEME_COLORS = \\{ light: '${light}', dark: '${dark}' \\}`));
+  const manifest = JSON.parse(fs.readFileSync(path.join(docs, 'manifest.webmanifest'), 'utf8'));
+  assert.equal(manifest.background_color, light);
+  const notFound = fs.readFileSync(path.join(docs, '404.html'), 'utf8');
+  assert.ok(notFound.includes(`--bg: ${light};`) && notFound.includes(`--bg: ${dark};`), '404.html uses the same backgrounds');
 });
 
 test('no UI source file is longer than a few hundred lines', () => {

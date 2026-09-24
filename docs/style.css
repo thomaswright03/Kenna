@@ -960,3 +960,15 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .dialog-text + .dialog-text { margin-top: var(--s2); }
 .import-result > .btn { margin-top: var(--s3); }
 .import-result .card-sub { margin-top: var(--s3); margin-bottom: 0; }
+
+/* Shown in the page itself until the app's first screen is ready. */
+.boot-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s6) 0;
+  color: var(--muted);
+  font-weight: 600;
+}

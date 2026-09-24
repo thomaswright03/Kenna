@@ -54,7 +54,7 @@
 
   <div id="banners" class="banners"></div>
 
-  <main id="main" class="main"></main>
+  <main id="main" class="main"><p class="boot-loading" role="status"><span class="spinner" aria-hidden="true"></span>Loading Kenna…</p></main>
 
   <div id="loading" class="loading" role="status" hidden><span class="spinner" aria-hidden="true"></span>Loading…</div>
 
@@ -67,11 +67,11 @@
 <div id="toasts" class="toasts"></div>
 <div id="announcer" class="visually-hidden" aria-live="polite"></div>
 
+<!-- build/ holds the sources in docs/, minified into two files (npm run
+     build), so a first visit on a slow connection waits for a handful of
+     downloads rather than dozens. -->
 <script src="backend.js"></script>
-<script src="core.js"></script>
-<script src="store-local.js"></script>
-<script src="store-server.js"></script>
-<script src="backup-file.js"></script>
-<script type="module" src="app.js"></script>
+<script src="build/data.js"></script>
+<script type="module" src="build/app.js"></script>
 </body>
 </html>

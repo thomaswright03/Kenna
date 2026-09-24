@@ -241,9 +241,19 @@ test('older photo metadata (uploadedAt) is still listed', async (t) => {
 test('the server serves the shared app and switches it to server storage', async (t) => {
   const { base } = await startServer(t);
   const html = await (await fetch(`${base}/`)).text();
-  assert.match(html, /<script type="module" src="app.js"><\/script>/);
+  assert.match(html, /<script type="module" src="build\/app.js"><\/script>/);
   const backend = await (await fetch(`${base}/backend.js`)).text();
   assert.match(backend, /KENNA_BACKEND = 'server'/);
+});
+
+test("the server sends the app's files compressed to browsers that accept it", async (t) => {
+  const { base } = await startServer(t);
+  const compressed = await fetch(`${base}/build/app.js`, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(compressed.status, 200);
+  assert.equal(compressed.headers.get('content-encoding'), 'gzip');
+  assert.match(await compressed.text(), /sourceMappingURL=app\.js\.map/);
+  const plain = await fetch(`${base}/build/app.js`, { headers: { 'Accept-Encoding': 'identity' } });
+  assert.equal(plain.headers.get('content-encoding'), null);
 });
 
 test('only the endpoints the app uses exist', async (t) => {

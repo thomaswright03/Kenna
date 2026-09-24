@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -156,6 +157,9 @@ function createApp(options) {
 
   const app = express();
   app.disable('x-powered-by');
+  // Text responses (the app's files, the API's JSON) are sent compressed to
+  // browsers that accept it; photos are already compressed and are left alone.
+  app.use(compression());
   app.use(express.json({ limit: '25mb' })); // photo uploads arrive as base64 JSON
 
   // The UI is the same app as the installable version in docs/; this one
