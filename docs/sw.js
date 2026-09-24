@@ -13,7 +13,7 @@
 // pre-caches the whole new set together, so a phone that goes offline right
 // after an update still has matching files. A test checks every listed file
 // exists.
-const CACHE_NAME = 'kenna-v37';
+const CACHE_NAME = 'kenna-v38';
 
 const APP_SHELL = [
   './',
@@ -49,6 +49,8 @@ const APP_SHELL = [
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './icons/icon-maskable-192.png',
+  './icons/icon-maskable-512.png',
 ];
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
