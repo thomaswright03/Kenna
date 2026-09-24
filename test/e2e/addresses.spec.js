@@ -17,6 +17,28 @@ test('a date that does not exist opens Today and says so', async ({ page, appURL
   expect(new URL(page.url()).hash).toBe('#/');
 });
 
+test('an address without a date, or with a year Kenna does not keep, opens Today with its own message', async ({ page, appURL }) => {
+  const nowhere = "That address doesn't lead anywhere, so Today is shown.";
+  for (const [bad, message] of [
+    ['#/day/garbage', nowhere],
+    ['#/garbage', nowhere],
+    ['#/day/2026-9-24', nowhere],
+    ['#/day/1899-12-31', 'Kenna opens days from 1900 to 2999, so Today is shown.'],
+  ]) {
+    await page.goto(`${appURL}/${bad}`);
+    await expect(today(page)).toBeVisible();
+    const status = page.getByRole('status').filter({ hasText: 'so Today is shown.' });
+    await expect(status, bad).toHaveText(message);
+    expect(new URL(page.url()).hash).toBe('#/');
+    await page.goto(`${appURL}/#/history`);
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  }
+  // Addresses that lead somewhere say nothing.
+  await page.goto(`${appURL}/#/`);
+  await expect(today(page)).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'so Today is shown.' })).toHaveCount(0);
+});
+
 test('an address that leads nowhere is replaced by Today, without a history entry', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/history`);
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();

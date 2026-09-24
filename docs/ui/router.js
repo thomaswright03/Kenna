@@ -9,11 +9,26 @@ import { toast, clearToastsOnNavigation } from './feedback.js';
 
 /**
  * @typedef {'today' | 'log' | 'history' | 'compare' | 'photos' | 'settings'} ScreenName
- * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean, noSuchDate?: boolean }} Route
- *   future: the address named a day after today; noSuchDate: it named a date that doesn't exist (Feb 30)
+ * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean, notShown?: string }} Route
+ *   future: the address named a day after today; notShown: why the address
+ *   it came from led nowhere (a date that doesn't exist, or no date at all)
  */
 
 const NO_SUCH_DATE = "That date doesn't exist, so Today is shown.";
+const OUT_OF_RANGE = 'Kenna opens days from 1900 to 2999, so Today is shown.';
+const NOWHERE = "That address doesn't lead anywhere, so Today is shown.";
+
+/**
+ * Why a day's address isn't a day: a date that doesn't exist (Feb 30), a
+ * year Kenna doesn't keep, or something that isn't a date at all.
+ * @param {string} text
+ */
+function notADay(text) {
+  const parts = /^(\d{4})-\d{2}-\d{2}$/.exec(text);
+  if (!parts) return NOWHERE;
+  const year = Number(parts[1]);
+  return year < 1900 || year > 2999 ? OUT_OF_RANGE : NO_SUCH_DATE;
+}
 
 /** @type {ScreenName[]} */
 const SCREENS = ['history', 'compare', 'photos', 'settings'];
@@ -36,10 +51,10 @@ function parseRoute(hash) {
     if (parts[2] === 'log') return { screen: 'log', date: parts[1], meal: mealKey(parts[3]) };
     return { screen: 'today', date: parts[1] };
   }
-  if (parts[0] === 'day' && parts.length > 1) return { screen: 'today', date: null, noSuchDate: true };
+  if (parts[0] === 'day' && parts.length > 1) return { screen: 'today', date: null, notShown: notADay(parts[1]) };
   const screen = SCREENS.find((s) => s === parts[0]);
   if (screen) return { screen, date: null };
-  return { screen: 'today', date: null };
+  return { screen: 'today', date: null, notShown: NOWHERE };
 }
 
 /** @param {string | null} date */
@@ -76,7 +91,7 @@ function settleAddress(r) {
     window.history.replaceState(window.history.state, '', canonical);
   }
   if (r.future) toast(core.FUTURE_DAY);
-  else if (r.noSuchDate) toast(NO_SUCH_DATE);
+  else if (r.notShown) toast(r.notShown);
 }
 
 /** The screen being shown. */

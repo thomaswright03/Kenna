@@ -169,9 +169,11 @@ to month); tapping a month goes to it.
 - A day after today can't be logged, whether picked or typed into the
   address bar. The same goes for filing a photo. A backup's days and photos dated
   after today are left out on import, and the import says how many. An
-  address that doesn't lead anywhere opens Today and is replaced by Today's
-  address; one with a date that doesn't exist (Feb 30) does the same and
-  says "That date doesn't exist, so Today is shown."
+  address that doesn't lead anywhere opens Today, is replaced by Today's
+  address and says why: "That date doesn't exist, so Today is shown." for
+  a date that doesn't exist (Feb 30), "Kenna opens days from 1900 to 2999,
+  so Today is shown." for a year outside those, and "That address doesn't
+  lead anywhere, so Today is shown." for anything else.
 - A day more than a year ago that is also more than a month before the
   first day you logged is probably a mistyped year (2002 for 2026), so
   opening it, by the day picker or by address, asks "Log a day in 2002?"
