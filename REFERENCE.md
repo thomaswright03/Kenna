@@ -380,12 +380,9 @@ the unit tests alone.
 GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
 request, as two checks: **Tests / test** (lint, type check, unit tests,
 Chromium) and **Tests / webkit**. A ruleset on the published branch
-(see [Where the app is published](#where-the-app-is-published)),
-**Settings → Rules → Rulesets → Protect live app**, turned on 2026-09-24,
-requires both checks (`test` and `webkit`) to pass on a pull request
-before it can be merged, requires changes to arrive through a pull
-request, and blocks force pushes and deleting the branch. It applies to
-the owner too; nobody is on its bypass list.
+(see [Where the app is published](#where-the-app-is-published)) requires
+both to pass before a pull request can be merged; the README's "Who
+looks after it" says what else it enforces and where to confirm it.
 
 ### Where the app is published
 

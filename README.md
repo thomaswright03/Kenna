@@ -136,11 +136,9 @@ Pages serves its `docs/` folder. Other branches, such as
    to one of them gives phones a new cache to pre-cache together. A unit
    test fails if either is out of date.
 2. Make sure `npm test` passes and both GitHub checks (**Tests / test**,
-   **Tests / webkit**) are green on the pull request. The published
-   branch's ruleset (**Settings → Rules → Rulesets**, "Protect live app",
-   on since 2026-09-24) requires both checks and a pull request, and
-   blocks force pushes and deleting the branch, so GitHub won't merge a
-   change while either check fails. Go through the "Before merging" part
+   **Tests / webkit**) are green on the pull request; the published
+   branch's ruleset (see [Who looks after it](#who-looks-after-it)) won't
+   let GitHub merge it otherwise. Go through the "Before merging" part
    of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install to
    the Home Screen, log a meal, add a photo, export with Save to Files and
    import that file back) and add its row to the checklist's Record table;
@@ -165,6 +163,15 @@ The repository, its **Settings → Pages** (what is published) and
 needs write access, which the owner gives under **Settings →
 Collaborators**; without it, open a pull request and ask the owner to
 merge it.
+
+The published branch is protected by the ruleset "Protect live app",
+turned on 2026-09-24: changes arrive only through a pull request, which
+can be merged only once both checks (**Tests / test** and **Tests /
+webkit**) pass; force pushes and deleting the branch are blocked; and
+nobody, the owner included, is on its bypass list. To confirm it is
+still so, open **Settings → Rules → Rulesets → Protect live app**, or
+look for the two required checks on any open pull request into the
+published branch.
 
 ### If the live app is broken
 
