@@ -112,6 +112,11 @@ test.describe('a meal saved in another window', () => {
     await page.getByLabel('Breakfast calories').fill('450');
     await page.getByLabel('Breakfast calories').blur();
     await expect(b.getByText('Not saved yet. Breakfast was changed to 450 cal in another window.')).toBeVisible();
+    // Sent to the background, then closed there.
+    await b.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
     await b.close({ runBeforeUnload: true });
     expect((await stored(page))[TODAY].meals.breakfast).toBe(450);
 
