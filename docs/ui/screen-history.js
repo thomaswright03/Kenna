@@ -1,8 +1,9 @@
 // History: every logged day, newest first. Tap a day to open it.
 
-import { core, h, prefs, today, visibleEntries } from './dom.js';
+import { core, h, today, visibleEntries } from './dom.js';
 import { store } from './store.js';
 import { dayHash } from './router.js';
+import { lastBackupText } from './backup.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildHistory() {
@@ -38,14 +39,13 @@ export async function buildHistory() {
     }
     card.append(list);
   }
-  const last = prefs.get('lastBackupAt', null);
   const backupCard = h(
     'section',
     { class: 'card card-quiet' },
     h('h3', { class: 'section-title', text: 'Backup' }),
     h('p', {
       class: 'card-sub',
-      text: last ? `Last backup file: ${core.formatDate(core.localDateStr(new Date(last)), now)}.` : "You haven't saved a backup file from this device yet.",
+      text: lastBackupText(),
     }),
     h('a', { class: 'btn btn-secondary', href: '#/settings', text: 'Back up or restore' })
   );

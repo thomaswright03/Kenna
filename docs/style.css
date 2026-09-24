@@ -731,6 +731,20 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .notice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .notice-actions > :only-child { grid-column: 1 / -1; }
 .notice-card .field-status { color: inherit; }
+
+/* A backup file that's been made but not saved anywhere yet. */
+.backup-delivery {
+  margin-top: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+.backup-delivery .card-sub { color: inherit; margin: 0; }
+.backup-delivery .field-status { color: inherit; }
+.backup-delivery .field-status.is-error { color: var(--danger); }
+.notice-card .backup-delivery { margin-top: 0; padding: 0; border: none; background: none; }
 .notice-card .field-status.is-error { color: var(--danger); }
 
 .banners { margin: 0 var(--s4); }

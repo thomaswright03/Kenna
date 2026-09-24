@@ -80,10 +80,11 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
   expect(Object.keys(backup.entries).sort()).toEqual(['2026-09-20', TODAY]);
   expect(backup.photos.map((p) => p.date).sort()).toEqual(['2026-09-20', TODAY]);
-  const saved = page.getByText(/Backup file saved\. kenna-backup-2026-09-24\.json: 2 days and 2 photos/);
-  await expect(saved).toBeVisible();
-  await expect(saved).not.toContainText('phone');
-  await expect(saved).toContainText(backend === 'server' ? 'somewhere other than the computer running Kenna' : 'Move it off this device');
+  const created = page.getByText(/Backup file created: kenna-backup-2026-09-24\.json: 2 days and 2 photos/);
+  await expect(created).toBeVisible();
+  await expect(created).not.toContainText('phone');
+  await expect(created).toContainText(backend === 'server' ? 'somewhere other than the computer running Kenna' : 'Keep it off this device');
+  await expect(page.getByText('Backup saved')).toHaveCount(0);
 
   // Restore into a completely empty app (fresh storage / fresh server).
   const freshURL = await startApp();

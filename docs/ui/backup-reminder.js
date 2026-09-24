@@ -4,7 +4,7 @@
 
 import { core, h, uid, prefs, BACKEND, errorText } from './dom.js';
 import { announce } from './feedback.js';
-import { exportBackup, backupAdvice, backupSummary, shareBackupButton } from './backup.js';
+import { exportBackup, buildBackupDelivery, lastBackup } from './backup.js';
 
 const { SNOOZE_DAYS } = core.BACKUP_REMINDER;
 
@@ -16,7 +16,7 @@ const { SNOOZE_DAYS } = core.BACKUP_REMINDER;
 export function buildBackupReminder(hasData) {
   const due = core.backupReminderDue({
     hasData,
-    lastBackupAt: prefs.get('lastBackupAt', null),
+    lastBackupAt: (lastBackup() || { at: null }).at,
     snoozedUntil: prefs.get('backupReminderSnoozedUntil', null),
     now: new Date(),
   });
@@ -56,17 +56,25 @@ export function buildBackupReminder(hasData) {
       const result = await exportBackup((text) => {
         status.textContent = text;
       });
-      prefs.remove('backupReminderSnoozedUntil');
-      const done = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Done', onClick: () => root.remove() });
-      const share = shareBackupButton(result);
-      root.replaceChildren(
-        h('p', { class: 'notice-title', id: titleId, text: 'Backup saved' }),
-        h('p', { class: 'notice-text', text: `${backupSummary(result)} ${backupAdvice()}` }),
-        h('div', { class: 'notice-actions' }, share, done)
-      );
-      root.classList.add('is-done');
-      announce(`Backup saved. ${backupAdvice()}`);
-      done.focus();
+      const title = h('p', { class: 'notice-title', id: titleId, text: 'Backup file not saved yet' });
+      const delivery = buildBackupDelivery(result, {
+        messageClass: 'notice-text',
+        onSaved: (how) => {
+          const done = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Done', onClick: () => root.remove() });
+          const message = `${how === 'shared' ? 'Backup shared' : 'Backup saved'}. Kenna will remind you again in a week.`;
+          root.replaceChildren(
+            h('p', { class: 'notice-title', id: titleId, text: how === 'shared' ? 'Backup shared' : 'Backup saved' }),
+            h('p', { class: 'notice-text', text: message }),
+            h('div', { class: 'notice-actions' }, done)
+          );
+          root.classList.add('is-done');
+          announce(message);
+          done.focus();
+        },
+      });
+      root.replaceChildren(title, delivery.root);
+      announce('Backup file ready, not saved yet.');
+      delivery.focus();
     } catch (err) {
       backupBtn.disabled = false;
       laterBtn.disabled = false;

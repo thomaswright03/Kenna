@@ -85,7 +85,7 @@ test('a year of photos backs up and restores a photo at a time', async ({ page, 
     const download = await downloadPromise;
     file = testInfo.outputPath('year.json');
     await download.saveAs(file);
-    await expect(page.getByText(/Backup file saved\. .*: 0 days and 365 photos/)).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/Backup file created: .*: 0 days and 365 photos/)).toBeVisible({ timeout: 60000 });
   };
   const exportPeak = browserName === 'chromium' ? await peakHeapDuring(page, exportRun) : (await exportRun(), 0);
   const size = fs.statSync(file).size;
