@@ -105,10 +105,15 @@ test.describe('server version', () => {
     await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
     await page.goto(appURL);
     await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+    let requested;
+    const hung = new Promise((resolve) => { requested = resolve; });
     await page.route('**/api/entries', () => {
       // never answers
+      requested();
     });
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
+    // Advance the clock only once the request (and its timeout timer) exists.
+    await hung;
     await page.clock.runFor(10500);
     await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
     await page.unroute('**/api/entries');
@@ -119,9 +124,12 @@ test.describe('server version', () => {
   test('a save that times out keeps the typed value and can be retried', async ({ page, appURL, data }) => {
     await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
     await page.goto(appURL);
-    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? undefined : route.continue()));
+    let patched;
+    const hung = new Promise((resolve) => { patched = resolve; });
+    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? patched() : route.continue()));
     await page.getByLabel('Weight (lbs)').fill('180');
     await page.getByLabel('Weight (lbs)').blur();
+    await hung;
     await page.clock.runFor(10500);
     await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
     await expect(page.getByLabel('Weight (lbs)')).toHaveValue('180');
