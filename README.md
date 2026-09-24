@@ -89,14 +89,22 @@ That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
 logged, the Today screen reminds you when no backup has been saved from this
 device yet, or when the last one is more than a week old; **Back up now**
-saves one straight away, and **Not now** hides the reminder for three days.
+makes one straight away, and **Not now** hides the reminder for three days.
 
-- **Settings → Export Backup** downloads one `.json` file containing every
-  day (weight and each meal's calories) and every progress photo with the date
-  it was filed under. Keep it somewhere other than the phone (Files, iCloud
-  Drive, email); where the browser can share files (iPhone, Android), a
-  **Share file…** button sends it there directly. Progress is shown while
-  photos are added.
+- **Settings → Export Backup** makes one `.json` file containing every day
+  (weight and each meal's calories) and every progress photo with the date
+  it was filed under, with progress shown while photos are added. Keep it
+  somewhere other than the phone (Files, iCloud Drive, email). Where the
+  browser can share files (iPhone, Android), **Save or share…** opens the
+  share sheet (Save to Files, iCloud Drive, Mail); **Download instead** is
+  there too. Elsewhere the file is downloaded, and **I've saved it** confirms
+  it arrived.
+- A backup only counts as saved, for the reminder and for the "Last backup
+  file saved" line in Settings and History, once a share has completed or
+  you've tapped **I've saved it**; cancelling the share sheet or ignoring a
+  download leaves the reminder in place. (Versions before this recorded
+  the time a download started; that time is still used by the reminder, and
+  Settings says it wasn't confirmed.)
 - **Settings → Import Backup** checks the whole file first. If anything in it
   is invalid, nothing is imported and you're told what's wrong. Otherwise days
   in the file replace the same days on the device (other days are kept), and
@@ -107,13 +115,25 @@ saves one straight away, and **Not now** hides the reminder for three days.
 
 The file does not contain settings such as the theme or chart range.
 
-Backup files are written and read a photo at a time (reading goes through
-the file in 1 MB pieces), so a large photo library never has to fit in the
-browser's memory at once: a year of daily photos makes a file of about
-150 MB. The automated tests export and restore 365 photos of that size.
-Import checks the whole file first, then adds the days and the photos; if
-it is interrupted part-way, importing the same file again adds only the
-photos that are still missing.
+Photos are read one at a time, never all together. Listing them (the
+Photos screen, a backup, finding which photos an import already has) reads
+only each photo's day and time, kept in a small index next to the photos.
+The Photos grid shows small previews (360 pixels, a few tens of KB), made
+when a photo is added, or the first time an older photo is shown, and only
+for the photos near the screen; the full image is read when a photo is
+opened or backed up.
+
+Backup files are written and read a photo at a time too (reading goes
+through the file in 1 MB pieces). A year of daily photos makes a file of
+about 190 MB. The automated tests store 365 photos of about 400 KB (the
+way earlier versions stored them, with no index or previews), then open
+Photos, export them and restore them into an empty app, checking in
+Chromium that the memory of the page's own process never grows by more
+than a third of the library's size (with garbage collected as it goes, as a
+phone short of memory would). The finished backup file itself is held by
+the browser until it is saved. Import checks the whole file first, then
+adds the days and the photos; if it is interrupted part-way, importing the
+same file again adds only the photos that are still missing.
 
 ## Alternative: run your own server (`server.js`)
 

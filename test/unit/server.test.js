@@ -234,3 +234,27 @@ test('days that have not happened yet are refused with a readable message', asyn
     ['2026-09-01']
   );
 });
+
+test('photos keep a small preview, given on upload or added later, and removed with the photo', async (t) => {
+  const { call, base, dataDir } = await startServer(t);
+  const png = `data:image/png;base64,${PNG_1PX}`;
+  const withThumb = await call('POST', '/api/photos', { date: '2026-09-22', createdAt: '2026-09-22T08:00:00.000Z', dataUrl: png, thumbDataUrl: png });
+  assert.equal(withThumb.status, 200);
+  assert.match(withThumb.json.thumbFilename, /\.thumb\.png$/);
+  assert.equal((await fetch(`${base}/photos/${withThumb.json.thumbFilename}`)).status, 200);
+
+  // A preview that isn't an image is left out; the photo itself is kept.
+  const badThumb = await call('POST', '/api/photos', { date: '2026-09-23', dataUrl: png, thumbDataUrl: 'data:image/png;base64,aGVsbG8=' });
+  assert.equal(badThumb.status, 200);
+  assert.equal(badThumb.json.thumbFilename, undefined);
+  const added = await call('PUT', `/api/photos/${badThumb.json.id}/thumb`, { dataUrl: png });
+  assert.equal(added.status, 200);
+  assert.match(added.json.thumbFilename, /\.thumb\.png$/);
+  assert.equal((await call('PUT', `/api/photos/${badThumb.json.id}/thumb`, { dataUrl: 'nope' })).status, 400);
+  assert.equal((await call('PUT', '/api/photos/missing/thumb', { dataUrl: png })).status, 404);
+  const list = (await call('GET', '/api/photos')).json;
+  assert.ok(list.every((p) => typeof p.thumbFilename === 'string'));
+
+  await call('DELETE', `/api/photos/${withThumb.json.id}`);
+  assert.equal(fs.existsSync(path.join(dataDir, 'photos', withThumb.json.thumbFilename)), false);
+});

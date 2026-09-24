@@ -10,15 +10,22 @@
  */
 
 /**
- * A progress photo. Browser storage keeps the image itself (`blob`); the
- * server store gives its address (`url`).
+ * A progress photo's details. Listing photos never reads their images: the
+ * image is read on its own when it's shown or backed up. The server store
+ * also gives the addresses of the image (`url`) and of its preview
+ * (`thumbUrl`, once there is one).
  * @typedef {object} Photo
  * @property {number | string} id
  * @property {string} date the day it's filed under (YYYY-MM-DD)
  * @property {string} createdAt when it was added (ISO time); also its identity in backups
  * @property {string} type
- * @property {Blob} [blob]
  * @property {string} [url]
+ * @property {string} [thumbUrl]
+ */
+
+/**
+ * Makes a small preview of a photo, or null when this browser can't draw it.
+ * @typedef {(photo: Blob) => Promise<Blob | null>} MakeThumbnail
  */
 
 /**
@@ -30,14 +37,13 @@
  * @property {(date: string) => Promise<Entry | null>} getEntry
  * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
  * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries
- * @property {() => Promise<Photo[]>} listPhotos
+ * @property {() => Promise<Photo[]>} listPhotos every photo's details, newest first (no images)
  * @property {() => Promise<number>} countPhotos
- * @property {(photo: { date: string, blob: Blob, createdAt?: string }) => Promise<Photo>} addPhoto
+ * @property {(photo: { date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }) => Promise<Photo>} addPhoto
  * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto
  * @property {(id: Photo['id'], changes: { date: string }) => Promise<Photo>} updatePhoto changes the day a photo is filed under
- * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob
- * @property {(photo: Photo) => { url: string, release: () => void }} photoSrc
- * @property {(photos: BackupPhoto[], onProgress?: (done: number, total: number) => void) => Promise<{ added: number, skipped: number }>} importPhotos
+ * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob the full image
+ * @property {(photo: Photo, size: 'thumb' | 'full') => Promise<{ url: string, release: () => void }>} photoUrl an address to show the preview or full image
  * @property {() => Promise<{ add: (photo: BackupPhoto) => Promise<boolean> }>} createPhotoImporter adds backup photos one at a time; `add` resolves false for a photo that's already here
  * @property {() => Promise<boolean | null>} requestPersistence
  * @property {() => Promise<boolean | null>} persistenceStatus
@@ -55,6 +61,9 @@
   const CORRUPT_KEY = `${ENTRIES_KEY}:corrupt`;
   const PHOTOS_DB_NAME = 'kenna-photos';
   const PHOTOS_STORE = 'photos';
+  const INDEX_DB_NAME = 'kenna-photo-index';
+  const META_STORE = 'meta';
+  const THUMBS_STORE = 'thumbs';
 
   class StorageWriteError extends Error {}
 
@@ -67,7 +76,7 @@
   }
 
   /**
-   * @param {{ storage: Storage | null, indexedDB?: IDBFactory, navigator?: Navigator, window?: Window, onNotice?: (notice: { tone: 'warning' | 'error', message: string }) => void }} options
+   * @param {{ storage: Storage | null, indexedDB?: IDBFactory, navigator?: Navigator, window?: Window, onNotice?: (notice: { tone: 'warning' | 'error', message: string }) => void, makeThumbnail?: MakeThumbnail }} options
    * @returns {KennaStore}
    */
   function createLocalStore(options) {
@@ -78,6 +87,7 @@
     const nav = opts.navigator;
     const win = opts.window;
     const onNotice = opts.onNotice || function () {};
+    const makeThumbnail = opts.makeThumbnail;
 
     // ------------------------------------------------------------ entries
     //
@@ -206,78 +216,173 @@
     }
 
     // ------------------------------------------------------------ photos
+    //
+    // Each photo's image lives in the "kenna-photos" database, as every
+    // version of Kenna has stored it. A second database, "kenna-photo-index",
+    // holds what the Photos screen and backups need without reading any
+    // image: each photo's day, time added and type ("meta"), and a small
+    // preview image ("thumbs"). The index is derived data: it is brought
+    // up to date from the photos themselves whenever photos are listed, so
+    // photos saved by older versions (or by an older copy of the app after
+    // a rollback) are picked up, and the photos database itself never
+    // changes shape.
 
-    let dbPromise = null;
-    function openDB() {
-      if (!idb) return Promise.reject(new Error('Photos need IndexedDB, which this browser has turned off.'));
-      if (!dbPromise) {
-        dbPromise = new Promise((resolve, reject) => {
-          const req = idb.open(PHOTOS_DB_NAME, 1);
-          req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(PHOTOS_STORE)) {
-              db.createObjectStore(PHOTOS_STORE, { keyPath: 'id', autoIncrement: true });
-            }
-          };
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        }).catch((err) => {
-          dbPromise = null;
-          throw err;
-        });
-      }
-      return dbPromise;
+    /**
+     * @param {string} name
+     * @param {(db: IDBDatabase) => void} upgrade
+     * @returns {() => Promise<IDBDatabase>}
+     */
+    function opener(name, upgrade) {
+      /** @type {Promise<IDBDatabase> | null} */
+      let promise = null;
+      return function open() {
+        if (!idb) return Promise.reject(new Error('Photos need IndexedDB, which this browser has turned off.'));
+        const factory = idb;
+        if (!promise) {
+          promise = new Promise((/** @type {(db: IDBDatabase) => void} */ resolve, reject) => {
+            const req = factory.open(name, 1);
+            req.onupgradeneeded = () => upgrade(req.result);
+            req.onsuccess = () => {
+              const db = req.result;
+              // Let a newer copy of the app (another tab) upgrade it.
+              db.onversionchange = () => {
+                db.close();
+                promise = null;
+              };
+              resolve(db);
+            };
+            req.onerror = () => reject(req.error);
+          }).catch((err) => {
+            promise = null;
+            throw err;
+          });
+        }
+        return promise;
+      };
     }
 
-    function tx(mode, fn) {
-      return openDB().then(
+    const openPhotosDB = opener(PHOTOS_DB_NAME, (db) => {
+      if (!db.objectStoreNames.contains(PHOTOS_STORE)) db.createObjectStore(PHOTOS_STORE, { keyPath: 'id', autoIncrement: true });
+    });
+    const openIndexDB = opener(INDEX_DB_NAME, (db) => {
+      if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(THUMBS_STORE)) db.createObjectStore(THUMBS_STORE, { keyPath: 'id' });
+    });
+
+    /**
+     * Runs `fn` in one transaction and, once the transaction has completed,
+     * resolves with the result of the request it returned (if any).
+     * @template T
+     * @param {() => Promise<IDBDatabase>} open
+     * @param {string[]} stores
+     * @param {IDBTransactionMode} mode
+     * @param {(t: IDBTransaction) => IDBRequest<T> | null | void} fn
+     * @returns {Promise<T>}
+     */
+    function run(open, stores, mode, fn) {
+      return open().then(
         (db) =>
           new Promise((resolve, reject) => {
-            const t = db.transaction(PHOTOS_STORE, mode);
-            const result = fn(t.objectStore(PHOTOS_STORE));
-            t.oncomplete = () => resolve(result && 'result' in result ? result.result : result);
+            const t = db.transaction(stores, mode);
+            const result = fn(t);
+            t.oncomplete = () => resolve(result ? result.result : /** @type {T} */ (/** @type {unknown} */ (undefined)));
             t.onerror = () => reject(t.error);
             t.onabort = () => reject(t.error || new Error('Photo storage was interrupted.'));
           })
       );
     }
 
-    // Photos are stored as raw bytes plus their type, because Safari refuses
-    // to put a Blob into IndexedDB in some modes (Private Browsing among
-    // them). Photos saved by older versions hold a `blob` and still load.
-    function toPhoto(record) {
+    /** @template T @param {(s: IDBObjectStore) => IDBRequest<T> | null | void} fn @param {IDBTransactionMode} [mode] */
+    const photosTx = (fn, mode) => run(openPhotosDB, [PHOTOS_STORE], mode || 'readonly', (t) => fn(t.objectStore(PHOTOS_STORE)));
+    /** @template T @param {(t: IDBTransaction) => IDBRequest<T> | null | void} fn @param {IDBTransactionMode} [mode] */
+    const indexTx = (fn, mode) => run(openIndexDB, [META_STORE, THUMBS_STORE], mode || 'readonly', fn);
+
+    /**
+     * A stored photo record, as any version of Kenna wrote it: raw bytes plus
+     * their type (Safari refuses to put a Blob into IndexedDB in some modes,
+     * Private Browsing among them), or, from older versions, a Blob.
+     * @typedef {{ id: number, date: string, createdAt: string, type?: string, bytes?: ArrayBuffer, blob?: Blob }} PhotoRecord
+     * @typedef {{ id: number, date: string, createdAt: string, type: string, missing?: boolean }} PhotoMeta
+     */
+
+    /** @param {PhotoRecord} record @returns {PhotoMeta} */
+    function metaFrom(record) {
       const type = record.type || (record.blob && record.blob.type) || 'image/jpeg';
-      return {
-        id: record.id,
-        date: record.date,
-        createdAt: record.createdAt,
-        type,
-        blob: record.blob || new Blob([record.bytes], { type }),
-      };
+      const meta = { id: record.id, date: record.date, createdAt: String(record.createdAt), type };
+      return record.bytes || record.blob ? meta : { ...meta, missing: true };
     }
 
+    /** @param {PhotoMeta} m @returns {Photo} */
+    const toPhoto = (m) => ({ id: m.id, date: m.date, createdAt: m.createdAt, type: m.type });
+
+    /** @param {number} id @returns {Promise<PhotoRecord | undefined>} */
+    const getRecord = (id) => photosTx((s) => /** @type {IDBRequest<PhotoRecord | undefined>} */ (s.get(id)));
+
+    // Brings the index in line with the photos database: adds photos it
+    // doesn't know yet (reading them one at a time) and drops entries for
+    // photos that are gone. Only keys are compared, so when nothing has
+    // changed no image is read.
+    async function syncIndex() {
+      const keys = /** @type {number[]} */ (await photosTx((s) => s.getAllKeys()));
+      const metas = /** @type {PhotoMeta[]} */ (await indexTx((t) => t.objectStore(META_STORE).getAll()));
+      const known = new Map(metas.map((m) => [m.id, m]));
+      const present = new Set(keys);
+      const stale = metas.filter((m) => !present.has(m.id)).map((m) => m.id);
+      if (stale.length) {
+        await indexTx((t) => {
+          for (const id of stale) {
+            t.objectStore(META_STORE).delete(id);
+            t.objectStore(THUMBS_STORE).delete(id);
+          }
+        }, 'readwrite');
+        for (const id of stale) known.delete(id);
+      }
+      for (const id of keys) {
+        if (known.has(id)) continue;
+        const record = await getRecord(id);
+        if (!record) continue;
+        const meta = metaFrom(record);
+        await indexTx((t) => t.objectStore(META_STORE).put(meta), 'readwrite');
+        known.set(id, meta);
+      }
+      return Array.from(known.values());
+    }
+
+    /** Every photo's details, newest first, without reading any image. */
     async function listPhotos() {
-      const records = await tx('readonly', (s) => s.getAll());
-      return (records || [])
-        .filter((r) => r && (r.blob || r.bytes) && core.isValidDateStr(r.date))
+      const metas = await syncIndex();
+      return metas
+        .filter((m) => !m.missing && core.isValidDateStr(m.date))
         .map(toPhoto)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     }
 
     /** @returns {Promise<number>} */
     async function countPhotos() {
-      return Number(await tx('readonly', (s) => s.count())) || 0;
+      return Number(await photosTx((s) => s.count())) || 0;
     }
 
+    /** @param {Blob} blob */
+    async function bytesOf(blob) {
+      return { bytes: await blob.arrayBuffer(), type: blob.type || 'image/jpeg' };
+    }
+
+    /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     async function addPhoto(photo) {
-      const record = {
-        date: photo.date,
-        bytes: await photo.blob.arrayBuffer(),
-        type: photo.blob.type || 'image/jpeg',
-        createdAt: photo.createdAt || new Date().toISOString(),
-      };
-      const id = await tx('readwrite', (s) => s.add(record));
-      return toPhoto({ ...record, id });
+      const { bytes, type } = await bytesOf(photo.blob);
+      const record = { date: photo.date, bytes, type, createdAt: photo.createdAt || new Date().toISOString() };
+      const id = Number(await photosTx((s) => s.add(record), 'readwrite'));
+      const meta = metaFrom({ ...record, id });
+      const thumb = photo.thumb ? { id, ...(await bytesOf(photo.thumb)) } : null;
+      try {
+        await indexTx((t) => {
+          t.objectStore(META_STORE).put(meta);
+          if (thumb) t.objectStore(THUMBS_STORE).put(thumb);
+        }, 'readwrite');
+      } catch {
+        // The photo is saved; the next listing adds it to the index.
+      }
+      return toPhoto(meta);
     }
 
     /** @param {Photo['id']} id @param {{ date: string }} changes */
@@ -285,37 +390,84 @@
       const date = changes && changes.date;
       if (!core.isValidDateStr(date)) throw new Error('Pick a valid day for this photo.');
       if (core.isFutureDate(date)) throw new Error("A photo can't be filed under a day that hasn't happened yet.");
-      /** @type {any} */
+      /** @type {PhotoRecord | null} */
       let updated = null;
-      await tx('readwrite', (s) => {
-        const req = s.get(id);
+      await photosTx((s) => {
+        const req = /** @type {IDBRequest<PhotoRecord | undefined>} */ (s.get(id));
         req.onsuccess = () => {
           if (!req.result) return;
           updated = { ...req.result, date };
           s.put(updated);
         };
         return null;
-      });
+      }, 'readwrite');
       if (!updated) throw new Error('That photo no longer exists.');
-      return toPhoto(updated);
+      const meta = metaFrom(updated);
+      await indexTx((t) => t.objectStore(META_STORE).put(meta), 'readwrite').catch(() => undefined);
+      return toPhoto(meta);
     }
 
+    /** @param {Photo['id']} id */
     async function deletePhoto(id) {
-      await tx('readwrite', (s) => s.delete(id));
+      await photosTx((s) => s.delete(id), 'readwrite');
+      await indexTx((t) => {
+        t.objectStore(META_STORE).delete(id);
+        t.objectStore(THUMBS_STORE).delete(id);
+      }, 'readwrite').catch(() => undefined);
     }
 
-    /** @param {Photo} photo */
+    /** @param {Photo} photo @returns {Promise<Blob>} the full image, read on its own */
     async function getPhotoBlob(photo) {
-      if (!photo.blob) throw new Error(`A photo from ${core.formatDate(photo.date)} is missing its image.`);
-      return photo.blob;
+      const record = await getRecord(Number(photo.id));
+      if (!record || !(record.bytes || record.blob)) throw new Error(`A photo from ${core.formatDate(photo.date)} is missing its image.`);
+      if (record.blob) return record.blob;
+      return new Blob([/** @type {ArrayBuffer} */ (record.bytes)], { type: record.type || photo.type });
     }
 
-    /** @param {Photo} photo */
-    function photoSrc(photo) {
-      const url = URL.createObjectURL(photo.blob || new Blob());
+    // Previews are made one at a time, so opening a screen full of photos
+    // saved before previews existed never decodes many full images at once.
+    /** @type {Promise<unknown>} */
+    let thumbQueue = Promise.resolve();
+
+    /**
+     * The photo's small preview, made (and kept) the first time it's asked
+     * for when there isn't one yet. Falls back to the full image when no
+     * preview can be made (a format this browser can't draw).
+     * @param {Photo} photo
+     * @returns {Promise<Blob>}
+     */
+    async function thumbBlob(photo) {
+      const id = Number(photo.id);
+      /** @type {{ id: number, bytes?: ArrayBuffer, type?: string, none?: boolean } | undefined} */
+      const stored = await indexTx((t) => t.objectStore(THUMBS_STORE).get(id)).catch(() => undefined);
+      if (stored && stored.bytes) return new Blob([stored.bytes], { type: stored.type || 'image/jpeg' });
+      if (stored && stored.none) return getPhotoBlob(photo);
+      if (!makeThumbnail) return getPhotoBlob(photo);
+      const make = makeThumbnail;
+      const job = thumbQueue.then(async () => {
+        const full = await getPhotoBlob(photo);
+        const thumb = await make(full).catch(() => null);
+        const entry = thumb ? { id, ...(await bytesOf(thumb)) } : { id, none: true };
+        await indexTx((t) => t.objectStore(THUMBS_STORE).put(entry), 'readwrite').catch(() => undefined);
+        return thumb || full;
+      });
+      thumbQueue = job.catch(() => undefined);
+      return job;
+    }
+
+    /**
+     * An address for showing the photo: its small preview ('thumb') or the
+     * whole image ('full'). Call `release` once it's no longer shown.
+     * @param {Photo} photo
+     * @param {'thumb' | 'full'} size
+     */
+    async function photoUrl(photo, size) {
+      const blob = size === 'thumb' ? await thumbBlob(photo) : await getPhotoBlob(photo);
+      const url = URL.createObjectURL(blob);
       return { url, release: () => URL.revokeObjectURL(url) };
     }
 
+    /** @param {string} data @param {string} type */
     function base64ToBlob(data, type) {
       const bin = atob(data);
       const bytes = new Uint8Array(bin.length);
@@ -326,6 +478,7 @@
     // Adds backup photos ({ date, createdAt, type, data: base64 }) one at a
     // time, skipping any already here (matched by the time each was first
     // added), so importing the same backup twice never duplicates anything.
+    // Only the index is read to find those, never an image.
     async function createPhotoImporter() {
       const seen = new Set((await listPhotos()).map(core.photoKey));
       return {
@@ -338,22 +491,6 @@
           return true;
         },
       };
-    }
-
-    /**
-     * @param {BackupPhoto[]} photos
-     * @param {(done: number, total: number) => void} [onProgress]
-     */
-    async function importPhotos(photos, onProgress) {
-      const importer = await createPhotoImporter();
-      let added = 0;
-      let skipped = 0;
-      for (let i = 0; i < photos.length; i += 1) {
-        if (await importer.add(photos[i])) added += 1;
-        else skipped += 1;
-        if (onProgress) onProgress(i + 1, photos.length);
-      }
-      return { added, skipped };
     }
 
     // ------------------------------------------------------------ device
@@ -404,8 +541,7 @@
       updatePhoto,
       deletePhoto,
       getPhotoBlob,
-      photoSrc,
-      importPhotos,
+      photoUrl,
       createPhotoImporter,
       requestPersistence,
       persistenceStatus,

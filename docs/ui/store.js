@@ -3,9 +3,10 @@
 
 import { BACKEND } from './dom.js';
 import { showBanner } from './feedback.js';
+import { makeThumbnail } from './photo-image.js';
 
 function createStore() {
-  if (BACKEND === 'server') return window.KennaServerStore.createServerStore();
+  if (BACKEND === 'server') return window.KennaServerStore.createServerStore({ makeThumbnail });
   /** @type {Storage | null} */
   let storage = null;
   try {
@@ -19,6 +20,7 @@ function createStore() {
     navigator: window.navigator,
     window,
     onNotice: showBanner,
+    makeThumbnail,
   });
 }
 

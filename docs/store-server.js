@@ -21,7 +21,7 @@
   const NOT_RESPONDING = "The Kenna server isn't responding. Check it's running, then try again.";
 
   /**
-   * @param {{ fetch?: typeof fetch, base?: string, timeoutMs?: number }} [options]
+   * @param {{ fetch?: typeof fetch, base?: string, timeoutMs?: number, makeThumbnail?: import('./store-local.js').MakeThumbnail }} [options]
    * @returns {import('./store-local.js').KennaStore}
    */
   function createServerStore(options) {
@@ -30,6 +30,7 @@
     const fetchFn = opts.fetch || ((input, init) => fetch(input, init));
     const base = opts.base || '';
     const timeoutMs = opts.timeoutMs || REQUEST_TIMEOUT_MS;
+    const makeThumbnail = opts.makeThumbnail;
 
     /**
      * Fetches with a time limit, so a server that accepts the connection but
@@ -140,7 +141,14 @@
 
     /** @param {any} p @returns {Photo} */
     function toPhoto(p) {
-      return { id: p.id, date: p.date, createdAt: p.createdAt, type: p.type || 'image/jpeg', url: `/photos/${encodeURIComponent(p.filename)}` };
+      return {
+        id: p.id,
+        date: p.date,
+        createdAt: p.createdAt,
+        type: p.type || 'image/jpeg',
+        url: `/photos/${encodeURIComponent(p.filename)}`,
+        thumbUrl: typeof p.thumbFilename === 'string' ? `/photos/${encodeURIComponent(p.thumbFilename)}` : undefined,
+      };
     }
 
     async function listPhotos() {
@@ -162,13 +170,14 @@
       });
     }
 
-    /** @param {{ date: string, createdAt?: string, blob?: Blob, type?: string, data?: string }} photo */
+    /** @param {{ date: string, createdAt?: string, blob?: Blob, type?: string, data?: string, thumb?: Blob | null }} photo */
     async function postPhoto(photo) {
       const dataUrl = photo.data ? `data:${photo.type};base64,${photo.data}` : await blobToDataUrl(photo.blob || new Blob());
-      return request('POST', '/api/photos', { date: photo.date, createdAt: photo.createdAt, dataUrl }, { timeoutMs: PHOTO_TIMEOUT_MS });
+      const thumbDataUrl = photo.thumb ? await blobToDataUrl(photo.thumb) : undefined;
+      return request('POST', '/api/photos', { date: photo.date, createdAt: photo.createdAt, dataUrl, thumbDataUrl }, { timeoutMs: PHOTO_TIMEOUT_MS });
     }
 
-    /** @param {{ date: string, blob: Blob, createdAt?: string }} photo */
+    /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     function addPhoto(photo) {
       return serial(async () => toPhoto(await postPhoto(photo)));
     }
@@ -190,27 +199,36 @@
       return res.blob();
     }
 
-    /** @param {Photo} photo */
-    function photoSrc(photo) {
-      return { url: base + photo.url, release: () => {} };
-    }
+    // Previews for photos uploaded before previews existed are made here,
+    // one at a time, and sent to the server so it's done once.
+    /** @type {Promise<unknown>} */
+    let thumbQueue = Promise.resolve();
 
     /**
-     * @param {import('./core.js').BackupPhoto[]} photos
-     * @param {(done: number, total: number) => void} [onProgress]
+     * @param {Photo} photo
+     * @param {'thumb' | 'full'} size
+     * @returns {Promise<{ url: string, release: () => void }>}
      */
-    function importPhotos(photos, onProgress) {
-      return serial(async () => {
-        let added = 0;
-        let skipped = 0;
-        for (let i = 0; i < photos.length; i += 1) {
-          const result = await postPhoto(photos[i]);
-          if (result && result.duplicate) skipped += 1;
-          else added += 1;
-          if (onProgress) onProgress(i + 1, photos.length);
+    async function photoUrl(photo, size) {
+      const full = { url: base + photo.url, release: () => {} };
+      if (size === 'full') return full;
+      if (photo.thumbUrl) return { url: base + photo.thumbUrl, release: () => {} };
+      if (!makeThumbnail) return full;
+      const make = makeThumbnail;
+      const job = thumbQueue.then(async () => {
+        const thumb = await make(await getPhotoBlob(photo)).catch(() => null);
+        if (!thumb) return full;
+        try {
+          const saved = await request('PUT', `/api/photos/${encodeURIComponent(photo.id)}/thumb`, { dataUrl: await blobToDataUrl(thumb) });
+          if (saved && typeof saved.thumbFilename === 'string') photo.thumbUrl = toPhoto(saved).thumbUrl;
+        } catch {
+          // Shown anyway; the server is asked again next time.
         }
-        return { added, skipped };
+        const url = URL.createObjectURL(thumb);
+        return { url, release: () => URL.revokeObjectURL(url) };
       });
+      thumbQueue = job.catch(() => undefined);
+      return job;
     }
 
     async function createPhotoImporter() {
@@ -233,8 +251,7 @@
       updatePhoto,
       deletePhoto,
       getPhotoBlob,
-      photoSrc,
-      importPhotos,
+      photoUrl,
       createPhotoImporter,
       requestPersistence: async () => null,
       persistenceStatus: async () => null,

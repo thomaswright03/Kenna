@@ -188,6 +188,7 @@ test('a photo can be filed under an earlier day and moved to another day later',
 
 test('Add Photo is unavailable while a photo is being added', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/photos`);
+  await expect(page.locator('label').filter({ hasText: 'Add Photo' })).toBeVisible();
   await page.evaluate(() => {
     const input = document.querySelector('input[type=file]');
     const seen = /** @type {string[]} */ ([]);
@@ -238,4 +239,80 @@ test('photos saved by earlier versions, stored as a Blob, still show', async ({ 
   const img = page.getByRole('dialog').getByRole('img', { name: 'Progress photo, Wed, Sep 23' });
   await expect(img).toBeVisible();
   await expect.poll(() => img.evaluate((el) => el.naturalWidth)).toBe(2);
+});
+
+// A real 1200x900 photo-like image, drawn in the page.
+async function bigPhoto(page) {
+  const b64 = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 900;
+    const g = canvas.getContext('2d');
+    for (let i = 0; i < 400; i += 1) {
+      g.fillStyle = `hsl(${(i * 37) % 360} 70% ${30 + (i % 40)}%)`;
+      g.fillRect((i * 53) % 1200, (i * 29) % 900, 80, 60);
+    }
+    const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.9));
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  });
+  return Buffer.from(b64, 'base64');
+}
+
+test('the Photos grid shows small previews; the viewer shows the whole photo', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  const buffer = await bigPhoto(page);
+  await page.locator('input[type=file]').setInputFiles({ name: 'big.jpg', mimeType: 'image/jpeg', buffer });
+  await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
+  const gridImg = page.locator('.photo-thumb img');
+  await expect.poll(() => gridImg.evaluate((el) => el.naturalWidth)).toBe(360);
+  await page.reload();
+  await expect.poll(() => gridImg.evaluate((el) => el.naturalWidth)).toBe(360);
+  await page.locator('.photo-thumb').click();
+  const full = page.getByRole('dialog').getByRole('img', { name: 'Progress photo, Thu, Sep 24' });
+  await expect.poll(() => full.evaluate((el) => el.naturalWidth)).toBe(1200);
+});
+
+test('photos saved before previews existed get one the first time they are shown', async ({ page, appURL, backend }) => {
+  test.skip(backend !== 'local', 'browser storage only');
+  await page.goto(appURL);
+  const buffer = await bigPhoto(page);
+  await page.evaluate(
+    (b64) =>
+      new Promise((resolve, reject) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const req = indexedDB.open('kenna-photos', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+        req.onsuccess = () => {
+          const t = req.result.transaction('photos', 'readwrite');
+          t.objectStore('photos').add({ date: '2026-09-22', createdAt: '2026-09-22T12:00:00.000Z', bytes: bytes.buffer, type: 'image/jpeg' });
+          t.oncomplete = () => {
+            req.result.close();
+            resolve();
+          };
+          t.onerror = () => reject(t.error);
+        };
+        req.onerror = () => reject(req.error);
+      }),
+    buffer.toString('base64')
+  );
+  await page.goto(`${appURL}/#/photos`);
+  const gridImg = page.getByRole('button', { name: 'Progress photo, Tue, Sep 22' }).locator('img');
+  await expect.poll(() => gridImg.evaluate((el) => el.naturalWidth)).toBe(360);
+  const stored = await page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const req = indexedDB.open('kenna-photo-index', 1);
+        req.onsuccess = () => {
+          const get = req.result.transaction('thumbs').objectStore('thumbs').getAll();
+          get.onsuccess = () => resolve(get.result.map((t) => t.bytes.byteLength));
+          get.onerror = () => reject(get.error);
+        };
+        req.onerror = () => reject(req.error);
+      })
+  );
+  expect(stored).toHaveLength(1);
+  expect(stored[0]).toBeLessThan(buffer.length / 3);
 });

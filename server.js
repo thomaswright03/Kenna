@@ -209,13 +209,36 @@ function createApp(options) {
 
   // Progress photos are real files under data/photos/, with their date and
   // upload time in photos.json.
+  // A photo can also have a small preview for the Photos screen
+  // (thumbFilename), made by the app when the photo is added or first shown.
   const photoRecord = (p) => ({
     id: p.id,
     date: p.date,
     createdAt: p.createdAt || p.uploadedAt,
     filename: p.filename,
     type: p.type || 'image/jpeg',
+    ...(typeof p.thumbFilename === 'string' ? { thumbFilename: p.thumbFilename } : {}),
   });
+
+  const MAX_THUMB_BYTES = 512 * 1024;
+
+  // The image in a data: URL, checked to really be a photo.
+  function imageFromDataUrl(dataUrl, maxBytes) {
+    const match = typeof dataUrl === 'string' && /^data:[^;,]*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+    if (!match) throw new ApiError(400, "That file isn't a photo we can show.");
+    const bytes = Buffer.from(match[1], 'base64');
+    const type = core.sniffImageType(bytes);
+    if (!type) throw new ApiError(400, "That file isn't a photo we can show.");
+    if (maxBytes && bytes.length > maxBytes) throw new ApiError(400, 'That preview is too large.');
+    return { bytes, type };
+  }
+
+  function writeThumb(dataUrl) {
+    const thumb = imageFromDataUrl(dataUrl, MAX_THUMB_BYTES);
+    const filename = `${crypto.randomUUID()}.thumb.${core.IMAGE_EXTENSIONS[thumb.type]}`;
+    fs.writeFileSync(path.join(store.photosDir, filename), thumb.bytes);
+    return filename;
+  }
 
   app.get('/api/photos', (req, res) => {
     const photos = store
@@ -227,16 +250,12 @@ function createApp(options) {
   });
 
   app.post('/api/photos', (req, res) => {
-    const { date, dataUrl, createdAt } = req.body || {};
+    const { date, dataUrl, createdAt, thumbDataUrl } = req.body || {};
     requireDate(date);
     if (createdAt !== undefined && (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)))) {
       throw new ApiError(400, 'The photo upload time is not a valid time.');
     }
-    const match = typeof dataUrl === 'string' && /^data:[^;,]*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
-    if (!match) throw new ApiError(400, "That file isn't a photo we can show.");
-    const bytes = Buffer.from(match[1], 'base64');
-    const type = core.sniffImageType(bytes);
-    if (!type) throw new ApiError(400, "That file isn't a photo we can show.");
+    const { bytes, type } = imageFromDataUrl(dataUrl);
 
     const photos = store.readPhotos();
     const when = createdAt || new Date().toISOString();
@@ -245,16 +264,39 @@ function createApp(options) {
 
     const id = crypto.randomUUID();
     const filename = `${id}.${core.IMAGE_EXTENSIONS[type]}`;
+    // A preview that isn't usable is left out, not a reason to refuse the photo.
+    let thumbFilename;
+    if (thumbDataUrl !== undefined) {
+      try {
+        thumbFilename = writeThumb(thumbDataUrl);
+      } catch {
+        thumbFilename = undefined;
+      }
+    }
     fs.writeFileSync(path.join(store.photosDir, filename), bytes);
-    const record = { id, date, filename, type, createdAt: when };
+    const record = { id, date, filename, type, createdAt: when, ...(thumbFilename ? { thumbFilename } : {}) };
     photos.push(record);
     try {
       store.writePhotos(photos);
     } catch (err) {
       fs.rmSync(path.join(store.photosDir, filename), { force: true });
+      if (thumbFilename) fs.rmSync(path.join(store.photosDir, thumbFilename), { force: true });
       throw err;
     }
     return res.json(photoRecord(record));
+  });
+
+  // Add (or replace) the preview of a photo added before previews existed.
+  app.put('/api/photos/:id/thumb', (req, res) => {
+    const photos = store.readPhotos();
+    const photo = photos.find((p) => p && p.id === req.params.id);
+    if (!photo) throw new ApiError(404, 'That photo no longer exists.');
+    const thumbFilename = writeThumb(req.body && req.body.dataUrl);
+    const previous = photo.thumbFilename;
+    photo.thumbFilename = thumbFilename;
+    store.writePhotos(photos);
+    if (typeof previous === 'string' && previous !== thumbFilename) fs.rmSync(path.join(store.photosDir, path.basename(previous)), { force: true });
+    res.json(photoRecord(photo));
   });
 
   // Move a photo to another day.
@@ -277,6 +319,7 @@ function createApp(options) {
     const [removed] = photos.splice(idx, 1);
     store.writePhotos(photos);
     fs.rmSync(path.join(store.photosDir, path.basename(removed.filename)), { force: true });
+    if (typeof removed.thumbFilename === 'string') fs.rmSync(path.join(store.photosDir, path.basename(removed.thumbFilename)), { force: true });
     res.json({ ok: true });
   });
 
