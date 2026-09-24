@@ -32,19 +32,30 @@ export function showBanner(notice) {
   byId('banners').append(banner);
 }
 
+/** Each toast on screen, and how to dismiss it. @type {Map<HTMLElement, () => void>} */
+const liveToasts = new Map();
+
 /**
+ * A short message at the bottom of the screen. At most one message without
+ * a button shows at a time (a new one replaces it), a tap on it dismisses
+ * it, and moving to another screen clears it unless `keepOnNavigate` says
+ * it's about the screen being opened (Done's "Saved for Today").
  * @param {string} message
- * @param {ToastOptions} [options]
+ * @param {ToastOptions & { keepOnNavigate?: boolean }} [options]
  * @returns {() => void} dismisses the toast
  */
 export function toast(message, options) {
   const opts = options || {};
   const toasts = byId('toasts');
+  if (!opts.action) {
+    for (const [el, dismissOther] of liveToasts) if (!el.classList.contains('toast-actionable')) dismissOther();
+  }
   const classes = ['toast', opts.tone === 'error' ? 'toast-error' : '', opts.action ? 'toast-actionable' : ''].filter(Boolean).join(' ');
-  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status' });
+  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': opts.keepOnNavigate ? 'true' : null });
   el.append(h('span', { class: 'toast-text', text: message }));
   const dismiss = () => {
     clearTimeout(timer);
+    liveToasts.delete(el);
     el.remove();
   };
   const action = opts.action;
@@ -62,10 +73,38 @@ export function toast(message, options) {
     );
   }
   toasts.append(el);
-  while (toasts.children.length > 3 && toasts.firstChild) toasts.firstChild.remove();
+  liveToasts.set(el, dismiss);
+  while (toasts.children.length > 3 && toasts.firstElementChild instanceof HTMLElement) {
+    const oldest = toasts.firstElementChild;
+    const dismissOldest = liveToasts.get(oldest);
+    if (dismissOldest) dismissOldest();
+    else oldest.remove();
+  }
   const timer = setTimeout(dismiss, opts.duration || (opts.action ? 7000 : 4000));
   return dismiss;
 }
+
+/** Called when another screen opens: clears messages about the one left. */
+export function clearToastsOnNavigation() {
+  for (const [el, dismiss] of liveToasts) {
+    if (el.dataset.keep === 'true') delete el.dataset.keep;
+    else dismiss();
+  }
+}
+
+// A message without a button never blocks a tap on what's under it (it
+// lets taps through), but a tap on it still dismisses it.
+document.addEventListener(
+  'pointerdown',
+  (event) => {
+    for (const [el, dismiss] of liveToasts) {
+      if (el.classList.contains('toast-actionable')) continue;
+      const r = el.getBoundingClientRect();
+      if (event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom) dismiss();
+    }
+  },
+  true
+);
 
 /** @type {Set<(value?: unknown) => void>} */
 const openDialogs = new Set();

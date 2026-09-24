@@ -5,7 +5,7 @@
 //   #/history  #/compare  #/photos  #/settings
 
 import { core, today } from './dom.js';
-import { toast } from './feedback.js';
+import { toast, clearToastsOnNavigation } from './feedback.js';
 
 /**
  * @typedef {'today' | 'log' | 'history' | 'compare' | 'photos' | 'settings'} ScreenName
@@ -98,6 +98,7 @@ export function startRouter(render) {
 }
 
 function onHashChange() {
+  clearToastsOnNavigation();
   settleAddress(parseRoute(window.location.hash));
   const hash = currentHash();
   if (replacing) {

@@ -190,7 +190,7 @@ export async function buildLog(ctx) {
       }
       const total = core.totalCalories(view.entry.meals);
       const when = core.formatRelativeDate(view.date, today());
-      toast(total === null ? `Nothing logged for ${when}` : `Saved for ${when}: ${core.formatCalories(total)}`);
+      toast(total === null ? `Nothing logged for ${when}` : `Saved for ${when}: ${core.formatCalories(total)}`, { keepOnNavigate: true });
       returnTo(dayHash(ctx.route.date));
     },
   });

@@ -137,6 +137,35 @@ test('a confirmation message never blocks a tap on what is under it', async ({ p
   await expect(page.getByRole('heading', { name: 'Log Meal' })).toBeVisible();
 });
 
+test('one message at a time, cleared when another screen opens, and a tap dismisses it', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('400');
+  await page.getByRole('button', { name: 'Done' }).click();
+  // Done's confirmation belongs to the screen it returns to, so it stays.
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.toast')).toHaveText(['Saved for Today: 400 cal']);
+
+  // A second message replaces it rather than stacking.
+  await page.evaluate(() => {
+    window.location.hash = '#/day/2030-01-01';
+  });
+  await expect(page.locator('.toast')).toHaveText(["You can't log a day that hasn't happened yet."]);
+
+  // Opening another screen clears it.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Compare' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await expect(page.locator('.toast')).toHaveCount(0);
+
+  // A tap on a message dismisses it.
+  await page.goto(`${appURL}/#/log/lunch`);
+  await page.getByRole('button', { name: 'Done' }).click();
+  const saved = page.locator('.toast');
+  await expect(saved).toHaveText(['Saved for Today: 400 cal']);
+  const box = await saved.boundingBox();
+  await page.touchscreen.tap(box.x + 20, box.y + box.height / 2);
+  await expect(saved).toHaveCount(0);
+});
+
 test('a day left open past midnight moves to the new day', async ({ page, appURL, data }) => {
   await page.clock.install({ time: new Date('2026-09-24T23:58:00-05:00') });
   await page.goto(appURL);
