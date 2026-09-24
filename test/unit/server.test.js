@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createApp } = require('../../server.js');
+const { createApp, startupAddresses } = require('../../server.js');
 
 const PNG_1PX =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -295,4 +295,28 @@ test('a photo cannot be uploaded under a day that has not happened yet', async (
   assert.equal(res.status, 400);
   assert.equal(res.json.error, "A photo can't be filed under a day that hasn't happened yet.");
   assert.deepEqual((await call('GET', '/api/photos')).json, []);
+});
+
+test('a browser opening a missing photo gets the "Page not found" page; the app gets JSON', async (t) => {
+  const { base } = await startServer(t);
+  const page = await fetch(`${base}/photos/missing.jpg`, { headers: { accept: 'text/html' } });
+  assert.equal(page.status, 404);
+  assert.match(page.headers.get('content-type'), /html/);
+  assert.match(await page.text(), /Page not found/);
+  const api = await fetch(`${base}/photos/missing.jpg`);
+  assert.equal(api.status, 404);
+  assert.equal((await api.json()).error, 'That photo no longer exists.');
+});
+
+test('the start-up message gives the network address to open on a phone', () => {
+  const interfaces = {
+    lo: [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
+    wlan0: [
+      { address: '192.168.1.23', family: 'IPv4', internal: false },
+      { address: 'fe80::1', family: 'IPv6', internal: false },
+    ],
+  };
+  assert.deepEqual(startupAddresses('0.0.0.0', 3000, interfaces), ['http://localhost:3000', 'http://192.168.1.23:3000']);
+  assert.deepEqual(startupAddresses('127.0.0.1', 8080, interfaces), ['http://localhost:8080']);
+  assert.deepEqual(startupAddresses('192.168.1.23', 3000, interfaces), ['http://192.168.1.23:3000']);
 });

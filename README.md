@@ -207,7 +207,10 @@ npm start
 ```
 
 You'll see `Kenna calorie tracker running at http://localhost:3000`. Open that
-address in a browser on the same device.
+address in a browser on the same device. When it accepts connections from
+other devices (the default `HOST`), the next line lists this computer's
+network addresses, such as `http://192.168.1.23:3000`, to open on a phone
+on the same Wi-Fi.
 
 Environment variables:
 
@@ -231,7 +234,8 @@ can't be used, with a "Loading…" indicator if it takes more than a moment.
 If the server doesn't answer within 10 seconds (60 for a photo), the app
 says it isn't responding and offers **Try again** (or **Retry** next to a
 value that wasn't saved; the typed value stays in its box). Unknown
-addresses on the server show a "Page not found" page with a link to the app.
+addresses on the server, including a photo that no longer exists opened
+in a browser, show a "Page not found" page with a link to the app.
 
 ## Development
 

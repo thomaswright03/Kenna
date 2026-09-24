@@ -170,7 +170,12 @@ function createApp(options) {
     res.type('application/javascript').set('Cache-Control', 'no-store').send("window.KENNA_BACKEND = 'server';\n");
   });
   app.use(express.static(APP_DIR));
-  app.use('/photos', express.static(store.photosDir, { fallthrough: false }));
+  app.use('/photos', express.static(store.photosDir), (req, res) => {
+    // A browser opening a photo that isn't there gets the same page as any
+    // other missing address; the app's own requests get a short JSON error.
+    if (String(req.headers.accept || '').includes('text/html')) res.status(404).type('html').send(NOT_FOUND_PAGE);
+    else res.status(404).json({ error: 'That photo no longer exists.' });
+  });
 
   // List every readable day, newest first. Unreadable days are skipped (and
   // left in the file untouched) instead of failing the whole list.
@@ -362,12 +367,36 @@ function createApp(options) {
   return app;
 }
 
+/**
+ * The addresses to open Kenna at, for the start-up message: this computer,
+ * and when bound to every interface, its addresses on the local network
+ * (what to type on a phone on the same Wi-Fi).
+ * @param {string} host
+ * @param {number} port
+ * @param {NodeJS.Dict<import('os').NetworkInterfaceInfo[]>} [interfaces]
+ */
+function startupAddresses(host, port, interfaces) {
+  const all = host === '0.0.0.0' || host === '::';
+  const local = all || host === '127.0.0.1' || host === 'localhost' || host === '::1' ? [`http://localhost:${port}`] : [];
+  if (!all) return local.length ? local : [`http://${host.includes(':') ? `[${host}]` : host}:${port}`];
+  const network = [];
+  for (const list of Object.values(interfaces || require('os').networkInterfaces())) {
+    for (const info of list || []) {
+      if (info.internal) continue;
+      if (info.family === 'IPv4') network.push(`http://${info.address}:${port}`);
+    }
+  }
+  return [...local, ...network];
+}
+
 if (require.main === module) {
   const PORT = Number(process.env.PORT) || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
   createApp().listen(PORT, HOST, () => {
-    console.log(`Kenna calorie tracker running at http://localhost:${PORT}`);
+    const [here, ...network] = startupAddresses(HOST, PORT);
+    console.log(`Kenna calorie tracker running at ${here}`);
+    if (network.length) console.log(`On another device on the same network, open: ${network.join('  or  ')}`);
   });
 }
 
-module.exports = { createApp };
+module.exports = { createApp, startupAddresses };
