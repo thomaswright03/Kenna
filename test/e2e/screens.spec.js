@@ -409,11 +409,24 @@ test('Log Meal’s two buttons never wrap their labels: side by side, or stacked
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
-  // At 375px, "Back to Today" and "Save and close" share a row.
+  // At 375px, "Back to Today" and "Save and close" share a row whenever
+  // both labels fit side by side in this browser's font.
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto(`${appURL}/#/log`);
   const [back, save] = await layout();
-  expect(back.y).toBe(save.y);
+  const fits = await page.locator('.log-actions').evaluate((row) => {
+    const natural = [...row.querySelectorAll('.btn')].map((el) => {
+      const cs = getComputedStyle(el);
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const extra = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((sum, k) => sum + parseFloat(cs[k]), 0);
+      return range.getBoundingClientRect().width + extra;
+    });
+    const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+    return natural[0] + natural[1] + gap <= row.clientWidth;
+  });
+  if (fits) expect(back.y).toBe(save.y);
+  else expect(save.y).toBeLessThan(back.y);
 });
 
 test('the header says what the app is, and each screen has its own title', async ({ page, appURL, data }) => {

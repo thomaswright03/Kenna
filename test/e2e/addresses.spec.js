@@ -28,6 +28,9 @@ test('an address that leads nowhere is replaced by Today, without a history entr
 
   for (const bad of ['#/day/1899-12-31', '#/day/2026-02-30', '#/log/brunch']) {
     await page.goto(`${appURL}/${bad}`);
+    // Let the app settle on the address it replaces this with, then reload.
+    await expect.poll(() => new URL(page.url()).hash, bad).toBe(bad === '#/log/brunch' ? '#/log' : '#/');
+    await expect(page.locator('main h2').first()).toBeVisible();
     await page.reload();
     await expect(page.locator('main h2').first()).toBeVisible();
     expect(new URL(page.url()).hash, bad).toBe(bad === '#/log/brunch' ? '#/log' : '#/');
