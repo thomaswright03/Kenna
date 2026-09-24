@@ -151,7 +151,7 @@ export function buildBackupStatus(loggedDays) {
           'div',
           null,
           h('p', { class: 'backup-status-title', id: titleId, text: state.text }),
-          h('p', { class: 'backup-status-text', text: state.overdue ? 'Save a backup file so your days and photos survive losing this phone.' : 'Your days and photos are only on this phone.' })
+          h('p', { class: 'backup-status-text', text: state.overdue ? 'Save a backup file so your days and photos survive losing this device.' : 'Your days and photos are only on this device.' })
         ),
         button
       )

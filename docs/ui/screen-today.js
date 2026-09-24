@@ -89,7 +89,7 @@ function welcome() {
     'p',
     { class: 'welcome', 'data-welcome': '' },
     h('strong', { text: 'Welcome to Kenna.' }),
-    ' Log your weight and each meal’s calories each day to see your trends and averages. Everything stays on this phone.'
+    ' Log your weight and each meal’s calories each day to see your trends and averages. Everything stays on this device.'
   );
 }
 
