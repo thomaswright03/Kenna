@@ -195,7 +195,12 @@ to month); tapping a month goes to it.
   address and says why: "That date doesn't exist, so Today is shown." for
   a date that doesn't exist (Feb 30), "Kenna opens days from 1900 to 2999,
   so Today is shown." for a year outside those, and "That address doesn't
-  lead anywhere, so Today is shown." for anything else.
+  lead anywhere, so Today is shown." for anything else, including a known
+  address with a part added that means nothing (`#/history/foo`,
+  `#/log/brunch`). An address that names a valid day in the wrong place
+  (`#/log/2026-09-20` for `#/day/2026-09-20/log`) opens that day instead,
+  never today's Log Meal: "That address doesn't lead anywhere, so Sun,
+  Sep 20 is shown."
 - A day more than a year ago that is also more than a month before the
   first day you logged is probably a mistyped year (2002 for 2026), so
   opening it, by the day picker or by address, asks "Log a day in 2002?"

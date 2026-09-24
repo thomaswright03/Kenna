@@ -51,12 +51,56 @@ test('an address that leads nowhere is replaced by Today, without a history entr
   for (const bad of ['#/day/1899-12-31', '#/day/2026-02-30', '#/log/brunch']) {
     await page.goto(`${appURL}/${bad}`);
     // Let the app settle on the address it replaces this with, then reload.
-    await expect.poll(() => new URL(page.url()).hash, bad).toBe(bad === '#/log/brunch' ? '#/log' : '#/');
+    await expect.poll(() => new URL(page.url()).hash, bad).toBe('#/');
     await expect(page.locator('main h2').first()).toBeVisible();
     await page.reload();
     await expect(page.locator('main h2').first()).toBeVisible();
-    expect(new URL(page.url()).hash, bad).toBe(bad === '#/log/brunch' ? '#/log' : '#/');
+    expect(new URL(page.url()).hash, bad).toBe('#/');
   }
+});
+
+test('an address with a part that means nothing leads nowhere, and says so', async ({ page, appURL }) => {
+  const nowhere = "That address doesn't lead anywhere, so Today is shown.";
+  for (const bad of ['#/log/notameal', '#/history/foo', '#/settings/x', '#/log/lunch/extra', '#/day']) {
+    await page.goto(`${appURL}/#/photos`);
+    await expect(page.getByRole('heading', { name: 'Progress Photos' })).toBeVisible();
+    await page.goto(`${appURL}/${bad}`);
+    await expect(today(page), bad).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'lead anywhere' }), bad).toHaveText(nowhere);
+    expect(new URL(page.url()).hash, bad).toBe('#/');
+  }
+});
+
+test("a day in the wrong part of an address shows that day, never today's Log Meal", async ({ page, appURL, data }) => {
+  for (const [bad, heading] of [
+    ['#/log/2026-09-20', 'Sun, Sep 20'],
+    ['#/log/2026-09-20/lunch', 'Sun, Sep 20'],
+    ['#/day/2026-09-20/lunch', 'Sun, Sep 20'],
+    ['#/day/2026-09-20/log/brunch', 'Sun, Sep 20'],
+    ['#/day/2025-12-31/foo', 'Wed, Dec 31, 2025'],
+  ]) {
+    await page.goto(`${appURL}/#/photos`);
+    await expect(page.getByRole('heading', { name: 'Progress Photos' })).toBeVisible();
+    await page.goto(`${appURL}/${bad}`);
+    await expect(page.getByRole('heading', { name: heading }), bad).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Log Meal' })).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'lead anywhere' }), bad).toHaveText(`That address doesn't lead anywhere, so ${heading} is shown.`);
+    expect(new URL(page.url()).hash, bad).toBe(`#/day/${bad.match(/\d{4}-\d{2}-\d{2}/)[0]}`);
+  }
+  // A day after today still isn't opened.
+  await page.goto(`${appURL}/#/log/2030-01-01`);
+  await expect(today(page)).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: "You can't log a day that hasn't happened yet." })).toBeVisible();
+
+  // The right address still opens that day's Log Meal, and logs to it.
+  await page.goto(`${appURL}/#/day/2026-09-20/log`);
+  await expect(page.getByRole('heading', { name: 'Log Meal' })).toBeVisible();
+  await expect(page.getByText('For Sun, Sep 20.')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'lead anywhere' })).toHaveCount(0);
+  await page.getByLabel('Breakfast calories').fill('380');
+  await page.getByLabel('Breakfast calories').blur();
+  await expect.poll(async () => ((await data.entry('2026-09-20')) || { meals: {} }).meals.breakfast).toBe(380);
+  expect(await data.entry(TODAY)).toBe(null);
 });
 
 test('days dated in the future are left out of History and averages', async ({ page, appURL }) => {
