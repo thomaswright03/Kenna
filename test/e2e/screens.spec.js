@@ -233,6 +233,28 @@ test('Compare answers how today stands in plain sentences, within the first scre
   await expect(meals).toContainText('Never logged: Snack 1, Snack 2, Dinner, Snack 3.');
 });
 
+test("on Compare, a meal with no average yet gets its own bar, so today's compared bar and the usual one differ by the sentence's amount", async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-22': day('2026-09-22', { breakfast: 400, lunch: 600 }),
+    '2026-09-23': day('2026-09-23', { breakfast: 380, lunch: 600 }),
+    [TODAY]: day(TODAY, { breakfast: 420, lunch: 610, snack2: 200 }),
+  });
+  await page.goto(`${appURL}/#/compare`);
+  const calories = page.locator('[data-answer="calories"]');
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 40 cal more than your average breakfast and lunch.');
+  const rows = calories.locator('.amount-row');
+  await expect(rows).toHaveText([
+    /^Today, these meals\s*1,030 cal$/,
+    /^Usual for these meals\s*990 cal$/,
+    /^Snack 2 \(no average yet\)\s*200 cal$/,
+    /^Yesterday\s*980 cal$/,
+  ]);
+  const values = (await rows.locator('.amount-value').allTextContents()).map((v) => Number(v.replace(/[^\d]/g, '')));
+  expect(values[0] - values[1]).toBe(40);
+  await expect(calories).toContainText('1,230 cal so far');
+  await expect(calories).toContainText('snack 2 not compared: not logged before today');
+});
+
 test('with no meals yet today, Compare says so and gives the average day', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, {}, 180) });
   await page.goto(`${appURL}/#/compare`);

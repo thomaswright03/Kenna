@@ -56,7 +56,12 @@ run, test and release it.
   against your average weight and yesterday ("0.6 lbs below your
   average"), with the numbers behind each. Plain bars show today's
   calories so far, your usual for those meals, the average day (when it's
-  different) and yesterday side by side, from zero; when both averages
+  different) and yesterday side by side, from zero. When a meal logged
+  today has never been logged before (so it has no average), today's bar
+  covers only the meals the sentence compares ("Today, these meals") and
+  that meal has its own bar ("Snack 2 (no average yet)"), so the gap
+  between today's bar and "Usual for these meals" is always the sentence's
+  number. When both averages
   show, a line under the bars says the sentence used "Usual for these
   meals", and that "Average day" is a whole day's, so a fair match only
   once today is finished. Each meal's today, yesterday and

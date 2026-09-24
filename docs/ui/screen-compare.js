@@ -56,12 +56,12 @@ function answer(a) {
 
 /**
  * Plain bars for calories: each starts at zero and is labelled with its
- * value, so longer simply means more. Today's bar is darker; no colour
+ * value, so longer simply means more. Today's bars are darker; no colour
  * means good or bad.
- * @param {{ label: string, value: number | null, today?: boolean }[]} rows
+ * @param {({ label: string, value: number | null, today?: boolean } | null)[]} rows
  */
 function calorieBars(rows) {
-  const shown = rows.filter((r) => r.value !== null);
+  const shown = rows.filter(/** @returns {r is { label: string, value: number, today?: boolean }} */ (r) => r !== null && r.value !== null);
   if (shown.length < 2) return null;
   const max = Math.max(...shown.map((r) => Number(r.value)), 1);
   return h(
@@ -110,6 +110,30 @@ function sameMealsSentence(t, avg, same) {
 }
 
 /**
+ * The bars under the calorie sentence. Today's bar covers exactly the meals
+ * the sentence compares, so the gap between it and "Usual for these meals"
+ * is the difference the sentence gives; a meal left out of the comparison
+ * (no average yet) has its own bar, named.
+ * @param {Stats} t
+ * @param {Stats} y
+ * @param {ReturnType<typeof core.compareSameMeals>} same
+ * @param {number | null} usual
+ * @param {number | null} averageDay
+ */
+function calorieBarRows(t, y, same, usual, averageDay) {
+  const left = same ? same.unmatched : [];
+  const leftNames = left.map((k) => mealLabel(k));
+  const leftLabel = leftNames.length > 1 ? `${leftNames.slice(0, -1).join(', ')} and ${leftNames[leftNames.length - 1]}` : leftNames[0];
+  return calorieBars([
+    same && left.length ? { label: 'Today, these meals', value: same.today, today: true } : { label: 'Today so far', value: t.total, today: true },
+    { label: 'Usual for these meals', value: usual },
+    left.length ? { label: `${leftLabel} (no average yet)`, value: left.reduce((sum, k) => sum + Number(t[k]), 0), today: true } : null,
+    { label: 'Average day', value: averageDay },
+    { label: 'Yesterday', value: y.total },
+  ]);
+}
+
+/**
  * @param {Stats} t today
  * @param {Stats} y yesterday
  * @param {Stats} avg all-time averages (before today)
@@ -138,22 +162,18 @@ function calorieAnswer(t, y, avg, earlier) {
   // different (it is until the day's usual meals are all logged).
   const usual = same && avg.total !== null ? same.average : null;
   const averageDay = usual !== null && Math.round(usual) === Math.round(Number(avg.total)) ? null : avg.total;
-  const bars =
-    t.total !== null && avg.total !== null
-      ? calorieBars([
-        { label: 'Today so far', value: t.total, today: true },
-        { label: 'Usual for these meals', value: usual },
-        { label: 'Average day', value: averageDay },
-        { label: 'Yesterday', value: y.total },
-      ])
-    : null;
+  const bars = t.total !== null && avg.total !== null ? calorieBarRows(t, y, same, usual, averageDay) : null;
   // Two averages side by side: say which one the sentence used.
   const note =
     bars && usual !== null && averageDay !== null
       ? h('p', {
         class: 'compare-caption',
         'data-baseline-note': '',
-        text: 'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today. “Average day” covers whole days, so it’s a fair match only once today is finished.',
+        text: `${
+          same && same.unmatched.length
+            ? 'The sentence compares “Today, these meals” with “Usual for these meals”: your average for those same meals.'
+            : 'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today.'
+        } “Average day” covers whole days, so it’s a fair match only once today is finished.`,
       })
       : null;
   return answer({ id: 'calories', label: 'Calories', sentence, details, extra: bars ? h('div', null, bars, note) : null });
