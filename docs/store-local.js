@@ -65,12 +65,47 @@
   const META_STORE = 'meta';
   const THUMBS_STORE = 'thumbs';
 
-  class StorageWriteError extends Error {}
+  class StorageWriteError extends core.KennaError {}
+
+  // What the Photos screen, the viewer and backups say when the photo
+  // storage fails; the browser's own error text is never shown.
+  const PHOTO_ERRORS = {
+    list: "Kenna couldn't open its photo storage on this device. Nothing has been deleted, and your days and meals aren't affected. Close Kenna completely, open it again and come back to Photos; if it keeps happening, restart the phone.",
+    read: "Kenna couldn't read this photo from its storage. Nothing has been deleted. Close Kenna completely, open it again and try once more.",
+    write: "Kenna couldn't write to its photo storage. Your other photos and your days are safe. Close Kenna completely, open it again and try once more.",
+    full: "There's no room left for Kenna's photos on this device. Your other photos and your days are safe. Delete some old progress photos or free up space on the phone, then try again.",
+    off: "This browser has turned off the storage Kenna keeps photos in (Private Browsing does this). Your days and meals still save. Open Kenna from your Home Screen or a normal Safari tab to use photos.",
+  };
+
+  /**
+   * The error to pass on for a failed photo operation: Kenna's own
+   * messages as they are, anything else as the Kenna sentence for `kind`.
+   * @param {unknown} err
+   * @param {'list' | 'read' | 'write'} kind
+   */
+  function photoError(err, kind) {
+    if (err instanceof core.KennaError) return err;
+    return new core.KennaError(core.isQuotaError(err) ? PHOTO_ERRORS.full : PHOTO_ERRORS[kind], { cause: err });
+  }
+
+  /**
+   * @template T
+   * @param {'list' | 'read' | 'write'} kind
+   * @param {() => Promise<T>} fn
+   * @returns {Promise<T>}
+   */
+  async function guardPhotos(kind, fn) {
+    try {
+      return await fn();
+    } catch (err) {
+      throw photoError(err, kind);
+    }
+  }
 
   // Stands in when the browser refuses access to localStorage altogether.
   function blockedStorage() {
     const fail = () => {
-      throw new Error('Storage is blocked in this browser.');
+      throw new core.KennaError('Storage is blocked in this browser.');
     };
     return /** @type {Storage} */ (/** @type {unknown} */ ({ getItem: fail, setItem: fail, removeItem: fail }));
   }
@@ -164,12 +199,11 @@
         if (previous !== null && parseObject(previous)) storage.setItem(BACKUP_KEY, previous);
         storage.setItem(ENTRIES_KEY, JSON.stringify(obj));
       } catch (e) {
-        const err = /** @type {{ name?: string, code?: number } | null} */ (e);
-        const full = err !== null && (err.name === 'QuotaExceededError' || err.code === 22);
         throw new StorageWriteError(
-          full
-            ? "Not saved: this browser's storage for Kenna is full."
-            : "Not saved: this browser is blocking storage (Private Browsing or another app's built-in browser). Open Kenna from Safari or your Home Screen instead."
+          core.isQuotaError(e)
+            ? `Not saved. ${core.STORAGE_FULL}`
+            : "Not saved: this browser is blocking storage (Private Browsing or another app's built-in browser). Open Kenna from Safari or your Home Screen instead.",
+          { cause: e }
         );
       }
     }
@@ -200,10 +234,10 @@
     // can't be displayed are left in storage untouched rather than dropped.
     /** @param {string} date @param {EntryPatch} patch */
     async function updateEntry(date, patch) {
-      if (!core.isValidDateStr(date)) throw new Error('Not saved: pick a valid date first.');
-      if (core.isFutureDate(date)) throw new Error(`Not saved. ${core.FUTURE_DAY}`);
+      if (!core.isValidDateStr(date)) throw new core.KennaError('Not saved: pick a valid date first.');
+      if (core.isFutureDate(date)) throw new core.KennaError(`Not saved. ${core.FUTURE_DAY}`);
       const checked = core.validatePatch(patch);
-      if (!checked.ok) throw new Error(checked.error);
+      if (!checked.ok) throw new core.KennaError(checked.error);
       const raw = readRaw();
       const next = core.applyPatch(date, raw[date], checked.patch);
       if (core.isEntryEmpty(next)) delete raw[date];
@@ -245,7 +279,7 @@
       /** @type {Promise<IDBDatabase> | null} */
       let promise = null;
       return function open() {
-        if (!idb) return Promise.reject(new Error('Photos need IndexedDB, which this browser has turned off.'));
+        if (!idb) return Promise.reject(new core.KennaError(PHOTO_ERRORS.off));
         const factory = idb;
         if (!promise) {
           promise = new Promise((/** @type {(db: IDBDatabase) => void} */ resolve, reject) => {
@@ -296,7 +330,7 @@
             const result = fn(t);
             t.oncomplete = () => resolve(result ? result.result : /** @type {T} */ (/** @type {unknown} */ (undefined)));
             t.onerror = () => reject(t.error);
-            t.onabort = () => reject(t.error || new Error('Photo storage was interrupted.'));
+            t.onabort = () => reject(t.error || new Error('The photo storage transaction was aborted.'));
           })
       );
     }
@@ -378,8 +412,8 @@
 
     /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     async function addPhoto(photo) {
-      if (!core.isValidDateStr(photo.date)) throw new Error('Pick a valid day for this photo.');
-      if (core.isFutureDate(photo.date)) throw new Error("A photo can't be filed under a day that hasn't happened yet.");
+      if (!core.isValidDateStr(photo.date)) throw new core.KennaError('Pick a valid day for this photo.');
+      if (core.isFutureDate(photo.date)) throw new core.KennaError("A photo can't be filed under a day that hasn't happened yet.");
       const { bytes, type } = await bytesOf(photo.blob);
       const record = { date: photo.date, bytes, type, createdAt: photo.createdAt || new Date().toISOString() };
       const id = Number(await photosTx((s) => s.add(record), 'readwrite'));
@@ -399,8 +433,8 @@
     /** @param {Photo['id']} id @param {{ date: string }} changes */
     async function updatePhoto(id, changes) {
       const date = changes && changes.date;
-      if (!core.isValidDateStr(date)) throw new Error('Pick a valid day for this photo.');
-      if (core.isFutureDate(date)) throw new Error("A photo can't be filed under a day that hasn't happened yet.");
+      if (!core.isValidDateStr(date)) throw new core.KennaError('Pick a valid day for this photo.');
+      if (core.isFutureDate(date)) throw new core.KennaError("A photo can't be filed under a day that hasn't happened yet.");
       /** @type {PhotoRecord | null} */
       let updated = null;
       await photosTx((s) => {
@@ -412,7 +446,7 @@
         };
         return null;
       }, 'readwrite');
-      if (!updated) throw new Error('That photo no longer exists.');
+      if (!updated) throw new core.KennaError('That photo no longer exists.');
       const meta = metaFrom(updated);
       await indexTx((t) => t.objectStore(META_STORE).put(meta), 'readwrite').catch(() => undefined);
       return toPhoto(meta);
@@ -430,7 +464,7 @@
     /** @param {Photo} photo @returns {Promise<Blob>} the full image, read on its own */
     async function getPhotoBlob(photo) {
       const record = await getRecord(Number(photo.id));
-      if (!record || !(record.bytes || record.blob)) throw new Error(`A photo from ${core.formatDate(photo.date)} is missing its image.`);
+      if (!record || !(record.bytes || record.blob)) throw new core.KennaError(`A photo from ${core.formatDate(photo.date)} is missing its image.`);
       if (record.blob) return record.blob;
       return new Blob([/** @type {ArrayBuffer} */ (record.bytes)], { type: record.type || photo.type });
     }
@@ -494,13 +528,14 @@
       const seen = new Set((await listPhotos()).map(core.photoKey));
       return {
         /** @param {BackupPhoto} p */
-        async add(p) {
-          const key = core.photoKey(p);
-          if (seen.has(key)) return false;
-          await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
-          seen.add(key);
-          return true;
-        },
+        add: (p) =>
+          guardPhotos('write', async () => {
+            const key = core.photoKey(p);
+            if (seen.has(key)) return false;
+            await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
+            seen.add(key);
+            return true;
+          }),
       };
     }
 
@@ -547,14 +582,16 @@
       getEntry,
       updateEntry,
       importEntries,
-      listPhotos,
-      countPhotos,
-      addPhoto,
-      updatePhoto,
-      deletePhoto,
-      getPhotoBlob,
-      photoUrl,
-      createPhotoImporter,
+      // Every photo operation fails with a Kenna sentence, never the
+      // browser's own error text.
+      listPhotos: () => guardPhotos('list', listPhotos),
+      countPhotos: () => guardPhotos('list', countPhotos),
+      addPhoto: (photo) => guardPhotos('write', () => addPhoto(photo)),
+      updatePhoto: (id, changes) => guardPhotos('write', () => updatePhoto(id, changes)),
+      deletePhoto: (id) => guardPhotos('write', () => deletePhoto(id)),
+      getPhotoBlob: (photo) => guardPhotos('read', () => getPhotoBlob(photo)),
+      photoUrl: (photo, size) => guardPhotos('read', () => photoUrl(photo, size)),
+      createPhotoImporter: () => guardPhotos('list', createPhotoImporter),
       requestPersistence,
       persistenceStatus,
       onExternalChange,

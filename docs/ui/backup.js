@@ -309,7 +309,10 @@ export function buildBackupSection() {
       const futureNote = leftOut.length ? ` ${leftOut.join(' and ')} dated after today ${leftOutCount === 1 ? 'was' : 'were'} left out.` : '';
       setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}${futureNote}`);
     } catch (err) {
-      setMessage('error', `Import stopped. ${errorText(err)} Days already restored are kept; importing the file again adds the photos that are missing.`);
+      setMessage(
+        'error',
+        `Import stopped. ${errorText(err, "Kenna couldn't read the rest of the backup file.")} Days already restored are kept; importing the file again adds the photos that are missing.`
+      );
     } finally {
       setProgress(0, 0);
       busy(false);

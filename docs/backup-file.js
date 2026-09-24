@@ -344,7 +344,7 @@
   async function forEachBackupPhoto(blob, add) {
     await scanBackup(blob, async (text, n) => {
       const result = parsePhoto(text, n);
-      if (!result.ok) throw new Error(result.error);
+      if (!result.ok) throw new core.KennaError(result.error);
       await add(result.photo, n);
     });
   }

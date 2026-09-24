@@ -137,3 +137,48 @@ test('a photo cannot be filed under a day that has not happened yet', async () =
   await assert.rejects(store.addPhoto({ date: '2999-01-01', blob: new Blob([JPEG(1)]) }), /hasn't happened yet/);
   assert.equal(await store.countPhotos(), 0);
 });
+
+test("photo storage failures come back as Kenna's own sentences, never the browser's error text", async () => {
+  const { KennaError } = require('../../docs/core.js');
+  // A browser that can't open its IndexedDB files.
+  const broken = {
+    open() {
+      const req = {};
+      setTimeout(() => {
+        req.error = Object.assign(new Error('Internal error opening backing store for indexedDB.open.'), { name: 'UnknownError' });
+        req.onerror();
+      });
+      return req;
+    },
+  };
+  const store = makeStore(broken);
+  await assert.rejects(store.listPhotos(), (err) => {
+    assert.ok(err instanceof KennaError);
+    assert.match(err.message, /^Kenna couldn't open its photo storage on this device\. Nothing has been deleted/);
+    assert.doesNotMatch(err.message, /indexedDB|backing store/);
+    return true;
+  });
+  await assert.rejects(store.addPhoto({ date: '2026-09-20', blob: new Blob([JPEG(1)], { type: 'image/jpeg' }) }), /Kenna couldn't write to its photo storage/);
+
+  // A device that has run out of room.
+  const idb = new IDBFactory();
+  const full = makeStore(idb);
+  await full.listPhotos();
+  const { IDBObjectStore } = require('fake-indexeddb');
+  const add = IDBObjectStore.prototype.add;
+  IDBObjectStore.prototype.add = function () {
+    throw Object.assign(new Error('The quota has been exceeded.'), { name: 'QuotaExceededError' });
+  };
+  try {
+    await assert.rejects(full.addPhoto({ date: '2026-09-20', blob: new Blob([JPEG(2)], { type: 'image/jpeg' }) }), (err) => {
+      assert.match(err.message, /There's no room left for Kenna's photos.*Delete some old progress photos or free up space on the phone/);
+      assert.doesNotMatch(err.message, /quota/);
+      return true;
+    });
+  } finally {
+    IDBObjectStore.prototype.add = add;
+  }
+
+  // No IndexedDB at all.
+  await assert.rejects(makeStore(undefined).listPhotos(), /turned off the storage Kenna keeps photos in/);
+});

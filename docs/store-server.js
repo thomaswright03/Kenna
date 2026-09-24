@@ -45,8 +45,8 @@
       try {
         return await fetchFn(url, { ...init, signal: controller ? controller.signal : undefined });
       } catch (err) {
-        if (controller && controller.signal.aborted) throw new Error(NOT_RESPONDING);
-        throw new Error("Couldn't reach the Kenna server. Check that it's running, then try again.", { cause: err });
+        if (controller && controller.signal.aborted) throw new core.KennaError(NOT_RESPONDING);
+        throw new core.KennaError("Couldn't reach the Kenna server. Check that it's running, then try again.", { cause: err });
       } finally {
         clearTimeout(timer);
       }
@@ -79,8 +79,8 @@
         data = null;
       }
       if (!res.ok) {
-        if (data && typeof data.error === 'string') throw new Error(data.error);
-        throw new Error(
+        if (data && typeof data.error === 'string') throw new core.KennaError(data.error);
+        throw new core.KennaError(
           res.status >= 500
             ? 'The Kenna server ran into a problem. Try again, and if it keeps happening, restart the server.'
             : "The Kenna server didn't accept that. Reload the page and try again."
@@ -127,7 +127,7 @@
       return serial(async () => {
         const item = await request('PATCH', `/api/entries/${encodeURIComponent(date)}`, patch);
         const entry = core.normalizeEntry(date, item);
-        if (!entry) throw new Error('The Kenna server sent back something unexpected. Reload the page and check this day.');
+        if (!entry) throw new core.KennaError('The Kenna server sent back something unexpected. Reload the page and check this day.');
         return entry;
       });
     }
@@ -196,7 +196,7 @@
     /** @param {Photo} photo */
     async function getPhotoBlob(photo) {
       const res = await fetchWithTimeout(base + photo.url, {}, PHOTO_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`A photo from ${core.formatDate(photo.date)} couldn't be read from the server.`);
+      if (!res.ok) throw new core.KennaError(`A photo from ${core.formatDate(photo.date)} couldn't be read from the server.`);
       return res.blob();
     }
 

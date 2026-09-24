@@ -52,7 +52,7 @@ export async function buildPhotos(ctx) {
       toast(day === today() ? 'Photo added' : `Photo added to ${core.formatRelativeDate(day)}`);
       render();
     } catch (err) {
-      setStatus('error', err instanceof Error && err.message ? err.message : "Couldn't save that photo. Try again.");
+      setStatus('error', `Photo not saved. ${errorText(err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
     } finally {
       busy(false);
     }

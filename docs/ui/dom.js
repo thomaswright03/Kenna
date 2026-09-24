@@ -132,9 +132,15 @@ export function byId(id) {
 }
 
 /**
- * The message to show for a failed operation.
+ * The message to show for a failed operation. Only messages Kenna wrote
+ * (core.KennaError) are shown as they are; a browser's own error text never
+ * is. Full storage gets its own advice; anything else gets `fallback`, a
+ * sentence about what was being done.
  * @param {unknown} err
+ * @param {string} [fallback]
  */
-export function errorText(err) {
-  return err instanceof Error && err.message ? err.message : 'Something went wrong. Please try again.';
+export function errorText(err, fallback) {
+  if (err instanceof core.KennaError && err.message) return err.message;
+  if (core.isQuotaError(err)) return core.STORAGE_FULL;
+  return fallback || 'Something went wrong. Please try again, and if it keeps happening, close Kenna completely and open it again.';
 }

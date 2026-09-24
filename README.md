@@ -110,6 +110,12 @@ data even when the device runs low on space (Settings shows the answer
 where the browser supports asking). Every save also keeps one previous copy of your days, and if
 the stored data is ever found damaged the app restores that copy and tells you.
 
+If the browser refuses a save (storage full, or photo storage that won't
+open), the app says what failed, that what's already saved is safe, and
+what to do next: close and reopen Kenna, or export a backup and delete old
+photos or free up space on the phone. The browser's own error text is never
+shown.
+
 That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
 logged, the Today screen reminds you when no backup has been saved from this

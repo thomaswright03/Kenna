@@ -2,7 +2,7 @@
 // replace the page, and a newer navigation discards an older one's late
 // results.
 
-import { h, byId } from './dom.js';
+import { h, byId, errorText } from './dom.js';
 import { closeAllDialogs } from './feedback.js';
 import { route, updateTabs } from './router.js';
 
@@ -116,7 +116,7 @@ function startLoading(main) {
  * @returns {View}
  */
 function errorView(err) {
-  const message = err instanceof Error && err.message ? err.message : 'Something went wrong.';
+  const message = errorText(err, 'Nothing has been changed. Try again, and if it keeps happening, close Kenna completely and open it again.');
   return {
     title: "Couldn't load",
     root: h(

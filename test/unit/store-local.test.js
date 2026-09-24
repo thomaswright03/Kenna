@@ -111,7 +111,11 @@ test('saves to an invalid date are refused', async () => {
 test('blocked or full storage is reported as not saved', async () => {
   const { store } = makeStore(fakeStorage({}, { failWrites: true }));
   assert.deepEqual(await store.init(), { ok: false, reason: 'blocked' });
-  await assert.rejects(store.updateEntry('2026-09-24', { weight: 180 }), /Not saved: this browser's storage for Kenna is full/);
+  await assert.rejects(store.updateEntry('2026-09-24', { weight: 180 }), (err) => {
+    assert.match(err.message, /^Not saved\. There's no room left for Kenna's data on this device\. Everything saved before is safe\./);
+    assert.match(err.message, /Export a backup .*delete some old progress photos or free up space on the phone/);
+    return true;
+  });
 });
 
 test('importing merges days, replacing only the days in the file', async () => {

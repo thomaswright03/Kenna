@@ -70,13 +70,13 @@ export async function preparePhoto(file, maxDim) {
   const decoded = await decodeImage(file);
   if (!decoded) {
     if (sniffed) return new Blob([file], { type: sniffed });
-    throw new Error("That file isn't a photo we can show.");
+    throw new core.KennaError("That file isn't a photo we can show.");
   }
   const blob = await scaleToJpeg(decoded.img, maxDim, 0.85);
   decoded.release();
   if (blob) return blob;
   if (sniffed) return new Blob([file], { type: sniffed });
-  throw new Error("That file isn't a photo we can show.");
+  throw new core.KennaError("That file isn't a photo we can show.");
 }
 
 // Grid cells are about 120 CSS pixels wide; 360 pixels stays sharp on a

@@ -245,4 +245,58 @@ test.describe('phone version', () => {
     await page.goto(appURL);
     await expect(page.getByRole('heading', { name: 'Storage is blocked here' })).toBeVisible();
   });
+
+  test("photo storage that won't open is explained in Kenna's words, not the browser's", async ({ page, appURL }) => {
+    await page.addInitScript(() => {
+      IDBFactory.prototype.open = function () {
+        const req = {};
+        setTimeout(() => {
+          Object.defineProperty(req, 'error', { value: new DOMException('Internal error opening backing store for indexedDB.open.', 'UnknownError') });
+          if (typeof req.onerror === 'function') req.onerror(new Event('error'));
+        }, 10);
+        return /** @type {IDBOpenDBRequest} */ (/** @type {unknown} */ (req));
+      };
+    });
+    await page.goto(`${appURL}/#/photos`);
+    const alert = page.getByRole('alert');
+    await expect(alert).toContainText("Kenna couldn't open its photo storage on this device. Nothing has been deleted");
+    await expect(alert).toContainText('Close Kenna completely, open it again');
+    const text = await page.locator('main').innerText();
+    expect(text).not.toMatch(/indexedDB|backing store/i);
+    // The rest of the app still works.
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+  });
+
+  test('a photo that runs out of room says to free space, in plain words', async ({ page, appURL }) => {
+    await page.addInitScript(() => {
+      IDBObjectStore.prototype.add = function () {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      };
+    });
+    await page.goto(`${appURL}/#/photos`);
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
+    await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+    const status = page.locator('.field-status.is-error');
+    await expect(status).toContainText("Photo not saved. There's no room left for Kenna's photos on this device.");
+    await expect(status).toContainText('Delete some old progress photos or free up space on the phone');
+    await expect(status).not.toContainText('quota');
+  });
+
+  test('a day that runs out of room says what to do next', async ({ page, appURL }) => {
+    await page.goto(appURL);
+    await page.evaluate(() => {
+      const setItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        return setItem.call(this, key, value);
+      };
+    });
+    await page.getByLabel('Weight (lbs)').fill('180');
+    await page.getByLabel('Weight (lbs)').press('Enter');
+    const status = page.locator('.field-status.is-error');
+    await expect(status).toContainText("Not saved. There's no room left for Kenna's data on this device. Everything saved before is safe.");
+    await expect(status).toContainText('Export a backup (Settings), then delete some old progress photos or free up space on the phone');
+    await expect(status.getByRole('button', { name: 'Retry' })).toBeVisible();
+  });
 });
