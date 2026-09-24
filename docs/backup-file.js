@@ -10,6 +10,7 @@
 /**
  * @typedef {import('./core.js').Entry} Entry
  * @typedef {import('./core.js').BackupPhoto} BackupPhoto
+ * @typedef {{ date: string, createdAt: string }} PhotoStamp a backup photo's day and upload time (no image)
  */
 
 'use strict';
@@ -344,20 +345,22 @@ function parsePhoto(text, n) {
  * Days and photos that can't be restored are listed in `skipped` (see
  * core.backupRefusal); the file is refused only when nothing in it can be.
  * @param {Blob} blob
+ * `photoStamps` tells what restoring would add (see core.comparePhotos).
  * @param {{ onProgress?: (photosChecked: number) => void, latestDay?: string }} [options] days after
  *   `latestDay` are left out and counted (see core.checkBackupDays)
- * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number, futureDays: number, skipped: string[] } | { ok: false, error: string }>}
+ * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number, photoStamps: PhotoStamp[], futureDays: number, skipped: string[] } | { ok: false, error: string }>}
  */
 async function checkBackup(blob, options) {
   const onProgress = options && options.onProgress;
   /** @type {string[]} */
   const photoProblems = [];
-  let photoCount = 0;
+  /** @type {PhotoStamp[]} */
+  const photoStamps = [];
   let scanned;
   try {
     scanned = await scanBackup(blob, (text, n) => {
       const result = parsePhoto(text, n);
-      if (result.ok) photoCount += 1;
+      if (result.ok) photoStamps.push({ date: result.photo.date, createdAt: result.photo.createdAt });
       else photoProblems.push(result.error);
       if (onProgress && n % 25 === 0) onProgress(n);
     });
@@ -373,9 +376,10 @@ async function checkBackup(blob, options) {
   skipped.push(...photoProblems);
   if (top.photos !== undefined && !photosIsArray) skipped.push('The photos section is not in the expected format.');
   const dayCount = Object.keys(days.entries).length;
+  const photoCount = photoStamps.length;
   const refused = core.backupRefusal(skipped, dayCount + photoCount);
   if (refused) return { ok: false, error: refused };
-  return { ok: true, entries: days.entries, dayCount, photoCount, futureDays: days.futureDays, skipped };
+  return { ok: true, entries: days.entries, dayCount, photoCount, photoStamps, futureDays: days.futureDays, skipped };
 }
 
 /**

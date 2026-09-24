@@ -315,8 +315,10 @@ reminder once that card is hidden or doesn't apply.
   Settings says it wasn't confirmed.)
 - **Settings → Import Backup** checks the whole file first, then asks
   before changing anything: how many days and photos the file has, how
-  many of your days it will replace with the file's version, and how many
-  it adds. If some days or photos in the file can't be restored (a value
+  many of your days it will replace with the file's version, how many
+  days and photos it adds, and how many are already here. A file that
+  would change nothing (everything in it is already on the device, such
+  as the same file imported again) says so, with only **Close**. If some days or photos in the file can't be restored (a value
   outside the rules above, a date that doesn't exist), the question lists
   them and the button reads **Restore the rest**; the result lists them
   again. A file with nothing that can be restored isn't imported, and the

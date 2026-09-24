@@ -74,6 +74,11 @@ test('a written backup reads back in slices with every day and photo intact', as
   assert.deepEqual(checked.entries, entries);
   assert.equal(checked.dayCount, 1);
   assert.equal(checked.photoCount, 8);
+  assert.deepEqual(
+    checked.photoStamps,
+    photos.map((p) => ({ date: p.date, createdAt: p.createdAt })),
+    'each photo is described without keeping its image'
+  );
   const seen = [];
   await forEachBackupPhoto(blob, async (photo, n) => {
     seen.push([n, photo]);
@@ -152,8 +157,14 @@ test('reading a backup a piece at a time gives the same result as the whole-file
     const pieces = await checkBackup(new Blob([text]), { latestDay: '2026-09-24' });
     if (whole.ok) {
       const { photos, ...rest } = whole;
-      assert.deepEqual(pieces, rest, text);
+      const { photoStamps, ...piecesRest } = pieces;
+      assert.deepEqual(piecesRest, rest, text);
       assert.equal(photos.length, pieces.photoCount);
+      assert.deepEqual(
+        photoStamps,
+        photos.map((p) => ({ date: p.date, createdAt: p.createdAt })),
+        text
+      );
     } else {
       assert.deepEqual(pieces, whole, text);
     }

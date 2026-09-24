@@ -491,6 +491,21 @@ test('a restore is described by how many stored days it replaces and adds', () =
   assert.deepEqual(core.compareWithStored(stored, incoming), { replaced: ['2026-09-20'], added: ['2026-09-22', '2026-09-23'], unchanged: 1 });
 });
 
+test("a backup's photos are compared with the ones here by when each was first added, before any image is read", () => {
+  const here = [{ createdAt: '2026-09-20T08:00:00.000Z' }];
+  const photo = (date, createdAt) => ({ date, createdAt });
+  // The same photo moved to another day since the backup is still the same photo.
+  const incoming = [
+    photo('2026-09-19', '2026-09-20T08:00:00.000Z'),
+    photo('2026-09-21', '2026-09-21T08:00:00.000Z'),
+    photo('2026-09-21', '2026-09-21T08:00:00.000Z'),
+    photo('2026-09-25', '2026-09-25T08:00:00.000Z'),
+  ];
+  assert.deepEqual(core.comparePhotos(incoming, here, '2026-09-24'), { added: 1, alreadyHere: 2, future: 1 });
+  assert.deepEqual(core.comparePhotos([], here, '2026-09-24'), { added: 0, alreadyHere: 0, future: 0 });
+  assert.deepEqual(core.comparePhotos(incoming.slice(0, 1), [], '2026-09-24'), { added: 1, alreadyHere: 0, future: 0 });
+});
+
 test('long chart ranges are averaged by week, and multi-year ranges by month', () => {
   assert.equal(core.chartPeriod(30), 'day');
   assert.equal(core.chartPeriod(120), 'day');

@@ -100,6 +100,7 @@ module.exports = Object.freeze({
   checkBackupPhoto: backup.checkBackupPhoto,
   backupRefusal: backup.backupRefusal,
   compareWithStored: backup.compareWithStored,
+  comparePhotos: backup.comparePhotos,
   UNREADABLE_BACKUP: backup.UNREADABLE_BACKUP,
   FUTURE_DAY: input.FUTURE_DAY,
   FUTURE_PHOTO: input.FUTURE_PHOTO,

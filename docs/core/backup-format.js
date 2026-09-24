@@ -144,6 +144,34 @@ function compareWithStored(stored, incoming) {
   return { replaced, added, unchanged };
 }
 
+/**
+ * What restoring a backup's photos would do, from their details alone
+ * (no image is read): how many would be added, how many are already here
+ * (matched as the importer matches them, by photoKey, which also counts a
+ * photo the file holds twice once), and how many are dated after
+ * `latestDay` and would be left out.
+ * @param {{ date: string, createdAt: string }[]} incoming
+ * @param {{ createdAt: string }[]} here the photos on this device
+ * @param {string} latestDay
+ * @returns {{ added: number, alreadyHere: number, future: number }}
+ */
+function comparePhotos(incoming, here, latestDay) {
+  const seen = new Set(here.map(photoKey));
+  let added = 0;
+  let alreadyHere = 0;
+  let future = 0;
+  for (const p of incoming) {
+    const key = photoKey(p);
+    if (isFutureDate(p.date, latestDay)) future += 1;
+    else if (seen.has(key)) alreadyHere += 1;
+    else {
+      seen.add(key);
+      added += 1;
+    }
+  }
+  return { added, alreadyHere, future };
+}
+
 // When the Today screen asks the user to save a backup file: once a few
 // days are logged (a first meal is too little to ask about), when no
 // backup has been saved yet or the last one is a week old. "Not now" puts
@@ -186,6 +214,7 @@ module.exports = {
   backupRefusal,
   UNREADABLE_BACKUP,
   compareWithStored,
+  comparePhotos,
   BACKUP_REMINDER,
   backupReminderDue,
   backupAge,

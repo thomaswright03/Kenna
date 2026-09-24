@@ -4,7 +4,7 @@
 
 import { core, h, today, plural, formatBytes } from './dom.js';
 import { failureText } from './problems.js';
-import { confirmDialog, itemList, createStatusLine } from './feedback.js';
+import { confirmDialog, noticeDialog, itemList, createStatusLine } from './feedback.js';
 import { store } from './store.js';
 
 /**
@@ -18,7 +18,7 @@ import { store } from './store.js';
  */
 
 /**
- * @typedef {{ ok: true, entries: Record<string, import('../core.js').Entry>, dayCount: number, photoCount: number, futureDays: number, skipped: string[] }} CheckedBackup
+ * @typedef {{ ok: true, entries: Record<string, import('../core.js').Entry>, dayCount: number, photoCount: number, photoStamps: { date: string, createdAt: string }[], futureDays: number, skipped: string[] }} CheckedBackup
  * @typedef {{ days: number, daysReplaced: boolean, unchangedDays: number, photos: import('../store-local.js').Photo[], alreadyHere: number, futurePhotos: number }} Restored
  */
 
@@ -53,31 +53,81 @@ async function checkFile(file, ui) {
 }
 
 /**
- * What restoring will do to the days already here, in a sentence.
- * @param {CheckedBackup} checked
+ * What restoring the file would change here: the days it would replace
+ * and add, the photos it would add, and what in it is here already.
+ * @typedef {{ replaced: number, addedDays: number, addedPhotos: number, sameDays: number, samePhotos: number }} RestorePlan
  */
-async function changeSummary(checked) {
-  const { replaced, added } = core.compareWithStored(await store.loadEntries(), checked.entries);
-  const addedText = `${plural(added.length, 'day')} will be added`;
-  if (replaced.length === 0) return added.length ? `${addedText}; no day on this device will change.` : `Every day in it is already on this device as it is.`;
-  const replacedText = `${plural(replaced.length, 'day')} on this device will be replaced by the file’s version`;
-  return added.length ? `${replacedText}, and ${addedText}.` : `${replacedText}.`;
+
+/**
+ * @param {CheckedBackup} checked
+ * @returns {Promise<RestorePlan>}
+ */
+async function planRestore(checked) {
+  const days = core.compareWithStored(await store.loadEntries(), checked.entries);
+  /** @type {{ createdAt: string }[]} */
+  let here = [];
+  if (checked.photoCount) {
+    try {
+      here = await store.listPhotos();
+    } catch {
+      // Photo storage can't be read just now: the photos count as new, and
+      // the restore says what happened when it gets to them.
+    }
+  }
+  const photos = core.comparePhotos(checked.photoStamps, here, today());
+  return { replaced: days.replaced.length, addedDays: days.added.length, addedPhotos: photos.added, sameDays: days.unchanged, samePhotos: photos.alreadyHere };
 }
 
 /**
+ * "2 days and 1 photo", leaving out a count of none.
+ * @param {number} days
+ * @param {number} photos
+ */
+function someDaysAndPhotos(days, photos) {
+  return [days ? plural(days, 'day') : '', photos ? plural(photos, 'photo') : ''].filter(Boolean).join(' and ');
+}
+
+/**
+ * What restoring will change, in a sentence or two.
+ * @param {RestorePlan} plan
+ */
+function changeSummary(plan) {
+  const added = someDaysAndPhotos(plan.addedDays, plan.addedPhotos);
+  const addedText = added ? `${added} will be added` : '';
+  const replacedText = plan.replaced ? `${plural(plan.replaced, 'day')} on this device will be replaced by the file’s version` : '';
+  const change = replacedText ? `${replacedText}${addedText ? `, and ${addedText}` : ''}.` : `${addedText}; nothing on this device will change.`;
+  const sameCount = plan.sameDays + plan.samePhotos;
+  const same = sameCount ? ` ${someDaysAndPhotos(plan.sameDays, plan.samePhotos)} in it ${sameCount === 1 ? 'is' : 'are'} already here.` : '';
+  return `${change}${same}`;
+}
+
+/**
+ * Asks before restoring, saying what it will change. A file that would
+ * change nothing (everything in it is already here) is said to be so,
+ * with only a way to close.
  * @param {File} file
  * @param {CheckedBackup} checked
+ * @returns {Promise<boolean>} true to restore
  */
 async function confirmRestore(file, checked) {
   const contents = `It has ${daysAndPhotos(checked.dayCount, checked.photoCount)} (${formatBytes(file.size)}).`;
-  const effect =
-    checked.dayCount > 0
-      ? `${await changeSummary(checked)} Other days and photos stay as they are, and you can undo the restore afterwards.`
-      : `No day on this device will change, and photos already here aren’t added again. You can undo the restore afterwards.`;
+  const plan = await planRestore(checked);
+  const details = checked.skipped.length ? { intro: 'These can’t be restored and will be left out:', items: checked.skipped } : null;
+  if (plan.replaced + plan.addedDays + plan.addedPhotos === 0) {
+    const leftOut = checked.skipped.length || checked.futureDays || checked.photoCount > plan.samePhotos;
+    const everything = leftOut ? 'Everything in it that can be restored' : 'Everything in it';
+    await noticeDialog({
+      title: 'Nothing to restore',
+      message: `${contents} ${everything} is already on this device, so restoring it wouldn’t change anything.`,
+      details: details && { ...details, intro: 'These can’t be restored:' },
+      closeLabel: 'Close',
+    });
+    return false;
+  }
   return confirmDialog({
     title: 'Restore from this backup?',
-    message: `${contents} ${effect}`,
-    details: checked.skipped.length ? { intro: 'These can’t be restored and will be left out:', items: checked.skipped } : null,
+    message: `${contents} ${changeSummary(plan)} Other days and photos stay as they are, and you can undo the restore afterwards.`,
+    details,
     confirmLabel: checked.skipped.length ? 'Restore the rest' : 'Restore',
   });
 }

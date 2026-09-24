@@ -37,8 +37,9 @@ here touches your real days or photos.
 10. Delete the photo and change the meal, then Settings → **Import Backup**
     and pick the file just saved. The question says 1 day will be replaced;
     after **Restore**, the meal and the photo come back. **Undo restore**
-    brings back the changed meal and removes the photo again. Importing the
-    file twice adds nothing the second time.
+    brings back the changed meal and removes the photo again. Import the
+    file again, then once more: the second time Kenna says there's nothing
+    to restore, with only **Close**.
 11. Open Photos with two photos added, step between them with a swipe,
     and compare them side by side (**Compare photos**).
 12. Delete the test copy from the Home Screen (touch and hold → Remove App).

@@ -95,8 +95,9 @@ test('a deleted photo can be brought back with Undo, as it was, and is erased on
   // Still recognised as the same photo by a backup that has it.
   await page.goto(`${appURL}/#/settings`);
   await page.locator('input[type=file]').setInputFiles(file);
-  await page.getByRole('button', { name: 'Restore' }).click();
-  await expect(page.getByText(/1 photo was already here/)).toBeVisible();
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('Everything in it is already on this device');
+  await notice.getByRole('button', { name: 'Close' }).click();
 
   // Moving on to another screen erases it.
   await page.goto(`${appURL}/#/photos`);
@@ -175,10 +176,15 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   await fresh.goto(`${freshURL}/#/history`);
   await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182.0 lbs');
 
+  // Importing the same file again changes nothing, and says so without offering Restore.
   await fresh.goto(`${freshURL}/#/settings`);
   await fresh.locator('input[type=file]').setInputFiles(file);
-  await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText('Nothing new to restore. 2 days and 2 photos were already here.', { exact: true })).toBeVisible();
+  const notice = fresh.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 2 days and 2 photos');
+  await expect(notice).toContainText('Everything in it is already on this device');
+  await expect(notice.getByRole('button', { name: 'Restore' })).toHaveCount(0);
+  await notice.getByRole('button', { name: 'Close' }).click();
+  await expect(fresh.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
   await fresh.goto(`${freshURL}/#/photos`);
   await expect(fresh.locator('.photo-thumb')).toHaveCount(2);
   await ctx.close();
@@ -278,8 +284,9 @@ test('a photo is picked first, then filed under the day it was taken, and can be
   // Importing the older backup doesn't bring the photo back as a duplicate.
   await page.goto(`${appURL}/#/settings`);
   await page.locator('input[type=file]').setInputFiles(beforeFile);
-  await page.getByRole('button', { name: 'Restore' }).click();
-  await expect(page.getByText(/1 photo was already here/)).toBeVisible();
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 1 photo and no days');
+  await notice.getByRole('button', { name: 'Close' }).click();
   await page.goto(`${appURL}/#/photos`);
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
 

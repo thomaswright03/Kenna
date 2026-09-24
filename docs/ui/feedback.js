@@ -200,26 +200,54 @@ export function closeAllDialogs() {
 }
 
 /**
- * @param {{ title: string, message?: string, details?: { intro: string, items: string[] } | null, confirmLabel: string, cancelLabel?: string, danger?: boolean }} options
+ * @typedef {{ title: string, message?: string, details?: { intro: string, items: string[] } | null }} DialogText
  *   details: a short list under the message (what a restore will leave out)
+ */
+
+/**
+ * A dialog's title, message and list, above its buttons.
+ * @param {DialogText} text
+ * @param {string} labelId
+ * @param {HTMLElement[]} buttons
+ */
+function dialogBody({ title, message, details }, labelId, buttons) {
+  return h(
+    'div',
+    { class: 'dialog-body' },
+    h('h2', { id: labelId, class: 'dialog-title', text: title }),
+    message ? h('p', { class: 'dialog-text', text: message }) : null,
+    details ? [h('p', { class: 'dialog-text', text: details.intro }), itemList(details.items)] : null,
+    h('div', { class: 'dialog-actions' }, buttons)
+  );
+}
+
+/**
+ * @param {DialogText & { confirmLabel: string, cancelLabel?: string, danger?: boolean }} options
  * @returns {Promise<boolean>}
  */
-export function confirmDialog({ title, message, details, confirmLabel, cancelLabel, danger }) {
+export function confirmDialog(options) {
   return new Promise((resolve) => {
     const labelId = uid('dlg');
-    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: cancelLabel || 'Cancel' });
-    const okBtn = h('button', { type: 'button', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`, text: confirmLabel });
-    const content = h(
-      'div',
-      { class: 'dialog-body' },
-      h('h2', { id: labelId, class: 'dialog-title', text: title }),
-      message ? h('p', { class: 'dialog-text', text: message }) : null,
-      details ? [h('p', { class: 'dialog-text', text: details.intro }), itemList(details.items)] : null,
-      h('div', { class: 'dialog-actions' }, cancelBtn, okBtn)
-    );
+    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: options.cancelLabel || 'Cancel' });
+    const okBtn = h('button', { type: 'button', class: `btn ${options.danger ? 'btn-danger' : 'btn-primary'}`, text: options.confirmLabel });
+    const content = dialogBody(options, labelId, [cancelBtn, okBtn]);
     const close = openDialog({ labelId, content, initialFocus: cancelBtn, onClose: (v) => resolve(v === true) });
     cancelBtn.addEventListener('click', () => close(false));
     okBtn.addEventListener('click', () => close(true));
+  });
+}
+
+/**
+ * A dialog that only tells something, with one button to close it.
+ * @param {DialogText & { closeLabel?: string }} options
+ * @returns {Promise<void>} once it's closed
+ */
+export function noticeDialog(options) {
+  return new Promise((resolve) => {
+    const labelId = uid('dlg');
+    const closeBtn = h('button', { type: 'button', class: 'btn btn-primary', text: options.closeLabel || 'OK' });
+    const close = openDialog({ labelId, content: dialogBody(options, labelId, [closeBtn]), onClose: () => resolve() });
+    closeBtn.addEventListener('click', () => close());
   });
 }
 

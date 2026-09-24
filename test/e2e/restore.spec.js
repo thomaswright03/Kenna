@@ -24,7 +24,7 @@ test('a backup from the first version, with a weight to three decimals, restores
   );
   const dialog = await importFile(page, appURL, file);
   await expect(dialog).toContainText('It has 2 days and no photos');
-  await expect(dialog).toContainText('2 days will be added');
+  await expect(dialog).toContainText('2 days will be added; nothing on this device will change.');
   await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
   await expect(page.getByText('Restored 2 days.', { exact: true })).toBeVisible();
   expect((await data.entry('2026-09-16')).weight).toBe(165.33);
@@ -79,7 +79,8 @@ test('restoring says how many days it will replace, and Undo restore puts them b
 
   const dialog = await importFile(page, appURL, file);
   const where = 'on this device';
-  await expect(dialog).toContainText(`1 day ${where} will be replaced by the file’s version, and 1 day will be added.`);
+  await expect(dialog).toContainText(`1 day ${where} will be replaced by the file’s version, and 1 day and 1 photo will be added.`);
+  await expect(dialog).not.toContainText('already here');
   await expect(dialog).toContainText('you can undo the restore afterwards');
   await dialog.getByRole('button', { name: 'Restore' }).click();
   await expect(page.getByText('Restored 2 days and 1 photo.', { exact: true })).toBeVisible();
@@ -95,20 +96,52 @@ test('restoring says how many days it will replace, and Undo restore puts them b
   await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
 });
 
-test('the restore dialog says when nothing already here will change', async ({ page, appURL, data }, testInfo) => {
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 500 }) });
+test('a backup with nothing new in it says so, with no Restore to press', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 500 }), '2026-09-20': day('2026-09-20', { dinner: 900 }) });
   const file = testInfo.outputPath('same.json');
   fs.writeFileSync(file, JSON.stringify({ app: 'kenna', version: 2, entries: { [TODAY]: day(TODAY, { breakfast: 500 }) } }));
-  const dialog = await importFile(page, appURL, file);
-  await expect(dialog).toContainText('Every day in it is already');
-  await dialog.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
-
-  // Restoring it anyway changes nothing, and says so.
+  await page.goto(`${appURL}/#/settings`);
   await page.locator('input[type=file]').setInputFiles(file);
-  await page.getByRole('dialog').getByRole('button', { name: 'Restore' }).click();
-  await expect(page.getByText('Nothing new to restore. 1 day was already here.', { exact: true })).toBeVisible();
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 1 day and no photos');
+  await expect(notice).toContainText('Everything in it is already on this device, so restoring it wouldn’t change anything.');
+  await expect(notice.getByRole('button')).toHaveText(['Close']);
+  await notice.getByRole('button', { name: 'Close' }).click();
+  await expect(notice).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
+  await expect(page.locator('.import-result')).toBeEmpty();
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(500);
+
+  // Once a day in it differs, it offers to restore again, saying what is here already.
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('650');
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  await expect(page.locator('.total-num')).toHaveText('650');
+  const dialog = await importFile(page, appURL, file);
+  await expect(dialog).toContainText('1 day on this device will be replaced by the file’s version. Other days and photos stay as they are');
+});
+
+test('a backup whose only new parts can’t be restored has nothing to restore, and names them', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 500 }) });
+  const file = testInfo.outputPath('same-and-future.json');
+  fs.writeFileSync(
+    file,
+    JSON.stringify({
+      app: 'kenna',
+      version: 2,
+      entries: { [TODAY]: day(TODAY, { breakfast: 500 }), '2026-09-02': day('2026-09-02', { lunch: -5 }) },
+      photos: [{ date: '2031-01-01', createdAt: '2031-01-01T08:00:00.000Z', type: 'image/png', data: PNG }],
+    })
+  );
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('Everything in it that can be restored is already on this device');
+  await expect(notice).toContainText('These can’t be restored:');
+  await expect(notice.getByRole('listitem')).toHaveText(["Lunch on Wed, Sep 2 (-5): Calories can't be negative. Enter 0 or more."]);
+  await expect(notice.getByRole('button', { name: /Restore/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(notice).toHaveCount(0);
 });
 
 test('a backup with photos and no days is described as such, before and after', async ({ page, appURL, data }, testInfo) => {
@@ -120,8 +153,7 @@ test('a backup with photos and no days is described as such, before and after', 
   );
   const dialog = await importFile(page, appURL, file);
   await expect(dialog).toContainText('It has 1 photo and no days (');
-  await expect(dialog).toContainText('will change, and photos already here aren’t added again. You can undo the restore afterwards.');
-  await expect(dialog).not.toContainText('Every day');
+  await expect(dialog).toContainText('1 photo will be added; nothing on this device will change. Other days and photos stay as they are, and you can undo the restore afterwards.');
   await dialog.getByRole('button', { name: 'Restore' }).click();
   await expect(page.getByText('Restored 1 photo.', { exact: true })).toBeVisible();
   expect((await data.entry(TODAY)).meals.breakfast).toBe(500);
