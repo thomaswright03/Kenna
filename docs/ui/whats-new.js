@@ -22,6 +22,7 @@ const SEEN_KEY = 'whatsNewSeen';
  * @property {string} [hash] the screen's address; none keeps the one shown
  * @property {import('./router.js').ScreenName} [screen] the screen `hash` opens
  * @property {() => Element | null} [find] what to light up; none centers the card
+ * @property {string} [notYet] added when the feature isn't there yet (nothing logged for it)
  */
 
 /** @param {string} selector */
@@ -87,6 +88,7 @@ export const STOPS = [
     find: inMain('[data-backup-status], [data-backup-reminder]'),
     title: 'Know when you last backed up',
     points: ['Today always shows how old your last backup is, with Back up now.', 'After a week without one, Kenna reminds you.'],
+    notYet: 'It appears here on Today once you’ve logged something.',
   },
   {
     where: 'History',
@@ -95,6 +97,7 @@ export const STOPS = [
     find: inMain('.history-month'),
     title: 'History by month',
     points: ['Days are grouped by month, each with its average calories and weight.', 'Tap a day to open it; Back returns you to this same spot.'],
+    notYet: 'Your months show up here once you’ve logged a day.',
   },
   {
     where: 'Compare',
@@ -103,6 +106,7 @@ export const STOPS = [
     find: inMain('.compare-answer'),
     title: 'How am I doing today?',
     points: ['Compare answers in plain words: today’s calories against your usual for the same meals, and your weight against your average and yesterday.', 'See each meal, further down, breaks it down meal by meal.'],
+    notYet: 'The answers show up here once you’ve logged a day or two.',
   },
   {
     where: 'Photos',
@@ -124,6 +128,8 @@ export const STOPS = [
 
 /** How long to wait for a screen to open before lighting up its heading instead. */
 const ARRIVE_TIMEOUT_MS = 4000;
+/** Frames to wait, once a screen is drawn, for its feature to show. */
+const READY_FRAMES = 3;
 /** Space kept between the lit-up feature, the card and the screen's edges. */
 const GAP = 12;
 const EDGE = 12;
@@ -212,24 +218,30 @@ function place(t, target) {
 }
 
 /**
- * Opens the stop's screen and waits for its feature to be drawn. When
- * the feature can't be found, the screen's heading is lit instead.
+ * Opens the stop's screen and waits for its feature to be drawn. A
+ * feature that isn't there once the screen is (nothing logged for it
+ * yet) is stood in for by the screen's first card, marked `missing`.
  * @param {Stop} stop
  * @param {() => boolean} isCurrent false once the tour has moved on or closed
- * @returns {Promise<Element | null>}
+ * @returns {Promise<{ el: Element | null, missing: boolean }>}
  */
 async function arrive(stop, isCurrent) {
-  if (!stop.find) return null;
+  if (!stop.find) return { el: null, missing: false };
   if (stop.hash && currentHash() !== stop.hash) navigate(stop.hash);
   const deadline = performance.now() + ARRIVE_TIMEOUT_MS;
   const main = byId('main');
+  let readyFrames = 0;
   for (;;) {
     await nextFrame();
-    if (!isCurrent()) return null;
+    if (!isCurrent()) return { el: null, missing: false };
     const ready = route.screen === stop.screen && main.getAttribute('aria-busy') !== 'true';
     const found = ready ? stop.find() : null;
-    if (found) return found;
-    if (performance.now() > deadline) return ready ? main.querySelector('h2') : null;
+    if (found) return { el: found, missing: false };
+    readyFrames = ready ? readyFrames + 1 : 0;
+    // The screen is drawn in one go, so a few frames after it is there
+    // the feature either is too or won't be.
+    if (readyFrames >= READY_FRAMES) return { el: main.querySelector('.card') || main.querySelector('h2'), missing: true };
+    if (performance.now() > deadline) return { el: null, missing: true };
   }
 }
 
@@ -248,12 +260,14 @@ function bringIntoView(el) {
  * Fills the card with a stop's words and where it is in the tour.
  * @param {Tour} t
  * @param {number} index
+ * @param {boolean} missing the feature isn't on the screen yet
  */
-function fill(t, index) {
+function fill(t, index, missing) {
   const stop = STOPS[index];
   t.where.textContent = stop.where;
   t.title.textContent = stop.title;
-  t.points.replaceChildren(...stop.points.map((text) => h('li', { text })));
+  const lines = missing && stop.notYet ? [...stop.points, stop.notYet] : stop.points;
+  t.points.replaceChildren(...lines.map((text) => h('li', { text })));
   t.position.textContent = `${index + 1} of ${STOPS.length}`;
   Array.from(t.dots.children).forEach((dot, i) => dot.classList.toggle('is-current', i === index));
   t.backBtn.disabled = index === 0;
@@ -286,9 +300,9 @@ export function showWhatsNew() {
     t.layer.classList.add('is-moving');
     const found = await arrive(STOPS[index], () => seq === moveSeq);
     if (seq !== moveSeq) return;
-    target = found;
+    target = found.el;
     if (target) bringIntoView(target);
-    fill(t, index);
+    fill(t, index, found.missing);
     place(t, target);
     t.layer.classList.remove('is-moving');
     // The new stop's title is read out when focus lands on it.

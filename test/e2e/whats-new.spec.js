@@ -203,3 +203,22 @@ for (const size of [
     }
   });
 }
+
+test('with nothing logged, every stop still opens straight away and says where the feature will show', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/settings`);
+  await page.getByRole('button', { name: 'Take the tour' }).click();
+  await expect(tour(page).getByText(`1 of ${STOPS}`)).toBeVisible();
+  for (let i = 1; i < STOPS; i += 1) {
+    await tour(page).getByRole('button', { name: 'Next' }).click();
+    // Well inside the time a screen gets before the tour gives up on it.
+    await expect(tour(page).getByText(`${i + 1} of ${STOPS}`)).toBeVisible({ timeout: 1500 });
+    await expect(page.locator('.tour-layer.is-moving')).toHaveCount(0, { timeout: 1500 });
+  }
+  await expect(tour(page).getByRole('heading', { name: 'Back up everything in one file' })).toBeVisible();
+  await tour(page).getByRole('button', { name: 'Back' }).click();
+  await tour(page).getByRole('button', { name: 'Back' }).click();
+  await expect(tour(page).getByRole('heading', { name: 'How am I doing today?' })).toBeFocused();
+  await expect(tour(page).getByText('The answers show up here once you’ve logged a day or two.')).toBeVisible();
+  await tour(page).getByRole('button', { name: 'Back' }).click();
+  await expect(tour(page).getByText('Your months show up here once you’ve logged a day.')).toBeVisible();
+});
