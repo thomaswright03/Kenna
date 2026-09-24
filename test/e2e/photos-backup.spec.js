@@ -200,3 +200,41 @@ test('Add Photo is unavailable while a photo is being added', async ({ page, app
   await expect(page.locator('input[type=file]')).toBeEnabled();
   await expect(page.locator('label').filter({ hasText: 'Add Photo' })).not.toHaveClass(/is-disabled/);
 });
+
+test('photos saved by earlier versions, stored as a Blob, still show', async ({ page, appURL, backend, browserName }) => {
+  test.skip(backend !== 'local', 'browser storage only');
+  // WebKit's test browser can't put a Blob in IndexedDB at all, so a photo
+  // in the old format can't exist there.
+  test.skip(browserName === 'webkit', 'WebKit test contexts cannot store a Blob in IndexedDB');
+  await page.goto(appURL);
+  await page.evaluate(
+    (b64) =>
+      new Promise((resolve, reject) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        const req = indexedDB.open('kenna-photos', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+        req.onsuccess = () => {
+          const t = req.result.transaction('photos', 'readwrite');
+          t.objectStore('photos').add({
+            date: '2026-09-23',
+            blob: new Blob([bytes], { type: 'image/png' }),
+            createdAt: '2026-09-23T12:00:00.000Z',
+          });
+          t.oncomplete = () => {
+            req.result.close();
+            resolve();
+          };
+          t.onerror = () => reject(t.error);
+        };
+        req.onerror = () => reject(req.error);
+      }),
+    PNG.toString('base64')
+  );
+  await page.goto(`${appURL}/#/photos`);
+  const thumb = page.getByRole('button', { name: 'Progress photo, Wed, Sep 23' });
+  await expect(thumb).toBeVisible();
+  await thumb.click();
+  const img = page.getByRole('dialog').getByRole('img', { name: 'Progress photo, Wed, Sep 23' });
+  await expect(img).toBeVisible();
+  await expect.poll(() => img.evaluate((el) => el.naturalWidth)).toBe(2);
+});

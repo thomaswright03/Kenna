@@ -242,20 +242,24 @@
       );
     }
 
+    // Photos are stored as raw bytes plus their type, because Safari refuses
+    // to put a Blob into IndexedDB in some modes (Private Browsing among
+    // them). Photos saved by older versions hold a `blob` and still load.
     function toPhoto(record) {
+      const type = record.type || (record.blob && record.blob.type) || 'image/jpeg';
       return {
         id: record.id,
         date: record.date,
         createdAt: record.createdAt,
-        type: (record.blob && record.blob.type) || 'image/jpeg',
-        blob: record.blob,
+        type,
+        blob: record.blob || new Blob([record.bytes], { type }),
       };
     }
 
     async function listPhotos() {
       const records = await tx('readonly', (s) => s.getAll());
       return (records || [])
-        .filter((r) => r && r.blob && core.isValidDateStr(r.date))
+        .filter((r) => r && (r.blob || r.bytes) && core.isValidDateStr(r.date))
         .map(toPhoto)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     }
@@ -266,7 +270,12 @@
     }
 
     async function addPhoto(photo) {
-      const record = { date: photo.date, blob: photo.blob, createdAt: photo.createdAt || new Date().toISOString() };
+      const record = {
+        date: photo.date,
+        bytes: await photo.blob.arrayBuffer(),
+        type: photo.blob.type || 'image/jpeg',
+        createdAt: photo.createdAt || new Date().toISOString(),
+      };
       const id = await tx('readwrite', (s) => s.add(record));
       return toPhoto({ ...record, id });
     }

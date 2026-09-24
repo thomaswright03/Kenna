@@ -197,15 +197,17 @@ test.describe('phone version', () => {
     await expect.poll(() => page.evaluate(() => window.__persistCalls)).toBe(1);
   });
 
-  test('opens offline after the first visit', async ({ page, appURL, context }) => {
-    await page.goto(appURL);
+  // The site going away entirely stands in for airplane mode: WebKit's
+  // offline emulation fails navigations before the service worker sees them.
+  test('opens offline after the first visit', async ({ page }) => {
+    const site = await stallableServer();
+    await page.goto(site.url);
     await page.evaluate(() => navigator.serviceWorker.ready);
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
-    await context.setOffline(true);
+    site.close();
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
-    await context.setOffline(false);
   });
 
   test('on a stalled connection it opens from its offline copy within a few seconds', async ({ page }) => {
