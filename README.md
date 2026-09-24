@@ -110,6 +110,9 @@ scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
 scripts/coverage.js    measures what the unit and browser tests run
 scripts/make-icons.js  draws the app icon (a scale) in every size, from
                        the drawing in it (then run npm run build)
+scripts/check-release-record.js  checks the iPhone checklist has a row for
+                       what a pull request merges (CI, on pull requests
+                       into the published branch)
 test/unit/       Node tests: data rules, browser storage, backup files, build,
                  and days passing both ways between this version and the
                  published one (its built data.js, kept in published/)
@@ -145,12 +148,17 @@ Pages serves its `docs/` folder. Other branches, such as
    **Tests / webkit**) are green on the pull request; the published
    branch's ruleset (see [Who looks after it](#who-looks-after-it)) won't
    let GitHub merge it otherwise. Go through the "Before merging" part
-   of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install
-   the live version to the Home Screen and upgrade it to this one with its
-   days intact, log a meal, add a photo, export with Save to Files and
-   import that file back) and add its row to the checklist's Record table;
-   the pull request template asks for both. Then merge the pull request into the
-   published branch.
+   of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone, on the
+   pull request's last commit (install the live version to the Home Screen
+   and upgrade it to this one with its days intact, log a meal, add a
+   photo, export with Save to Files and import that file back), and add its
+   row to the checklist's Record table, every step's result by number, in a
+   commit that changes only that file. A third check on pull requests into
+   the published branch, **Tests / release-record**
+   (`scripts/check-release-record.js`), fails until that row names a commit
+   on the branch after which only the checklist changed. The pull request
+   template asks for all of this, with links to the two test runs for the
+   head commit. Then merge the pull request into the published branch.
 3. Pages redeploys within a minute or two (see the repository's Actions tab).
    Phones load the new version the next time the app is opened online.
    Finish the checklist's "After Pages deploys" part on the live app.
@@ -174,7 +182,11 @@ The published branch is protected by the ruleset "Protect live app",
 turned on 2026-09-24: changes arrive only through a pull request, which
 can be merged only once both checks (**Tests / test** and **Tests /
 webkit**) pass; force pushes and deleting the branch are blocked; and
-nobody, the owner included, is on its bypass list. To confirm it is
+nobody, the owner included, is on its bypass list. **Tests /
+release-record** is not among its required checks unless the owner adds
+it there (**Settings → Rules → Rulesets → Protect live app → Require
+status checks to pass**); until then it shows on the pull request but
+doesn't block the merge. To confirm it is
 still so, open **Settings → Rules → Rulesets → Protect live app**, or
 look for the two required checks on any open pull request into the
 published branch.

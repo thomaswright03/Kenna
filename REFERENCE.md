@@ -462,7 +462,12 @@ request, as two checks: **Tests / test** (lint, type check, unit tests,
 Chromium) and **Tests / webkit**. A ruleset on the published branch
 (see [Where the app is published](#where-the-app-is-published)) requires
 both to pass before a pull request can be merged; the README's "Who
-looks after it" says what else it enforces and where to confirm it.
+looks after it" says what else it enforces and where to confirm it. On a
+pull request into the published branch a third job, **Tests /
+release-record**, runs `scripts/check-release-record.js`: it passes only
+when RELEASE-CHECKLIST.md's Record table has a "Before merging" row naming
+a commit on the branch after which nothing but the checklist changed, with
+every step's result given by number.
 
 ### Where the app is published
 

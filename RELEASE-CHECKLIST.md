@@ -70,9 +70,19 @@ Finish every step, and record it below, before merging the pull request.
 
 Add a row here, in the same pull request as the change, each time the
 list is gone through: the date, the iPhone model and iOS version, the
-commit tested, which part (before merging or after deploy) and the
-result of each step: "all passed", or the number of each step that
-failed and what was done about it.
+commit tested (its short hash), which part (Before merging or After
+deploy) and the result of every step by number, each as "3 passed" or
+"3 failed: what happened and what was done about it", for example
+`1 passed; 2 passed; … 13 passed`. "All passed" isn't enough.
+
+For "Before merging", test the pull request's last commit, then add the
+row in a commit of its own that changes nothing but this file, and push
+it. The **Tests / release-record** check on the pull request
+(`scripts/check-release-record.js`) fails until there is such a row: one
+naming a commit on the branch after which only this file changed, with
+every step of "Before merging" given by number. A change pushed after
+the run makes it fail again, because what would be merged is no longer
+what was tested.
 
 | Date | iPhone, iOS | Commit | Part | Result |
 |---|---|---|---|---|
