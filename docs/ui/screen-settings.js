@@ -7,6 +7,7 @@ import { store } from './store.js';
 import { applyTheme } from './theme.js';
 import { buildBackupSection, downloadBlob } from './backup.js';
 import { inAppleBrowserTab, runningInstalled, installSteps } from './install-note.js';
+import { showWhatsNew } from './whats-new.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildSettings() {
@@ -37,6 +38,14 @@ export async function buildSettings() {
     h('h3', { class: 'section-title', text: 'Appearance' }),
     h('p', { class: 'card-sub', text: 'System follows your device’s light or dark setting.' }),
     themeGroup
+  );
+
+  const whatsNew = h(
+    'section',
+    { class: 'card' },
+    h('h3', { class: 'section-title', text: 'What’s new' }),
+    h('p', { class: 'card-sub', text: 'A short tour of what Kenna’s latest update added, one screen at a time.' }),
+    h('button', { type: 'button', class: 'btn btn-secondary', text: 'Show what’s new', onClick: () => showWhatsNew() })
   );
 
   const storageCard = h('section', { class: 'card' }, h('h3', { class: 'section-title', text: 'Where your data lives' }));
@@ -81,7 +90,7 @@ export async function buildSettings() {
   const damaged = await buildDamagedDataCard();
   return {
     title: 'Settings',
-    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), h('div', { class: 'screen-stack' }, damaged, storageCard, buildProblemLogCard(downloadBlob))),
+    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), whatsNew), h('div', { class: 'screen-stack' }, damaged, storageCard, buildProblemLogCard(downloadBlob))),
   };
 }
 

@@ -907,6 +907,17 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .viewer-confirm .dialog-actions .btn { margin-top: 0; }
 .viewer .field { margin-bottom: 0; }
 
+/* What's new: one card at a time */
+.tour-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s1); }
+.tour-where { margin: 0; color: var(--accent-text); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.tour-close { min-height: var(--tap); }
+.tour .dialog-title:focus { outline: none; }
+.tour-points { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: var(--s2); font-size: var(--fs-md); line-height: 1.45; }
+.tour-dots { display: flex; justify-content: center; gap: 6px; margin-top: var(--s4); }
+.tour-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--border); }
+.tour-dot.is-current { background: var(--accent); width: 20px; }
+.tour-position { margin: var(--s2) 0 0; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+
 /* ------------------------------------------------------------ loading */
 
 .main.is-loading { opacity: 0.35; pointer-events: none; transition: opacity 0.15s ease; }

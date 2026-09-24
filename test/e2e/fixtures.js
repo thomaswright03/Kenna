@@ -6,6 +6,8 @@ const { createStaticServer } = require('../../scripts/serve-docs.js');
 
 // Tests run with the clock fixed at 10:00 on Thu, Sep 24 2026 (Chicago).
 const TODAY = '2026-09-24';
+// Must match WHATS_NEW_VERSION in docs/ui/whats-new.js.
+const WHATS_NEW_VERSION = '2026-09';
 const NOW = new Date('2026-09-24T10:00:00-05:00');
 
 function listen(server) {
@@ -45,6 +47,11 @@ const test = base.test.extend({
   // the browser-tab note set this to false.
   installed: [true, { option: true }],
 
+  // What's new opens by itself once for someone who already logged days;
+  // tests of other things start with it already seen. Tests of it set this
+  // to false.
+  whatsNewSeen: [true, { option: true }],
+
   // Starts a fresh, empty copy of the app; call again for a second, empty one.
   // eslint-disable-next-line no-empty-pattern -- needs no other fixture
   startApp: async ({}, use) => {
@@ -62,13 +69,22 @@ const test = base.test.extend({
     await use(await startApp());
   },
 
-  page: async ({ page, context, installed }, use, testInfo) => {
+  page: async ({ page, context, installed, whatsNewSeen }, use, testInfo) => {
     const coverage = startCoverage(page);
     await page.clock.setFixedTime(NOW);
     if (installed) {
       await context.addInitScript(() => {
         Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true, configurable: true });
       });
+    }
+    if (whatsNewSeen) {
+      await context.addInitScript((version) => {
+        try {
+          if (localStorage.getItem('kenna:whatsNewSeen') === null) localStorage.setItem('kenna:whatsNewSeen', version);
+        } catch {
+          // Storage is blocked in this test; what's new never opens then.
+        }
+      }, WHATS_NEW_VERSION);
     }
     // Backups go through the download path unless a test stands in a share
     // sheet (whether a desktop test browser can share files differs by engine).
@@ -122,4 +138,4 @@ function day(date, meals = {}, weight = null) {
   };
 }
 
-module.exports = { test, expect: base.expect, TODAY, NOW, day };
+module.exports = { test, expect: base.expect, TODAY, NOW, day, WHATS_NEW_VERSION };

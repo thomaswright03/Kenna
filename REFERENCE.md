@@ -98,7 +98,13 @@ run, test and release it.
   place.
 - **Settings** (top right, the gear with the word Settings) has the light/dark theme (or follow the system),
   backup export and import, where your data is stored, and the **Problem
-  log** (see [Where your data lives](#where-your-data-lives-and-backups)).
+  log** (see [Where your data lives](#where-your-data-lives-and-backups)),
+  and **Show what's new**: nine short cards, one screen at a time, on what
+  the latest update added. They also open by themselves once, on Today, the
+  first time Kenna is opened after an update by someone who had already
+  logged days (a new user gets Today's welcome instead); **Next**, **Back**,
+  **Close** or Escape. Opening them again in a later update means changing
+  `WHATS_NEW_VERSION` in `docs/ui/whats-new.js` (and in `test/e2e/fixtures.js`).
 
 On a screen at least 700 pixels wide (a tablet, or a laptop), Today,
 Compare, History and Settings use two columns: the day's entry or the
