@@ -258,7 +258,7 @@ test('Compare answers how today stands in plain sentences, within the first scre
 
   // Each meal is one tap further down.
   const meals = page.locator('.compare-meals');
-  await expect(meals.locator('summary')).toHaveText('Each meal: today, yesterday and average (2 logged today)');
+  await expect(meals.locator('summary')).toHaveText('See each meal: today, yesterday, average');
   await expect(meals.locator('table')).toBeHidden();
   await meals.locator('summary').click();
   await expect(meals.locator('tr[data-meal="lunch"]')).toHaveText(/Lunch\s*2,300\s*1,600\s*1,550/);

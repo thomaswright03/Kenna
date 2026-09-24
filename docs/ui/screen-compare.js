@@ -222,11 +222,10 @@ function mealsTable(t, y, avg) {
   if (logged.length === 0) return null;
   /** @param {number | null} v */
   const cell = (v) => h('td', { text: v === null ? '—' : core.formatNumber(Math.round(v)) });
-  const todayCount = logged.filter((m) => t[m.key] !== null).length;
   return h(
     'details',
     { class: 'compare-meals' },
-    h('summary', { text: `Each meal: today, yesterday and average (${todayCount} logged today)` }),
+    h('summary', { text: 'See each meal: today, yesterday, average' }),
     h(
       'table',
       { class: 'meal-table' },

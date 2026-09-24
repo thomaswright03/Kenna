@@ -64,7 +64,7 @@ run, test and release it.
   show, a line under the bars says the sentence used "Usual for these
   meals", and that "Average day" is a whole day's, so a fair match only
   once today is finished. Each meal's today, yesterday and
-  average are one tap further down (**Each meal…**). Below that are
+  average are one tap further down (**See each meal**). Below that are
   7-day rolling averages of calories and weight. The 7-day calorie average
   leaves today out until the day is over (on the Today screen's Calories
   chart today's running total is a lone hollow marker labelled "so far",
