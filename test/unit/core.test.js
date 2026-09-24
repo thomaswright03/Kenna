@@ -448,6 +448,27 @@ test("a backup's age is counted in calendar days", () => {
   assert.equal(core.backupAge(new Date(2026, 8, 30).toISOString(), now), 0, 'a clock that was ahead is not a negative age');
 });
 
+test("the recent averages are of the 30 days before today, and say whether anything older exists", () => {
+  const entry = (date, weight, lunch) => ({ date, weight, meals: { ...core.emptyMeals(), lunch } });
+  const entries = {
+    '2026-08-24': entry('2026-08-24', 200, 900), // 31 days before: too old
+    '2026-08-25': entry('2026-08-25', 190, null), // 30 days before: counted
+    '2026-09-23': entry('2026-09-23', 180, 500),
+    '2026-09-24': entry('2026-09-24', 170, 100), // today: never counted
+  };
+  const recent = core.computeRecentAverages(entries, '2026-09-24');
+  assert.equal(core.RECENT_DAYS, 30);
+  assert.equal(recent.averages.weight, 185);
+  assert.equal(recent.averages.total, 500);
+  assert.equal(recent.averages.lunch, 500);
+  assert.equal(recent.olderWeight, true);
+  assert.equal(recent.olderMeals, true);
+  const young = core.computeRecentAverages({ '2026-09-23': entry('2026-09-23', 180, null), '2026-08-01': entry('2026-08-01', null, null) }, '2026-09-24');
+  assert.equal(young.olderWeight, false, 'an empty older day is nothing older');
+  assert.equal(young.olderMeals, false);
+  assert.deepEqual(core.computeAllTimeAverages(entries, '2026-09-24').weight, 190);
+});
+
 test('days after today never count toward averages', () => {
   const entries = {
     '2026-09-23': entry('2026-09-23', { lunch: 1000 }, 180),

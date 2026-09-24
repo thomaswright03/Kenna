@@ -184,9 +184,9 @@ test("a month's weight average leaves out today, and averages always show their 
 
   await page.goto(`${appURL}/#/compare`);
   // Average of 165, 167 and 170 before today is 167.3; the difference too
-  // is to one decimal.
-  await expect(page.locator('[data-answer="weight"]')).toContainText('average 167.3 lbs');
-  await expect(page.locator('[data-answer="weight"]')).toContainText('12.7 lbs above your average');
+  // is to one decimal. Only 170 is in the last 30 days.
+  await expect(page.locator('[data-answer="weight"]')).toContainText('all-time average 167.3 lbs');
+  await expect(page.locator('[data-answer="weight"]')).toContainText('180.0 lbs today: 10.0 lbs above your 30-day average and 12.7 lbs above your all-time average.');
 });
 
 test('an average that comes out whole still shows its decimal on Compare', async ({ page, appURL, data }) => {

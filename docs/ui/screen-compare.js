@@ -7,6 +7,7 @@ import { store } from './store.js';
 import { buildChartsCard } from './charts.js';
 
 /** @typedef {Record<string, number | null>} Stats */
+/** @typedef {ReturnType<typeof core.computeRecentAverages>} RecentAverages */
 
 /** @param {number} n */
 const cal = (n) => core.formatCalories(n);
@@ -93,37 +94,67 @@ function mealNames(keys) {
 }
 
 /**
- * The calorie sentence once today and earlier days both have meals: today's
- * meals so far against your average for those same meals.
- * @param {Stats} t
- * @param {Stats} avg
- * @param {ReturnType<typeof core.compareSameMeals>} same
+ * "**200 cal** more than" as sentence parts: the amount in bold, then words.
+ * @param {ReturnType<typeof difference>} d
+ * @param {string} rest what follows the words ("your average.")
  * @returns {Node[]}
  */
-function sameMealsSentence(t, avg, same) {
-  if (!same) {
-    return [document.createTextNode(`${cal(Number(t.total))} so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.`)];
-  }
-  const d = difference(same.today - same.average, null, ['more than', 'less than']);
-  return [
-    document.createTextNode('So far today: '),
-    d.amount ? h('strong', { text: d.amount }) : null,
-    document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average ${mealNames(same.meals)}.`),
-  ].filter((n) => n !== null);
+function differenceParts(d, rest) {
+  const words = document.createTextNode(`${d.amount ? ' ' : ''}${d.text} ${rest}`);
+  return d.amount ? [h('strong', { text: d.amount }), words] : [words];
 }
 
 /**
- * The two bars under the calorie sentence: today and the baseline the
+ * The same meals compared with the recent baseline, when there is one that
+ * differs from all time and covers exactly the same meals; else null.
+ * @param {Stats} t
+ * @param {RecentAverages} recent
+ * @param {ReturnType<typeof core.compareSameMeals>} same
+ */
+function recentSameMeals(t, recent, same) {
+  if (!recent.olderMeals || !same) return null;
+  const r = core.compareSameMeals(t, recent.averages);
+  return r && r.meals.join() === same.meals.join() ? r : null;
+}
+
+/**
+ * The calorie sentence once today and earlier days both have meals: today's
+ * meals so far against your average for those same meals, over the last
+ * 30 days and over all time (just "your average" while they're the same).
+ * @param {Stats} t
+ * @param {ReturnType<typeof core.compareSameMeals>} same
+ * @param {ReturnType<typeof core.compareSameMeals>} sameRecent
+ * @returns {Node[]}
+ */
+function sameMealsSentence(t, same, sameRecent) {
+  if (!same) {
+    return [document.createTextNode(`${cal(Number(t.total))} so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.`)];
+  }
+  const words = /** @type {[string, string]} */ (['more than', 'less than']);
+  const d = difference(same.today - same.average, null, words);
+  if (!sameRecent) return [document.createTextNode('So far today: '), ...differenceParts(d, `your average ${mealNames(same.meals)}.`)];
+  const dr = difference(sameRecent.today - sameRecent.average, null, words);
+  return [
+    document.createTextNode('So far today: '),
+    ...differenceParts(dr, `your average ${mealNames(same.meals)} over the last ${core.RECENT_DAYS} days, and `),
+    ...differenceParts(d, 'all-time.'),
+  ];
+}
+
+/**
+ * The bars under the calorie sentence: today and the baselines the
  * sentence uses, so the gap between them is the sentence's number. Today's
  * bar covers exactly the meals the sentence compares ("Today, these
  * meals" when a meal logged today has no average yet, which the detail
  * line names). The average whole day and yesterday are in the detail line.
  * @param {NonNullable<ReturnType<typeof core.compareSameMeals>>} same
+ * @param {ReturnType<typeof core.compareSameMeals>} sameRecent
  */
-function calorieBarRows(same) {
+function calorieBarRows(same, sameRecent) {
   return calorieBars([
     { label: same.unmatched.length ? 'Today, these meals' : 'Today so far', value: same.today, today: true },
-    { label: 'Usual for these meals', value: same.average },
+    sameRecent ? { label: `Usual, last ${core.RECENT_DAYS} days`, value: sameRecent.average } : null,
+    { label: sameRecent ? 'Usual, all time' : 'Usual for these meals', value: same.average },
   ]);
 }
 
@@ -131,15 +162,18 @@ function calorieBarRows(same) {
  * @param {Stats} t today
  * @param {Stats} y yesterday
  * @param {Stats} avg all-time averages (before today)
+ * @param {RecentAverages} recent the last 30 days' averages
  * @param {boolean} earlier there's a day before today to compare with
  */
-function calorieAnswer(t, y, avg, earlier) {
+function calorieAnswer(t, y, avg, recent, earlier) {
   const details = [];
+  const same = core.compareSameMeals(t, avg);
+  const sameRecent = recentSameMeals(t, recent, same);
+  const r = recent.averages.total;
   if (t.total !== null) details.push(`${cal(t.total)} so far`);
-  if (avg.total !== null) details.push(`average day ${cal(avg.total)}`);
+  if (avg.total !== null) details.push(recent.olderMeals && r !== null ? `average day ${cal(r)} (last ${core.RECENT_DAYS} days), ${cal(avg.total)} (all time)` : `average day ${cal(avg.total)}`);
   if (y.total !== null) details.push(`yesterday ${cal(y.total)}`);
   else if (earlier) details.push('no meals logged yesterday');
-  const same = core.compareSameMeals(t, avg);
   /** @type {Node[]} */
   let sentence;
   if (t.total === null) {
@@ -149,10 +183,10 @@ function calorieAnswer(t, y, avg, earlier) {
     sentence = [document.createTextNode(`${cal(t.total)} so far today.${earlier ? ' No earlier day has meals logged to compare with yet.' : ''}`)];
     details.length = 0;
   } else {
-    sentence = sameMealsSentence(t, avg, same);
+    sentence = sameMealsSentence(t, same, sameRecent);
     if (same && same.unmatched.length) details.push(`${mealNames(same.unmatched)} not compared: not logged before today`);
   }
-  const bars = t.total !== null && avg.total !== null && same ? calorieBarRows(same) : null;
+  const bars = t.total !== null && avg.total !== null && same ? calorieBarRows(same, sameRecent) : null;
   return answer({ id: 'calories', label: 'Calories', sentence, details, extra: bars });
 }
 
@@ -160,27 +194,32 @@ function calorieAnswer(t, y, avg, earlier) {
  * @param {Stats} t
  * @param {Stats} y
  * @param {Stats} avg
+ * @param {RecentAverages} recent
  */
-function weightAnswer(t, y, avg) {
+function weightAnswer(t, y, avg, recent) {
   const weights = core.weightFormatFor([t.weight, y.weight]);
   const lbs = weights.format;
+  // The last 30 days' average, when it isn't simply the all-time one.
+  const r = recent.olderWeight ? recent.averages.weight : null;
+  const averages = r !== null && avg.weight !== null ? [`${core.RECENT_DAYS}-day average ${lbs(r)}`, `all-time average ${lbs(avg.weight)}`] : avg.weight !== null ? [`average ${lbs(avg.weight)}`] : [];
   /** @type {Node[]} */
   let sentence;
-  const details = [];
+  const details = [...averages];
   if (t.weight === null) {
     sentence = [document.createTextNode('No weight logged yet today.')];
-    if (avg.weight !== null) details.push(`average ${lbs(avg.weight)}`);
     if (y.weight !== null) details.push(`yesterday ${lbs(y.weight)}`);
   } else if (avg.weight === null) {
     sentence = [document.createTextNode(`${lbs(t.weight)} today.`)];
   } else {
     const d = difference(t.weight - avg.weight, weights, ['above', 'below']);
-    sentence = [
-      document.createTextNode(`${lbs(t.weight)} today: `),
-      d.amount ? h('strong', { text: d.amount }) : null,
-      document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average.`),
-    ].filter((n) => n !== null);
-    details.push(`average ${lbs(avg.weight)}`);
+    sentence =
+      r === null
+        ? [document.createTextNode(`${lbs(t.weight)} today: `), ...differenceParts(d, 'your average.')]
+        : [
+            document.createTextNode(`${lbs(t.weight)} today: `),
+            ...differenceParts(difference(t.weight - r, weights, ['above', 'below']), `your ${core.RECENT_DAYS}-day average and `),
+            ...differenceParts(d, 'your all-time average.'),
+          ];
     if (y.weight !== null) {
       const dy = difference(t.weight - y.weight, weights, ['up', 'down']);
       details.push(dy.direction === 'same' ? `same as yesterday (${lbs(y.weight)})` : `${dy.amount} ${dy.text} from yesterday (${lbs(y.weight)})`);
@@ -236,6 +275,7 @@ export async function buildCompare() {
   const t = core.computeDayStats(entries[now]);
   const y = core.computeDayStats(entries[core.shiftDate(now, -1)]);
   const avg = core.computeAllTimeAverages(entries, now);
+  const recent = core.computeRecentAverages(entries, now);
   const earlier = Object.values(entries).some((e) => e.date < now && !core.isEntryEmpty(e));
   const loggedToday = !core.isEntryEmpty(entries[now]);
 
@@ -245,7 +285,9 @@ export async function buildCompare() {
     h('h2', { class: 'card-title', text: 'Compare' }),
     h('p', {
       class: 'card-sub',
-      text: `Today, ${core.formatDate(now, now)}, against your averages and yesterday. Averages leave out today and days with nothing logged.`,
+      text: `Today, ${core.formatDate(now, now)}, against your averages and yesterday. Averages leave out today and days with nothing logged${
+        recent.olderWeight || recent.olderMeals ? `; the recent ones are of the ${core.RECENT_DAYS} days before today` : ''
+      }.`,
     })
   );
   if (!earlier && !loggedToday) {
@@ -257,7 +299,7 @@ export async function buildCompare() {
     card.append(h('p', { class: 'compare-first', text: 'Log a few more days to see how today compares.' }));
   }
   if (earlier || loggedToday) {
-    card.append(h('div', { class: 'compare-answers' }, calorieAnswer(t, y, avg, earlier), weightAnswer(t, y, avg)));
+    card.append(h('div', { class: 'compare-answers' }, calorieAnswer(t, y, avg, recent, earlier), weightAnswer(t, y, avg, recent)));
     const meals = mealsTable(t, y, avg);
     if (meals) card.append(meals);
   }

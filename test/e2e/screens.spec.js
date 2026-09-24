@@ -566,6 +566,32 @@ test('on a wide screen Today and Compare use two columns', async ({ page, appURL
   expect(trends.x).toBeGreaterThan(answers.x + answers.width);
 });
 
+test('after a long loss, Compare measures today against the last 30 days as well as all time', async ({ page, appURL, data }) => {
+  const iso = (n) => new Date(Date.UTC(2026, 8, 24 - n)).toISOString().slice(0, 10);
+  const entries = {};
+  // A year of steady loss, from 220 lbs down to 180 lbs 15 days ago...
+  for (let n = 365; n >= 15; n -= 1) entries[iso(n)] = day(iso(n), {}, Math.round((180 + ((n - 15) * 40) / 350) * 10) / 10);
+  // ...then two weeks creeping back up, half a pound a day.
+  for (let n = 14; n >= 1; n -= 1) entries[iso(n)] = day(iso(n), {}, 180 + (15 - n) * 0.5);
+  // Lunch was 800 cal in June, 500 cal each of the last 30 days.
+  for (let n = 115; n > 85; n -= 1) entries[iso(n)].meals.lunch = 800;
+  for (let n = 30; n >= 1; n -= 1) entries[iso(n)].meals.lunch = 500;
+  entries[TODAY] = day(TODAY, { lunch: 600 }, 187);
+  await data.seed(entries);
+  await page.goto(`${appURL}/#/compare`);
+
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(weight.locator('.compare-answer-text')).toHaveText(/^187\.0 lbs today: [\d.]+ lbs above your 30-day average and [\d.]+ lbs below your all-time average\.$/);
+  await expect(weight.locator('.compare-answer-detail')).toContainText(/30-day average [\d.]+ lbs · all-time average [\d.]+ lbs/);
+
+  const calories = page.locator('[data-answer="calories"]');
+  // All time, lunch averages (30 × 800 + 30 × 500) / 60 = 650.
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal more than your average lunch over the last 30 days, and 50 cal less than all-time.');
+  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*600 cal$/, /^Usual, last 30 days\s*500 cal$/, /^Usual, all time\s*650 cal$/]);
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('600 cal so far · average day 500 cal (last 30 days), 650 cal (all time) · yesterday 500 cal');
+  await expect(page.locator('main .card-sub').first()).toContainText('the recent ones are of the 30 days before today');
+});
+
 test('the chosen theme and chart range stand out in dark mode', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.evaluate(() => localStorage.setItem('kenna:theme', 'dark'));

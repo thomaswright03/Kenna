@@ -68,7 +68,9 @@ run, test and release it.
   calories so far against your average for the same meals ("So far today:
   100 cal less than your average breakfast and lunch") and today's weight
   against your average weight and yesterday ("0.6 lbs below your
-  average"), with the numbers behind each. Two plain bars from zero show
+  average"), with the numbers behind each. Once there's more than 30 days
+  of history, each sentence gives the last 30 days' average as well as the
+  all-time one (see [How the numbers work](#how-the-numbers-work)). Two plain bars from zero show
   today's calories so far and your usual for those same meals, so the gap
   between them is always the sentence's number. When a meal logged today
   has never been logged before (so it has no average), today's bar covers
@@ -147,8 +149,8 @@ to month); tapping a month goes to it.
   comparison, charts) only if at least one meal was logged. A day with only a
   weight shows "No meals logged", never "0 cal", and is a gap in the calorie
   chart. Weight statistics use every day that has a weight.
-- Every average leaves out today: the all-time averages on Compare (so it
-  shows "today vs a typical day") and each month's averages in History,
+- Every average leaves out today: the all-time and 30-day averages on
+  Compare (so it shows "today vs a typical day") and each month's averages in History,
   for calories and weight alike, so a month reads the same wherever it's
   shown. (The 7-day weight trend line includes today's weigh-in; the
   7-day calorie line doesn't, see Compare in [Screens](#screens).)
@@ -158,6 +160,16 @@ to month); tapping a month goes to it.
   today that was never logged before has no average; it's left out of the
   comparison and named under it. The average whole day is still shown
   beside it.
+- Once anything was logged more than 30 days before today, Compare measures
+  today against two baselines: the 30 days before today and all time
+  ("4.8 lbs above your 30-day average and 12.4 lbs below your all-time
+  average"; "100 cal more than your average lunch over the last 30 days,
+  and 50 cal less than all-time"), with a bar for each. Over a long weight
+  loss the all-time average falls further behind every week, so on its own
+  it would always say today is well below it; the 30-day one shows a recent
+  slide. Until then the two are the same, and Compare says "your average".
+  The calorie sentence uses the 30-day baseline only when today's meals
+  were all logged in those 30 days.
 - A meal's average uses only the days that meal was logged.
 - Calories must be whole numbers from 0 to 10,000 per meal ("1,200" is read
   as 1200); weight must be between 50 and 1,000 lbs, with at most two decimal
