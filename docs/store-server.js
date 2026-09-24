@@ -114,6 +114,10 @@
       return (Array.isArray(list) ? list : []).map(toPhoto);
     }
 
+    async function countPhotos() {
+      return (await listPhotos()).length;
+    }
+
     /** @param {Blob} blob @returns {Promise<string>} */
     function blobToDataUrl(blob) {
       return new Promise((resolve, reject) => {
@@ -183,6 +187,7 @@
       updateEntry,
       importEntries,
       listPhotos,
+      countPhotos,
       addPhoto,
       deletePhoto,
       getPhotoBlob,

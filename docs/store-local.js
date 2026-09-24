@@ -31,6 +31,7 @@
  * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
  * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries
  * @property {() => Promise<Photo[]>} listPhotos
+ * @property {() => Promise<number>} countPhotos
  * @property {(photo: { date: string, blob: Blob, createdAt?: string }) => Promise<Photo>} addPhoto
  * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto
  * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob
@@ -256,6 +257,11 @@
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     }
 
+    /** @returns {Promise<number>} */
+    async function countPhotos() {
+      return Number(await tx('readonly', (s) => s.count())) || 0;
+    }
+
     async function addPhoto(photo) {
       const record = { date: photo.date, blob: photo.blob, createdAt: photo.createdAt || new Date().toISOString() };
       const id = await tx('readwrite', (s) => s.add(record));
@@ -351,6 +357,7 @@
       updateEntry,
       importEntries,
       listPhotos,
+      countPhotos,
       addPhoto,
       deletePhoto,
       getPhotoBlob,

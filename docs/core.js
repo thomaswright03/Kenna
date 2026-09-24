@@ -538,6 +538,24 @@
     return { ok: true, entries, photos, dayCount: Object.keys(entries).length, photoCount: photos.length };
   }
 
+  // When the Today screen reminds the user to save a backup file.
+  const BACKUP_REMINDER = { REMIND_AFTER_DAYS: 7, SNOOZE_DAYS: 3 };
+
+  /**
+   * Whether a backup reminder is due, and what it should say. `lastBackupAt`
+   * and `snoozedUntil` are ISO times or null.
+   * @param {{ hasData: boolean, lastBackupAt: string | null, snoozedUntil: string | null, now: Date }} state
+   * @returns {{ never: true } | { never: false, days: number } | null}
+   */
+  function backupReminderDue({ hasData, lastBackupAt, snoozedUntil, now }) {
+    if (!hasData) return null;
+    if (snoozedUntil && Date.parse(snoozedUntil) > now.getTime()) return null;
+    const last = lastBackupAt ? new Date(lastBackupAt) : null;
+    if (!last || Number.isNaN(last.getTime())) return { never: true };
+    const days = daysBetween(localDateStr(last), localDateStr(now));
+    return days >= BACKUP_REMINDER.REMIND_AFTER_DAYS ? { never: false, days } : null;
+  }
+
   // ---------------------------------------------------------------- charts
 
   function niceNum(range, round) {
@@ -617,6 +635,7 @@
     MEAL_KEYS,
     LIMITS,
     BACKUP_VERSION,
+    BACKUP_REMINDER,
     IMAGE_EXTENSIONS,
     todayStr,
     localDateStr,
@@ -650,6 +669,7 @@
     validateWeight,
     validateIncomingEntry,
     photoKey,
+    backupReminderDue,
     serializeBackup,
     parseBackup,
     niceTicks,

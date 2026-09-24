@@ -61,7 +61,7 @@ test('files that are not photos are refused', async ({ page, appURL }) => {
   await expect(page.locator('.photo-thumb')).toHaveCount(0);
 });
 
-test('a backup file restores every day and photo, without duplicates on re-import', async ({ page, appURL, data, startApp, browser }) => {
+test('a backup file restores every day and photo, without duplicates on re-import', async ({ page, appURL, data, startApp, browser, backend }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 182), [TODAY]: day(TODAY, { breakfast: 400 }) });
   await page.clock.setFixedTime(new Date('2026-09-20T09:00:00-05:00'));
   await page.goto(`${appURL}/#/photos`);
@@ -80,7 +80,10 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
   expect(Object.keys(backup.entries).sort()).toEqual(['2026-09-20', TODAY]);
   expect(backup.photos.map((p) => p.date).sort()).toEqual(['2026-09-20', TODAY]);
-  await expect(page.getByText(/Backup file saved: 2 days and 2 photos/)).toBeVisible();
+  const saved = page.getByText(/Backup file saved\. kenna-backup-2026-09-24\.json: 2 days and 2 photos/);
+  await expect(saved).toBeVisible();
+  await expect(saved).not.toContainText('phone');
+  await expect(saved).toContainText(backend === 'server' ? 'somewhere other than the computer running Kenna' : 'Move it off this device');
 
   // Restore into a completely empty app (fresh storage / fresh server).
   const freshURL = await startApp();

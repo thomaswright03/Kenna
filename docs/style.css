@@ -42,6 +42,7 @@
   --danger-soft: #fee2e2;
   --warning-soft: #fef3c7;
   --warning-text: #78350f;
+  --warning-border: #f59e0b;
   --focus: #2563eb;
   --chart-calories: #15803d;
   --chart-weight: #1d4ed8;
@@ -69,6 +70,7 @@
   --danger-soft: #450a0a;
   --warning-soft: #422006;
   --warning-text: #fde68a;
+  --warning-border: #92400e;
   --focus: #60a5fa;
   --chart-calories: #22c55e;
   --chart-weight: #60a5fa;
@@ -658,6 +660,21 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .viewer-bar .btn { margin-top: 0; }
 
 /* ------------------------------------------------------------ messages */
+
+.notice-card {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
+}
+
+.notice-card.is-done { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+
+.notice-title { font-size: var(--fs-md); font-weight: 700; margin: 0 0 var(--s1); }
+.notice-text { font-size: var(--fs-sm); margin: 0; }
+.notice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+.notice-actions > :only-child { grid-column: 1 / -1; }
+.notice-card .field-status { color: inherit; }
+.notice-card .field-status.is-error { color: var(--danger); }
 
 .banners { margin: 0 var(--s4); }
 

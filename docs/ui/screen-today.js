@@ -1,13 +1,14 @@
 // Today (or a past day): date, weight, the day's calories per meal, and the
 // Calories and Weight charts.
 
-import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry, errorText } from './dom.js';
+import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry, errorText, visibleEntries } from './dom.js';
 import { toast, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, navigate } from './router.js';
 import { render } from './render.js';
 import { saveDateFor } from './day.js';
 import { buildChartsCard } from './charts.js';
+import { buildBackupReminder } from './backup-reminder.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildToday(ctx) {
@@ -218,9 +219,15 @@ export async function buildToday(ctx) {
     footer: h('p', { class: 'card-foot' }, h('a', { class: 'btn-text', href: '#/history', text: 'See exact numbers in History' })),
   });
 
+  const hasData = visibleEntries(allEntries).length > 0 || (await store.countPhotos().catch(() => 0)) > 0;
+  const reminder = buildBackupReminder(hasData);
+
   return {
-    root: h('div', { class: 'screen-stack' }, todayCard, charts.root),
-    mounted: charts.draw,
+    root: h('div', { class: 'screen-stack' }, reminder ? reminder.root : null, todayCard, charts.root),
+    mounted: () => {
+      charts.draw();
+      if (reminder) reminder.mounted();
+    },
     async refreshFromStorage() {
       const entry = (await store.getEntry(view.date)) || blankEntry(view.date);
       view.entry = entry;

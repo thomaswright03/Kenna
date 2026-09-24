@@ -66,12 +66,17 @@ where the browser supports asking). Every save also keeps one previous copy of y
 the stored data is ever found damaged the app restores that copy and tells you.
 
 That still doesn't protect against clearing Safari's website data, switching
-phones or losing the phone, so save a backup file regularly:
+phones or losing the phone, so save a backup file regularly. Once anything is
+logged, the Today screen reminds you when no backup has been saved from this
+device yet, or when the last one is more than a week old; **Back up now**
+saves one straight away, and **Not now** hides the reminder for three days.
 
 - **Settings → Export Backup** downloads one `.json` file containing every
   day (weight and each meal's calories) and every progress photo with the date
   it was filed under. Keep it somewhere other than the phone (Files, iCloud
-  Drive, email). Progress is shown while photos are added.
+  Drive, email); where the browser can share files (iPhone, Android), a
+  **Share file…** button sends it there directly. Progress is shown while
+  photos are added.
 - **Settings → Import Backup** checks the whole file first. If anything in it
   is invalid, nothing is imported and you're told what's wrong. Otherwise days
   in the file replace the same days on the device (other days are kept), and

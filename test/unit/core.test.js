@@ -216,3 +216,17 @@ test('image sniffing recognises photos and rejects other files', () => {
   assert.equal(core.sniffImageType(heic), 'image/heic');
   assert.equal(core.sniffImageType(text), null);
 });
+
+test('a backup reminder is due with data and no backup, or a week after the last one', () => {
+  const now = new Date(2026, 8, 24, 10);
+  const at = (d) => new Date(2026, 8, d, 9).toISOString();
+  const due = (state) => core.backupReminderDue({ hasData: true, lastBackupAt: null, snoozedUntil: null, now, ...state });
+  assert.equal(due({ hasData: false }), null, 'nothing to back up');
+  assert.deepEqual(due({}), { never: true });
+  assert.deepEqual(due({ lastBackupAt: 'garbage' }), { never: true });
+  assert.equal(due({ lastBackupAt: at(20) }), null, '4 days is recent enough');
+  assert.deepEqual(due({ lastBackupAt: at(17) }), { never: false, days: 7 });
+  assert.deepEqual(due({ lastBackupAt: at(14) }), { never: false, days: 10 });
+  assert.equal(due({ snoozedUntil: new Date(2026, 8, 25).toISOString() }), null, 'snoozed');
+  assert.deepEqual(due({ snoozedUntil: new Date(2026, 8, 23).toISOString() }), { never: true }, 'snooze over');
+});

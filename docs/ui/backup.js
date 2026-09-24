@@ -1,6 +1,6 @@
 // Backup file export and import (Settings).
 
-import { core, h, uid, prefs, today, visibleEntries, plural, formatBytes, errorText } from './dom.js';
+import { core, h, uid, prefs, today, visibleEntries, plural, formatBytes, errorText, BACKEND } from './dom.js';
 import { confirmDialog } from './feedback.js';
 import { store } from './store.js';
 
@@ -27,6 +27,70 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
+/**
+ * @typedef {{ file: Blob, filename: string, dayCount: number, photoCount: number }} BackupResult
+ */
+
+/**
+ * Builds a backup file of every day and photo, downloads it and records
+ * when it was made.
+ * @param {(message: string, done: number, total: number) => void} onProgress
+ * @returns {Promise<BackupResult>}
+ */
+export async function exportBackup(onProgress) {
+  onProgress('Preparing backup…', 0, 0);
+  const entries = await store.loadEntries();
+  /** @type {Record<string, import('../core.js').Entry>} */
+  const days = {};
+  for (const e of visibleEntries(entries)) days[e.date] = e;
+  const photos = await store.listPhotos();
+  const encoded = [];
+  for (let i = 0; i < photos.length; i += 1) {
+    onProgress(`Adding photos: ${i + 1} of ${photos.length}…`, i, photos.length);
+    const blob = await store.getPhotoBlob(photos[i]);
+    encoded.push({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await blobToBase64(blob) });
+  }
+  const file = new Blob(core.serializeBackup(days, encoded, new Date().toISOString()), { type: 'application/json' });
+  const filename = `kenna-backup-${today()}.json`;
+  downloadBlob(file, filename);
+  prefs.set('lastBackupAt', new Date().toISOString());
+  return { file, filename, dayCount: Object.keys(days).length, photoCount: photos.length };
+}
+
+/** Where to keep a backup file, worded for the version in use. */
+export function backupAdvice() {
+  return BACKEND === 'server'
+    ? 'Keep a copy somewhere other than the computer running Kenna, like cloud storage, a USB drive or email.'
+    : 'Move it off this device so it survives losing or replacing it: save it to iCloud Drive or another cloud folder, or email it to yourself.';
+}
+
+/** @param {BackupResult} result */
+export function backupSummary(result) {
+  return `${result.filename}: ${plural(result.dayCount, 'day')} and ${plural(result.photoCount, 'photo')} (${formatBytes(result.file.size)}).`;
+}
+
+/**
+ * A "Share file…" button for sending the backup straight to Files, a cloud
+ * folder or email, where the browser supports sharing files (iPhone and
+ * Android do); null elsewhere.
+ * @param {BackupResult} result
+ */
+export function shareBackupButton(result) {
+  if (typeof File !== 'function' || !navigator.canShare) return null;
+  const file = new File([result.file], result.filename, { type: 'application/json' });
+  if (!navigator.canShare({ files: [file] })) return null;
+  return h('button', {
+    type: 'button',
+    class: 'btn btn-secondary',
+    text: 'Share file…',
+    onClick: () => {
+      navigator.share({ files: [file], title: result.filename }).catch(() => {
+        // Cancelled or unavailable; the file was downloaded already.
+      });
+    },
+  });
+}
+
 export function buildBackupSection() {
   const progress = h('progress', { class: 'progress', max: '1', value: '0', hidden: true });
   const message = h('p', { class: 'field-status', role: 'status' });
@@ -34,12 +98,13 @@ export function buildBackupSection() {
   const fileInput = h('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden', id: uid('import') });
   const importLabel = h('label', { class: 'btn btn-secondary file-btn', for: fileInput.id, text: 'Import Backup' });
   const lastLine = h('p', { class: 'card-sub' });
+  const shareSlot = h('div');
 
   function refreshLast() {
     const last = prefs.get('lastBackupAt', null);
     lastLine.textContent = last
       ? `Last backup file saved ${core.formatRelativeDate(core.localDateStr(new Date(last)), today())}.`
-      : 'No backup file saved from this device yet.';
+      : 'Kenna has no record of a backup file saved from this device.';
   }
   refreshLast();
 
@@ -64,31 +129,16 @@ export function buildBackupSection() {
 
   exportBtn.addEventListener('click', async () => {
     busy(true);
+    shareSlot.replaceChildren();
     try {
-      setMessage('pending', 'Preparing backup…');
-      const entries = await store.loadEntries();
-      /** @type {Record<string, import('../core.js').Entry>} */
-      const days = {};
-      for (const e of visibleEntries(entries)) days[e.date] = e;
-      const photos = await store.listPhotos();
-      const encoded = [];
-      setProgress(0, photos.length);
-      for (let i = 0; i < photos.length; i += 1) {
-        setMessage('pending', `Adding photos: ${i + 1} of ${photos.length}…`);
-        const blob = await store.getPhotoBlob(photos[i]);
-        encoded.push({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await blobToBase64(blob) });
-        setProgress(i + 1, photos.length);
-      }
-      const file = new Blob(core.serializeBackup(days, encoded, new Date().toISOString()), { type: 'application/json' });
-      downloadBlob(file, `kenna-backup-${today()}.json`);
-      prefs.set('lastBackupAt', new Date().toISOString());
+      const result = await exportBackup((text, done, total) => {
+        setMessage('pending', text);
+        setProgress(done, total);
+      });
       refreshLast();
-      setMessage(
-        'saved',
-        `Backup file saved: ${plural(Object.keys(days).length, 'day')} and ${plural(photos.length, 'photo')} (${formatBytes(
-          file.size
-        )}). Keep it somewhere other than this phone, like Files, iCloud Drive or email.`
-      );
+      setMessage('saved', `Backup file saved. ${backupSummary(result)} ${backupAdvice()}`);
+      const share = shareBackupButton(result);
+      if (share) shareSlot.append(share);
     } catch (err) {
       setMessage('error', `Backup not saved. ${errorText(err)}`);
     } finally {
@@ -155,6 +205,7 @@ export function buildBackupSection() {
     fileInput,
     importLabel,
     progress,
-    message
+    message,
+    shareSlot
   );
 }

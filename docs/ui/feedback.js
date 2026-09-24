@@ -8,6 +8,19 @@ import { h, uid, byId } from './dom.js';
  * @typedef {{ tone?: 'error', action?: { label: string, onClick: () => void }, duration?: number }} ToastOptions
  */
 
+/**
+ * Reads a message out to screen-reader users without showing anything.
+ * @param {string} message
+ */
+export function announce(message) {
+  const region = byId('announcer');
+  region.textContent = '';
+  // A fresh change after a tick is what makes screen readers speak it.
+  setTimeout(() => {
+    region.textContent = message;
+  }, 50);
+}
+
 /** @param {Notice} notice */
 export function showBanner(notice) {
   const banner = h(
