@@ -24,7 +24,8 @@ here touches your real days or photos.
 6. Log a weight and check it in History and on Compare. In History, tap
    **Show earlier months**, open a day further down and swipe back: History
    shows the same months, with that day where it was.
-7. Add a progress photo from the photo library (a HEIC one if you have it).
+7. Add a progress photo from the photo library (a HEIC one if you have it),
+   confirm its day and tap **Save photo**.
    It appears on the Photos screen and opens in the viewer.
 8. Settings → **Export Backup** → **Save or share…** → **Save to Files**.
    Settings then says "Backup shared" and when.

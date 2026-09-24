@@ -10,6 +10,7 @@ const photoFile = (name = 'me.png') => ({ name, mimeType: 'image/png', buffer: P
 
 async function addPhoto(page) {
   await page.locator('input[type=file]').setInputFiles(photoFile());
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
 }
 
@@ -64,6 +65,17 @@ test('tapping outside the photo closes the viewer', async ({ page, appURL }) => 
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.mouse.click(5, 5);
   await expect(page.getByRole('dialog')).toBeHidden();
+});
+
+test('Cancel leaves the picked photo out', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('group', { name: 'Which day was this photo taken?' })).toHaveCount(0);
+  await expect(page.locator('label').filter({ hasText: 'Add Photo' })).toBeVisible();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('[data-photos-empty]')).toBeVisible();
 });
 
 test('files that are not photos are refused', async ({ page, appURL }) => {
@@ -170,18 +182,26 @@ test('photos in a backup dated after today are left out, and the import says so'
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
 });
 
-test('a photo can be filed under an earlier day and moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
+test('a photo is picked first, then filed under the day it was taken, and can be moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
   await page.goto(`${appURL}/#/photos`);
-  const day = page.getByLabel('Day this photo was taken');
+  await expect(page.getByText('Kenna keeps a smaller copy of each (1,600 pixels on its longest side), so keep the original in your photo library.')).toBeVisible();
+  // No day to set before there's a photo.
+  await expect(page.getByLabel('Day this photo was taken')).toHaveCount(0);
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  const confirm = page.getByRole('group', { name: 'Which day was this photo taken?' });
+  await expect(confirm.getByRole('img', { name: 'The photo to add' })).toBeVisible();
+  const day = confirm.getByLabel('Day this photo was taken');
   await expect(day).toHaveValue(TODAY);
   await expect(day).toHaveAttribute('max', TODAY);
+  // Nothing is saved until the day is confirmed.
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
   await day.fill('2026-09-30');
   await day.dispatchEvent('change');
   await expect(page.getByText("A photo can't be filed under a day that hasn't happened yet.")).toBeVisible();
   await expect(day).toHaveValue(TODAY);
 
   await day.fill('2026-09-23');
-  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added to Yesterday' })).toBeVisible();
   const yesterday = page.locator('.card', { has: page.getByRole('heading', { name: 'Yesterday' }) });
   await expect(yesterday.getByRole('button', { name: 'Progress photo, Wed, Sep 23' })).toBeVisible();
@@ -311,6 +331,7 @@ test('the Photos grid shows small previews; the viewer shows the whole photo', a
   await page.goto(`${appURL}/#/photos`);
   const buffer = await bigPhoto(page);
   await page.locator('input[type=file]').setInputFiles({ name: 'big.jpg', mimeType: 'image/jpeg', buffer });
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
   const gridImg = page.locator('.photo-thumb img');
   await expect.poll(() => gridImg.evaluate((el) => el.naturalWidth)).toBe(360);

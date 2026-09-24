@@ -4,7 +4,7 @@
 
 import { core, h, uid, today } from './dom.js';
 import { failureText } from './problems.js';
-import { toast, createStatusLine, announce } from './feedback.js';
+import { toast, createStatusLine, createFieldStatus, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
 import { preparePhoto, makeThumbnail, CANT_PREVIEW } from './photo-image.js';
@@ -13,71 +13,163 @@ import { openPhotoCompare } from './photo-compare.js';
 
 /** @typedef {import('../store-local.js').Photo} Photo */
 
-/**
- * The card with the day picker and Add Photo, and a way to open the photo
- * picker from elsewhere on the screen.
- * @returns {{ card: HTMLElement, pick: () => void }}
- */
-function buildAddCard() {
-  const now = today();
-  const status = createStatusLine();
-  const dayInput = h('input', { type: 'date', id: uid('photo-day'), value: now, max: now, required: true });
-  const fileInput = h('input', { type: 'file', accept: 'image/*,.heic,.heif', class: 'visually-hidden', id: uid('upload') });
-  const uploadLabel = h('label', { class: 'btn btn-primary file-btn', for: fileInput.id, text: 'Add Photo' });
+// The longest side of the copy Kenna keeps of a photo, in pixels.
+const KEPT_SIZE = 1600;
 
-  // While a photo is being saved, Add Photo can't start another.
+/**
+ * The step after a photo is picked: a preview and "Which day was this
+ * photo taken?" (today unless changed, never a day to come), with Save
+ * photo and Cancel.
+ * @param {{ blob: Blob, viewable: boolean }} prepared
+ * @param {{ save: (day: string) => Promise<boolean>, cancel: () => void }} on save resolves false when it failed
+ */
+function photoDayPanel(prepared, on) {
+  const now = today();
+  const dayInput = h('input', { type: 'date', id: uid('photo-day'), value: now, max: now, required: true });
+  const dayStatus = createFieldStatus(dayInput);
+  const url = prepared.viewable ? URL.createObjectURL(prepared.blob) : null;
+  const cantPreview = () => h('p', { class: 'photo-missing', text: CANT_PREVIEW });
+  const preview = url ? h('img', { class: 'photo-confirm-img', src: url, alt: 'The photo to add' }) : cantPreview();
+  if (url) preview.addEventListener('error', () => preview.replaceWith(cantPreview()));
+  const saveBtn = h('button', { type: 'button', class: 'btn btn-primary', text: 'Save photo' });
+  const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
+  const titleId = uid('photo-confirm');
+  const root = h(
+    'div',
+    { class: 'photo-confirm', role: 'group', 'aria-labelledby': titleId },
+    h('p', { class: 'section-title', id: titleId, text: 'Which day was this photo taken?' }),
+    h('div', { class: 'photo-confirm-body' }, preview, h('div', { class: 'field' }, h('label', { for: dayInput.id, text: 'Day this photo was taken' }), dayInput, dayStatus.el)),
+    h('div', { class: 'notice-actions' }, cancelBtn, saveBtn)
+  );
   /** @param {boolean} on */
-  function busy(on) {
-    fileInput.disabled = on;
+  const disable = (on) => {
+    saveBtn.disabled = on;
+    cancelBtn.disabled = on;
     dayInput.disabled = on;
-    uploadLabel.classList.toggle('is-disabled', on);
-    uploadLabel.setAttribute('aria-disabled', on ? 'true' : 'false');
-    uploadLabel.textContent = on ? 'Adding photo…' : 'Add Photo';
-  }
+  };
 
   dayInput.addEventListener('change', () => {
     const problem = photoDayProblem(dayInput.value);
     if (!problem) return;
-    dayInput.value = now;
-    status.set('error', problem);
+    dayInput.value = today();
+    dayStatus.set('error', problem);
   });
+  cancelBtn.addEventListener('click', on.cancel);
+  saveBtn.addEventListener('click', async () => {
+    const day = dayInput.value || today();
+    const problem = photoDayProblem(day);
+    if (problem) return dayStatus.set('error', problem);
+    disable(true);
+    if (!(await on.save(day))) disable(false);
+  });
+  return {
+    root,
+    focus: () => saveBtn.focus({ preventScroll: true }),
+    release: () => url && URL.revokeObjectURL(url),
+  };
+}
+
+/** The Photos screen's title, and what happens to a photo added. */
+function photosIntro() {
+  return [
+    h('h2', { class: 'card-title', text: 'Progress Photos' }),
+    h('p', {
+      class: 'card-sub',
+      text: `Photos stay on this device and go in your backup file. Kenna keeps a smaller copy of each (${core.formatNumber(KEPT_SIZE)} pixels on its longest side), so keep the original in your photo library.`,
+    }),
+  ];
+}
+
+/**
+ * The card with Add Photo, and a way to open the photo picker from
+ * elsewhere on the screen. The photo is picked first, then its day is
+ * confirmed (photoDayPanel), and only then is it saved.
+ * @param {() => void} onAdded
+ * @returns {{ card: HTMLElement, pick: () => void }}
+ */
+function buildAddCard(onAdded) {
+  const status = createStatusLine();
+  const fileInput = h('input', { type: 'file', accept: 'image/*,.heic,.heif', class: 'visually-hidden', id: uid('upload') });
+  const uploadLabel = h('label', { class: 'btn btn-primary file-btn', for: fileInput.id, text: 'Add Photo' });
+  const confirmSlot = h('div', { 'data-photo-confirm': '' });
+
+  // While a photo is being read or saved, Add Photo can't start another.
+  /** @param {string | null} doing what's under way ("Adding photo…"), or null */
+  function busy(doing) {
+    fileInput.disabled = !!doing;
+    uploadLabel.classList.toggle('is-disabled', !!doing);
+    uploadLabel.setAttribute('aria-disabled', doing ? 'true' : 'false');
+    uploadLabel.textContent = doing || 'Add Photo';
+  }
+  // While a photo's day is being asked, Add Photo steps aside.
+  /** @param {boolean} on */
+  function asking(on) {
+    uploadLabel.hidden = on;
+    fileInput.hidden = on;
+  }
+
+  /** @type {ReturnType<typeof photoDayPanel> | null} */
+  let panel = null;
+  function closePanel() {
+    if (!panel) return;
+    panel.release();
+    panel.root.remove();
+    panel = null;
+    asking(false);
+  }
+
+  /** @param {{ blob: Blob, viewable: boolean }} prepared @param {string} day */
+  async function save(prepared, day) {
+    busy('Adding photo…');
+    status.set('pending', 'Saving photo…');
+    try {
+      const thumb = prepared.viewable ? await makeThumbnail(prepared.blob).catch(() => null) : null;
+      await store.addPhoto({ date: day, blob: prepared.blob, thumb, createdAt: new Date().toISOString() });
+      const added = day === today() ? 'Photo added' : `Photo added to ${core.formatRelativeDate(day)}`;
+      status.set(null);
+      closePanel();
+      toast(prepared.viewable ? added : `${added}. It's saved, but this browser can't show this kind of photo, so it can't be previewed here.`);
+      onAdded();
+      return true;
+    } catch (err) {
+      status.set('error', `Photo not saved. ${failureText('Add a photo', err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
+      return false;
+    } finally {
+      busy(null);
+    }
+  }
 
   fileInput.addEventListener('change', async () => {
     const file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
     if (!file) return;
-    const day = dayInput.value || now;
-    const problem = photoDayProblem(day);
-    if (problem) return status.set('error', problem);
-    status.set('pending', 'Saving photo…');
-    busy(true);
+    closePanel();
+    status.set('pending', 'Reading photo…');
+    busy('Reading photo…');
     try {
-      const { blob, viewable } = await preparePhoto(file, 1600);
-      const thumb = viewable ? await makeThumbnail(blob).catch(() => null) : null;
-      await store.addPhoto({ date: day, blob, thumb, createdAt: new Date().toISOString() });
-      const added = day === today() ? 'Photo added' : `Photo added to ${core.formatRelativeDate(day)}`;
-      toast(viewable ? added : `${added}. It's saved, but this browser can't show this kind of photo, so it can't be previewed here.`);
-      render();
+      const prepared = await preparePhoto(file, KEPT_SIZE);
+      status.set(null);
+      const next = photoDayPanel(prepared, {
+        save: (day) => save(prepared, day),
+        cancel: () => {
+          closePanel();
+          announce('Photo not added.');
+          uploadLabel.focus();
+        },
+      });
+      panel = next;
+      asking(true);
+      confirmSlot.replaceChildren(next.root);
+      next.focus();
+      next.root.scrollIntoView({ block: 'nearest' });
     } catch (err) {
-      status.set('error', `Photo not saved. ${failureText('Add a photo', err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
+      status.set('error', `Photo not saved. ${failureText('Add a photo', err, "Kenna couldn't read it. Your other photos are safe; try again.")}`);
     } finally {
-      busy(false);
+      busy(null);
     }
   });
 
-  const card = h(
-    'section',
-    { class: 'card' },
-    h('h2', { class: 'card-title', text: 'Progress Photos' }),
-    h('p', {
-      class: 'card-sub',
-      text: `Photos are kept on this device and are included in your backup file. Pick the day a photo was taken before adding it; you can change it later by opening the photo.`,
-    }),
-    h('div', { class: 'field' }, h('label', { for: dayInput.id, text: 'Day this photo was taken' }), dayInput),
-    fileInput,
-    uploadLabel,
-    status.el
-  );
+  const card = h('section', { class: 'card' }, photosIntro(), fileInput, uploadLabel, confirmSlot, status.el);
   return { card, pick: () => fileInput.disabled || fileInput.click() };
 }
 
@@ -205,7 +297,7 @@ function comparePicker(photos, entries, stack) {
 export async function buildPhotos(ctx) {
   const now = today();
   const [photos, entries] = await Promise.all([store.listPhotos(), store.loadEntries()]);
-  const add = buildAddCard();
+  const add = buildAddCard(() => render());
   const addCard = add.card;
   const stack = h('div', { class: 'screen-stack' }, addCard);
   if (photos.length === 0) {

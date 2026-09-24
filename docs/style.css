@@ -418,6 +418,14 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .icon-btn-danger { color: var(--danger); }
 
 .file-btn { position: relative; }
+.photo-confirm { margin-top: var(--s3); padding: var(--s3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-2); }
+.photo-confirm .section-title { margin-top: 0; }
+.photo-confirm input[type='date'] { background: var(--card); }
+.photo-confirm-body { display: flex; gap: var(--s3); align-items: flex-start; }
+.photo-confirm-body .field { flex: 1; margin-bottom: 0; }
+.photo-confirm-img { width: 96px; height: 96px; flex-shrink: 0; object-fit: cover; border-radius: var(--r-md); background: var(--card); }
+.photo-confirm-body .photo-missing { width: 96px; flex-shrink: 0; margin: 0; font-size: var(--fs-sm); }
+.photo-confirm .notice-actions .btn { margin-top: var(--s3); }
 .file-btn:focus-within,
 input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus); outline-offset: 2px; }
 

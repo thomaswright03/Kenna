@@ -78,8 +78,13 @@ run, test and release it.
 - **Photos** stores progress pictures, filed under the day they were taken
   (with none yet, it says what they're for and offers **Add your first
   photo**):
-  pick the day before adding one (it starts at today, and future days aren't
-  allowed), and change it later from the photo viewer. The viewer steps
+  **Add Photo** picks the photo first; then, beside a preview, **Which day
+  was this photo taken?** asks for its day (it starts at today, and future
+  days aren't allowed) and **Save photo** saves it (**Cancel** leaves it
+  out). The day can be changed later from the photo viewer. Kenna keeps a
+  smaller copy of each photo (at most 1,600 pixels on its longest side,
+  re-saved as JPEG where the browser can), and the Photos screen says so:
+  the original stays in the phone's photo library. The viewer steps
   through the photos oldest first with **Previous** and **Next**, a swipe or
   the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
   in the viewer) shows two photos side by side, older on the left, with

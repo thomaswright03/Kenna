@@ -206,6 +206,7 @@ test.describe('phone version', () => {
     await page.goto(`${appURL}/#/photos`);
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
     await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+    await page.getByRole('button', { name: 'Save photo' }).click();
     const status = page.locator('.field-status.is-error');
     await expect(status).toContainText("Photo not saved. There's no room left for Kenna's photos on this device.");
     await expect(status).toContainText('Delete some old progress photos or free up space on the phone');

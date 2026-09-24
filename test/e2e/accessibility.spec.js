@@ -42,6 +42,9 @@ test('the backup save panel, the meal table, the photo viewer and the "Log a day
   await page.goto(`${appURL}/#/photos`);
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
   await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByRole('group', { name: 'Which day was this photo taken?' })).toBeVisible();
+  await check('photo day');
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.locator('.photo-thumb img')).toBeVisible();
   await check('photos');
   await page.locator('.photo-thumb').click();
@@ -72,8 +75,9 @@ test('the restore question, its result, photo comparison and the damaged-data ca
   await page.goto(`${appURL}/#/photos`);
   for (const [i, date] of ['2026-09-10', '2026-09-20'].entries()) {
     await page.clock.setFixedTime(new Date(Date.parse('2026-09-24T10:00:00-05:00') + i * 60000));
-    await page.getByLabel('Day this photo was taken').fill(date);
     await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+    await page.getByLabel('Day this photo was taken').fill(date);
+    await page.getByRole('button', { name: 'Save photo' }).click();
     await expect(page.locator('.photo-thumb img')).toHaveCount(i + 1);
   }
   await page.getByRole('button', { name: 'Compare photos' }).click();
@@ -109,6 +113,7 @@ test('the wide layout (tabs in the header, History month by month) and a photo t
   await page.goto(`${appURL}/#/photos`);
   const heic = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic'), Buffer.alloc(64)]);
   await page.locator('input[type=file]').setInputFiles({ name: 'IMG_0001.HEIC', mimeType: 'image/heic', buffer: heic });
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' }).click();
   await expect(page.getByRole('dialog').getByText("Can't preview in this browser")).toBeVisible();
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();

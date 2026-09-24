@@ -12,8 +12,9 @@ async function addPhotos(page, appURL, days) {
   for (const date of days) {
     // Each photo is added at its own time, as it would be.
     await page.clock.setFixedTime(new Date(Date.parse('2026-09-24T10:00:00-05:00') + days.indexOf(date) * 60000));
-    await page.getByLabel('Day this photo was taken').fill(date);
     await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+    await page.getByLabel('Day this photo was taken').fill(date);
+    await page.getByRole('button', { name: 'Save photo' }).click();
     await expect(page.locator('.photo-thumb')).toHaveCount(days.indexOf(date) + 1);
   }
 }
@@ -85,8 +86,10 @@ const HEIC = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic'
 test("a photo this browser can't draw says so, in the viewer and in Compare photos, never as a broken image", async ({ page, appURL }) => {
   await addPhotos(page, appURL, ['2026-09-01']);
   await page.clock.setFixedTime(new Date(Date.parse('2026-09-24T10:00:00-05:00') + 5 * 60000));
-  await page.getByLabel('Day this photo was taken').fill('2026-09-20');
   await page.locator('input[type=file]').setInputFiles({ name: 'IMG_0001.HEIC', mimeType: 'image/heic', buffer: HEIC });
+  await expect(page.getByRole('group', { name: 'Which day was this photo taken?' })).toContainText("Can't preview in this browser");
+  await page.getByLabel('Day this photo was taken').fill('2026-09-20');
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added to Sun, Sep 20.' })).toContainText(
     "It's saved, but this browser can't show this kind of photo, so it can't be previewed here."
   );
@@ -145,6 +148,7 @@ test('with no photos, Photos says what they are for and offers to add the first 
   const chooser = page.waitForEvent('filechooser');
   await empty.getByRole('button', { name: 'Add your first photo' }).click();
   await (await chooser).setFiles({ name: 'me.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
   await expect(empty).toHaveCount(0);
 });
