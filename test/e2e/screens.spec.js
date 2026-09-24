@@ -185,3 +185,20 @@ test('the header says what the app is, and each screen has its own title', async
     await expect(page).toHaveTitle(title);
   }
 });
+
+test('Compare explains once that there is nothing to compare with yet', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/compare`);
+  await expect(page.getByText(/^Nothing logged yet\. Log today's weight/)).toBeVisible();
+  await expect(page.locator('.compare-metric')).toHaveCount(0);
+
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 450 }, 181) });
+  await page.goto(`${appURL}/#/compare`);
+  await page.reload();
+  await expect(page.getByText('Log a few more days to see how today compares.')).toHaveCount(1);
+  await expect(page.getByText('Not enough history to compare yet.')).toHaveCount(0);
+  await expect(page.locator('.compare-caption')).toHaveCount(0);
+  await expect(page.getByText('No weight logged')).toHaveCount(0);
+  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
+  await expect(total.locator('.compare-row').first()).toContainText('450 cal');
+  await expect(page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) })).toContainText('181 lbs');
+});

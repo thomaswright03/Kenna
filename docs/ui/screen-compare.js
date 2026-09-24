@@ -50,8 +50,9 @@ function compareRow(catLabel, value, unit, maxVal, isToday, emptyText) {
  * @param {number | null} t today
  * @param {number | null} y yesterday
  * @param {number | null} avg all-time average
+ * @param {boolean} withCaption false when there's no earlier day: only today's value is shown
  */
-function compareMetric(metric, t, y, avg) {
+function compareMetric(metric, t, y, avg, withCaption) {
   const values = [t, y, avg].filter((v) => v !== null && v !== undefined);
   const maxVal = values.length ? Math.max(...values, 0) : 0;
   const parts = [];
@@ -64,9 +65,9 @@ function compareMetric(metric, t, y, avg) {
     { class: 'compare-metric' },
     h('h3', { class: 'compare-label', text: metric.label }),
     compareRow('Today', t, metric.unit, maxVal, true, metric.empty),
-    compareRow('Yesterday', y, metric.unit, maxVal, false, metric.empty),
-    compareRow('All-time avg', avg, metric.unit, maxVal, false, metric.empty),
-    h('p', { class: 'compare-caption', text: caption })
+    withCaption ? compareRow('Yesterday', y, metric.unit, maxVal, false, metric.empty) : null,
+    withCaption ? compareRow('All-time avg', avg, metric.unit, maxVal, false, metric.empty) : null,
+    withCaption ? h('p', { class: 'compare-caption', text: caption }) : null
   );
 }
 
@@ -86,6 +87,10 @@ export async function buildCompare() {
     { key: 'total', label: 'Total calories', unit: 'cal', empty: 'No meals logged', emptyToday: 'No meals logged' },
     ...MEAL_STEPS.map((m) => /** @type {Metric} */ ({ key: m.key, label: m.label, unit: 'cal', empty: 'Not logged', emptyToday: `${m.label} not logged`, optional: true })),
   ];
+  // Before there's an earlier day, one explanation replaces the same
+  // "nothing to compare" line under every metric.
+  const earlier = Object.values(entries).some((e) => e.date < now && !core.isEntryEmpty(e));
+  const loggedToday = !core.isEntryEmpty(entries[now]);
   const card = h(
     'section',
     { class: 'card' },
@@ -93,13 +98,27 @@ export async function buildCompare() {
     h('p', {
       class: 'card-sub',
       text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Averages leave out today and days with nothing logged.`,
-    }),
-    ...metrics
-      .filter((m) => !m.optional || [todayStats[m.key], yStats[m.key], avgs[m.key]].some((v) => v !== null))
-      .map((m) => compareMetric(m, todayStats[m.key], yStats[m.key], avgs[m.key]))
+    })
   );
+  if (!earlier) {
+    card.append(
+      h('p', {
+        class: 'inline-note compare-first',
+        text: loggedToday
+          ? 'Log a few more days to see how today compares.'
+          : "Nothing logged yet. Log today's weight and meals, then come back over the next few days to see how each day compares.",
+      })
+    );
+  }
+  if (earlier || loggedToday) {
+    card.append(
+      ...metrics
+        .filter((m) => !m.optional || [todayStats[m.key], yStats[m.key], avgs[m.key]].some((v) => v !== null))
+        .map((m) => compareMetric(m, todayStats[m.key], yStats[m.key], avgs[m.key], earlier))
+    );
+  }
   const neverLogged = metrics.filter((m) => m.optional && [todayStats[m.key], yStats[m.key], avgs[m.key]].every((v) => v === null));
-  if (neverLogged.length) {
+  if (earlier && neverLogged.length) {
     card.append(h('p', { class: 'compare-caption', text: `Never logged, so nothing to compare: ${neverLogged.map((m) => m.label).join(', ')}.` }));
   }
   const trends = buildChartsCard({ title: 'Trends', entries, smoothing: true });

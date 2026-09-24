@@ -527,6 +527,8 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 
 .compare-caption { font-size: var(--fs-xs); color: var(--muted); margin: var(--s2) 0 0; }
 
+.compare-first { padding: var(--s3); margin: 0; }
+
 /* ------------------------------------------------------------ charts */
 
 .segmented {
