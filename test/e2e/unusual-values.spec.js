@@ -194,3 +194,91 @@ test('an unsaved value kept by an earlier version is still read', async ({ page,
   await page.goto(appURL);
   await expect(page.locator('[data-meal="dinner"]')).toContainText('3,900 cal not saved yet');
 });
+
+// The status line under a box, read from the box's own description.
+async function statusUnder(page, box) {
+  const ids = (await box.getAttribute('aria-describedby')).split(' ');
+  return page.locator(`#${ids[0]}`);
+}
+
+test('a meal corrected after an error is asked about without the old error beside the question', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  const box = page.getByLabel('Breakfast calories');
+  const status = await statusUnder(page, box);
+  await box.fill('99999');
+  await box.press('Tab');
+  await expect(status).toHaveText("That's over 10,000 calories for one meal. Check the number.");
+  await expect(box).toHaveAttribute('aria-invalid', 'true');
+
+  await box.fill('3500');
+  await box.press('Enter');
+  const question = page.getByRole('dialog', { name: 'Keep 3,500 cal for breakfast?' });
+  await expect(question).toBeVisible();
+  await expect(page.getByText('over 10,000 calories')).toHaveCount(0);
+  await expect(status).toHaveText('');
+  await expect(box).not.toHaveAttribute('aria-invalid', /.*/);
+
+  // Escape (Change it) leaves only why this number isn't saved, with Keep it.
+  await page.keyboard.press('Escape');
+  await expect(question).toHaveCount(0);
+  await expect(status).toHaveText("Not saved yet. That's more than 3,000 cal for one meal.Keep it");
+  await expect(box).toHaveAttribute('aria-invalid', 'true');
+  expect(await data.entry(TODAY)).toBe(null);
+});
+
+test('a weight corrected after an error is asked about without the old error beside the question', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', {}, 180) });
+  await page.goto(appURL);
+  const weight = page.getByLabel('Weight (lbs)');
+  const status = await statusUnder(page, weight);
+  await weight.fill('2000');
+  await weight.press('Tab');
+  await expect(status).toHaveText('Enter a weight between 50 and 1,000 lbs.');
+  await expect(weight).toHaveAttribute('aria-invalid', 'true');
+
+  await weight.fill('195');
+  await weight.press('Enter');
+  const question = page.getByRole('dialog', { name: 'Keep 195 lbs?' });
+  await expect(question).toBeVisible();
+  await expect(page.getByText('Enter a weight between 50 and 1,000 lbs.')).toHaveCount(0);
+  await expect(status).toHaveText('');
+  await expect(weight).not.toHaveAttribute('aria-invalid', /.*/);
+
+  await question.getByRole('button', { name: 'Change it' }).click();
+  await expect(status).toContainText('Not saved yet.');
+  await expect(status.getByRole('button', { name: 'Keep it' })).toBeVisible();
+  await expect(page.getByText('Enter a weight between 50 and 1,000 lbs.')).toHaveCount(0);
+  expect(await data.entry(TODAY)).toBe(null);
+});
+
+test('a number kept from an earlier visit is asked about with nothing else under its box', async ({ page, appURL, data }) => {
+  // A number the rules refuse, kept when Log Meal was left, then corrected.
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('99999');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await page.goto(`${appURL}/#/log/breakfast`);
+  const box = page.getByLabel('Breakfast calories');
+  const status = await statusUnder(page, box);
+  await expect(box).toHaveValue('99999');
+  await expect(status).toContainText("Not saved yet. That's over 10,000 calories for one meal.");
+  await box.fill('3500');
+  await box.press('Enter');
+  const question = page.getByRole('dialog', { name: 'Keep 3,500 cal for breakfast?' });
+  await expect(question).toBeVisible();
+  await expect(status).toHaveText('');
+  await expect(box).not.toHaveAttribute('aria-invalid', /.*/);
+  await question.getByRole('button', { name: 'Change it' }).click();
+
+  // The number waiting to be asked about, shown again, is asked about at once.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await page.getByRole('link', { name: 'Confirm Breakfast, 3,500 cal not saved yet' }).click();
+  const again = page.getByRole('dialog', { name: 'Keep 3,500 cal for breakfast?' });
+  await expect(again).toBeVisible();
+  const shown = await statusUnder(page, page.getByLabel('Breakfast calories'));
+  await expect(shown).toHaveText('');
+  await expect(page.getByLabel('Breakfast calories')).not.toHaveAttribute('aria-invalid', /.*/);
+  await page.keyboard.press('Escape');
+  await expect(shown).toHaveText("Not saved yet. That's more than 3,000 cal for one meal.Keep it");
+  expect(await data.entry(TODAY)).toBe(null);
+});

@@ -113,6 +113,9 @@ function weightSaver(view, input, status, guard) {
    * @param {import('./unusual.js').Unusual} unusual
    */
   async function askFirst(value, unusual) {
+    // The weight now in the box passes the rules, so an error about an
+    // earlier one no longer describes it (see log-saving.js).
+    if (status.el.classList.contains('is-error')) status.set(null);
     if (await guard.ask('weight', value, unusual)) return commit();
     notKept(value, unusual);
     input.focus();
@@ -253,9 +256,10 @@ export function buildWeightField(view, entries) {
     leave: exits.leave,
     mounted: () => {
       if (!draft) return;
-      status.set('error', `Not saved yet. ${draft.error}`);
-      // A weight kept to be asked about is asked about now.
+      // A weight kept to be asked about is asked about now (Change it then
+      // says why it isn't saved); any other says why it wasn't saved.
       if (draft.ask) saver.commit();
+      else status.set('error', `Not saved yet. ${draft.error}`);
     },
     refresh: () => {
       if (document.activeElement !== input) input.value = weightText(view.entry.weight);

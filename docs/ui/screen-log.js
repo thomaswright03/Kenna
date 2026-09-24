@@ -140,8 +140,8 @@ function boxKeys(input, on) {
  * @param {{ commit: () => Promise<boolean> }} saver
  */
 function showDraft(d, status, saver) {
-  status.set('error', `Not saved yet. ${d.error}`);
   if (d.ask) saver.commit();
+  else status.set('error', `Not saved yet. ${d.error}`);
 }
 
 /** @type {import('./render.js').ScreenBuilder} */

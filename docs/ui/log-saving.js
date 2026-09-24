@@ -114,6 +114,9 @@ export function mealSaver(state, input, status, onSaved, guard) {
    * @param {import('./unusual.js').Unusual} unusual
    */
   async function askFirst(key, value, unusual) {
+    // The number in the box passes the rules, so an error about an earlier
+    // one no longer describes it; Change it says why this one isn't saved.
+    if (status.el.classList.contains('is-error')) status.set(null);
     if (await guard.ask(key, value, unusual)) return commit();
     if (state.activeKey === key) {
       notKept(key, value, unusual);
