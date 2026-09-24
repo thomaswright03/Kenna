@@ -184,3 +184,19 @@ test('a photo can be filed under an earlier day and moved to another day later',
   await expect(fresh.getByRole('button', { name: 'Progress photo, Mon, Sep 21' })).toBeVisible();
   await ctx.close();
 });
+
+test('Add Photo is unavailable while a photo is being added', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await page.evaluate(() => {
+    const input = document.querySelector('input[type=file]');
+    const seen = /** @type {string[]} */ ([]);
+    window.__addPhotoStates = seen;
+    new MutationObserver(() => {
+      if (input instanceof HTMLInputElement && input.disabled) seen.push(document.querySelector(`label[for="${input.id}"]`).textContent);
+    }).observe(input, { attributes: true, attributeFilter: ['disabled'] });
+  });
+  await addPhoto(page);
+  expect(await page.evaluate(() => window.__addPhotoStates)).toContain('Adding photo…');
+  await expect(page.locator('input[type=file]')).toBeEnabled();
+  await expect(page.locator('label').filter({ hasText: 'Add Photo' })).not.toHaveClass(/is-disabled/);
+});

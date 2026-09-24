@@ -171,7 +171,13 @@ export async function buildLog(ctx) {
     class: 'btn btn-primary',
     text: 'Done',
     onClick: async () => {
+      // One tap finishes; further taps while it's saving do nothing.
+      if (doneBtn.disabled) return;
+      doneBtn.disabled = true;
+      doneBtn.setAttribute('aria-busy', 'true');
       if (!(await commit())) {
+        doneBtn.disabled = false;
+        doneBtn.removeAttribute('aria-busy');
         input.focus();
         return;
       }

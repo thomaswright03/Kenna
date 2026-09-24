@@ -132,3 +132,19 @@ test('a past day opened on purpose stays put after midnight', async ({ page, app
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
 });
+
+test('a second tap on Done while it is saving does nothing more', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/history`);
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('420');
+  // Two taps in the same instant: the second arrives while the first is saving.
+  await page.getByRole('button', { name: 'Done' }).evaluate((btn) => {
+    btn.click();
+    btn.click();
+  });
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Saved for Today' })).toHaveCount(1);
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(420);
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+});

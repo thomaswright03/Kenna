@@ -107,6 +107,7 @@ export async function buildPhotos(ctx) {
       return;
     }
     setStatus('pending', 'Saving photo…');
+    busy(true);
     try {
       const blob = await preparePhoto(file, 1600);
       await store.addPhoto({ date: day, blob, createdAt: new Date().toISOString() });
@@ -114,8 +115,20 @@ export async function buildPhotos(ctx) {
       render();
     } catch (err) {
       setStatus('error', err instanceof Error && err.message ? err.message : "Couldn't save that photo. Try again.");
+    } finally {
+      busy(false);
     }
   });
+
+  // While a photo is being saved, Add Photo can't start another.
+  /** @param {boolean} on */
+  function busy(on) {
+    fileInput.disabled = on;
+    dayInput.disabled = on;
+    uploadLabel.classList.toggle('is-disabled', on);
+    uploadLabel.setAttribute('aria-disabled', on ? 'true' : 'false');
+    uploadLabel.textContent = on ? 'Adding photo…' : 'Add Photo';
+  }
 
   const intro = h(
     'section',
