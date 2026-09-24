@@ -354,3 +354,37 @@ test('a single day gets a proportionate axis, and the latest value never wraps',
     }
   }
 });
+
+test('History groups days by month and shows older months on request, even with ten years of days', async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 0; i < 3650; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { lunch: 1500 + (i % 10) * 10 }, 170 + (i % 5) / 10);
+  }
+  await data.seed(entries);
+  const started = Date.now();
+  await page.goto(`${appURL}/#/history`);
+  await expect(page.getByRole('heading', { name: 'September 2026' })).toBeVisible();
+  expect(Date.now() - started).toBeLessThan(5000);
+  await expect(page.getByText('3,650 days logged.')).toBeVisible();
+  const september = page.locator('[data-month="2026-09"]');
+  await expect(september.locator('.history-month-sub')).toHaveText('24 days · avg 1,542 cal · avg 170.2 lbs');
+  // Only recent months are on the page to start with.
+  const first = await page.locator('.history-item').count();
+  expect(first).toBeGreaterThanOrEqual(60);
+  expect(first).toBeLessThan(120);
+  await expect(page.locator('.history-month')).toHaveCount(3);
+
+  const more = page.getByRole('button', { name: /^Show earlier months/ });
+  await more.click();
+  await expect(page.locator('.history-month')).toHaveCount(7);
+  await expect(page.getByRole('heading', { name: 'June 2026' })).toBeFocused();
+
+  // Any month is one choice away.
+  await page.getByLabel('Go to month').selectOption({ label: 'March 2017 (31 days)' });
+  const march = page.getByRole('heading', { name: 'March 2017' });
+  await expect(march).toBeFocused();
+  await expect(march).toBeInViewport();
+  await page.locator('[data-month="2017-03"] .history-item', { hasText: 'Wed, Mar 15, 2017' }).click();
+  await expect(page.getByRole('heading', { name: 'Wed, Mar 15, 2017' })).toBeVisible();
+});

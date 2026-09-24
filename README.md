@@ -24,8 +24,11 @@ data never leaves your device.
   to the next meal you haven't logged; **Done** returns to the day you were
   logging and confirms what was saved. A meal removed on the Today screen
   keeps an **Undo** button in its row until you leave that screen.
-- **History** lists every logged day with its total calories and weight. Tap a
-  day to open it.
+- **History** lists every logged day with its total calories and weight,
+  grouped by month under headings with each month's average calories
+  (days with meals, not counting today) and weight. The most recent
+  months are shown first; **Show earlier months** adds more, and **Go to
+  month** jumps to any month. Tap a day to open it.
 - **Compare** answers "how am I doing today?" first, in two sentences:
   calories so far against your average day ("So far today: 500 cal more
   than your average day") and today's weight against your average weight

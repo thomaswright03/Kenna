@@ -142,6 +142,7 @@
     year: 'numeric',
     timeZone: 'UTC',
   });
+  const monthYearFmt = new Intl.DateTimeFormat(LOCALE, { month: 'long', year: 'numeric', timeZone: 'UTC' });
   const monthDayFmt = new Intl.DateTimeFormat(LOCALE, { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const monthDayYearFmt = new Intl.DateTimeFormat(LOCALE, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
@@ -173,6 +174,13 @@
   function formatMonthDay(str, withYear) {
     if (!isValidDateStr(str)) return '';
     return (withYear ? monthDayYearFmt : monthDayFmt).format(utcDate(str));
+  }
+
+  // "September 2026", for a "YYYY-MM" month or any day in it.
+  /** @param {string} str */
+  function formatMonth(str) {
+    const day = `${String(str).slice(0, 7)}-01`;
+    return isValidDateStr(day) ? monthYearFmt.format(utcDate(day)) : 'Unknown month';
   }
 
   // A day more than a year ago that is also well before the first day
@@ -909,6 +917,7 @@
     isFarBack,
     yearsBetween,
     formatRelativeDate,
+    formatMonth,
     formatMonthDay,
     formatNumber,
     formatCalories,

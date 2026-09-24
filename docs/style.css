@@ -491,6 +491,25 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 
 .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
 
+.history-month + .history-month { margin-top: var(--s5); }
+.history-month-title { font-size: var(--fs-md); font-weight: 700; margin: var(--s2) 0 0; }
+.history-month-title:focus { outline: none; }
+.history-month-title:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.history-month-sub { font-size: var(--fs-sm); color: var(--muted); margin: 0 0 var(--s2); font-variant-numeric: tabular-nums; }
+
+select {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--card-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-md);
+}
+select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; border-color: var(--focus); }
+
 .history-item {
   display: flex;
   align-items: center;
