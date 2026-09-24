@@ -72,7 +72,7 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   expect((await data.entry(TODAY)).weight).toBe(165);
 });
 
-test('Change day cannot be emptied or set to the future', async ({ page, appURL }) => {
+test('Change day cannot be emptied or set to the future', async ({ page, appURL, data }) => {
   await page.goto(appURL);
   const date = page.getByLabel('Change day');
   await date.fill('');
@@ -81,8 +81,7 @@ test('Change day cannot be emptied or set to the future', async ({ page, appURL 
   await page.getByLabel('Weight (lbs)').fill('181');
   await page.getByLabel('Weight (lbs)').blur();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  const keys = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('kenna:entries'))));
-  expect(keys).toEqual([TODAY]);
+  expect(Object.keys(await data.all())).toEqual([TODAY]);
   await date.fill('2026-12-01');
   await date.dispatchEvent('change');
   await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();
@@ -421,7 +420,7 @@ async function breakSaving(page) {
       Storage.prototype.setItem = setItem;
     };
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      if (key === 'kenna:entries' || key === 'kenna:entries:recent') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
       return setItem.call(this, key, value);
     };
   });

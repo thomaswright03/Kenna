@@ -70,9 +70,12 @@ async function start() {
   // A number typed but not yet saved is saved when the page is hidden (app
   // switched away from, phone locked) or closed/reloaded, since the app may
   // never get the chance once it's in the background.
+  // Then the days saved this visit are folded into the stored history
+  // (see store-local.js), so it's whole whenever Kenna isn't in use.
   const flushInput = () => {
     const view = getCurrentView();
     if (view && view.flush) view.flush();
+    store.settle();
   };
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {

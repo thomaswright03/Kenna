@@ -1,4 +1,4 @@
-const { test, expect, TODAY } = require('./fixtures');
+const { test, expect, TODAY, day } = require('./fixtures');
 const { createStaticServer } = require('../../scripts/serve-docs.js');
 
 // The phone app's files, served normally until `stall` is set, after which
@@ -218,7 +218,7 @@ test.describe('phone version', () => {
     await page.evaluate(() => {
       const setItem = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        if (key === 'kenna:entries' || key === 'kenna:entries:recent') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
         return setItem.call(this, key, value);
       };
     });
@@ -256,4 +256,31 @@ test('damaged data is kept at most twice, and Settings offers it for download or
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kenna:entries:corrupt')).length)).toBe(0);
   await page.reload();
   await expect(page.locator('[data-damaged-data]')).toHaveCount(0);
+});
+
+test('with ten years logged, a save writes only that day; the history is brought up to date when the app is put away', async ({ page, data }) => {
+  const days = {};
+  for (let i = 1; i <= 3650; i += 1) {
+    const date = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    days[date] = day(date, { breakfast: 400, lunch: 650 }, 180);
+  }
+  await data.seed(days);
+  await page.reload();
+  const history = () => page.evaluate(() => localStorage.getItem('kenna:entries'));
+  const before = await history();
+  await page.getByLabel('Weight (lbs)').fill('179.4');
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect(await history()).toBe(before);
+  expect((await data.entry(TODAY)).weight).toBe(179.4);
+
+  // Switching to another app folds the day in, so the history under
+  // kenna:entries (all an older version reads) is whole again.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect.poll(async () => JSON.parse(await history())[TODAY]?.weight).toBe(179.4);
+  expect(await page.evaluate(() => localStorage.getItem('kenna:entries:recent'))).toBeNull();
+  expect(Object.keys(JSON.parse(await history()))).toHaveLength(3651);
 });

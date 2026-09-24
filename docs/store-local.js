@@ -36,6 +36,7 @@
  * @property {() => Promise<Record<string, Entry>>} loadEntries
  * @property {(date: string) => Promise<Entry | null>} getEntry
  * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
+ * @property {() => Promise<boolean>} settle folds the days saved since into the stored history (done when the app is put away); true when anything was written
  * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries replaces the given days, first keeping the days it replaces so undoImport can put them back
  * @property {() => Promise<number>} undoImport puts the days the last import replaced back as they were (and removes days it added)
  * @property {() => Promise<Photo[]>} listPhotos every photo's details, newest first (no images)
@@ -63,6 +64,11 @@
   const BACKUP_KEY = `${ENTRIES_KEY}:backup`;
   const CORRUPT_KEY = `${ENTRIES_KEY}:corrupt`;
   const UNDO_IMPORT_KEY = `${ENTRIES_KEY}:before-import`;
+  const RECENT_KEY = `${ENTRIES_KEY}:recent`;
+  const RECENT_BACKUP_KEY = `${RECENT_KEY}:backup`;
+  // Days changed since they were last folded into ENTRIES_KEY, at most:
+  // past this many, the next save folds them in.
+  const MAX_RECENT_DAYS = 40;
   // Damaged copies kept at most: the newest ones.
   const MAX_CORRUPT_COPIES = 2;
   const PHOTOS_DB_NAME = 'kenna-photos';
@@ -132,10 +138,21 @@
 
     // ------------------------------------------------------------ entries
     //
-    // Every write first copies the previous value to a ":backup" key. If the
-    // stored value is ever unreadable, we restore from that copy instead of
-    // treating the history as empty; if both are unreadable, the damaged text
-    // is kept under ":corrupt" so the next save can't erase what's left.
+    // Every day is kept under ENTRIES_KEY, as every version of Kenna has
+    // stored it. So that a save doesn't rewrite years of history, a save
+    // writes only the days changed since then, under RECENT_KEY
+    // ({ base, days: { date: day or null for removed } }); they're folded
+    // into ENTRIES_KEY when the app is put away or closed (settle), when it
+    // starts, when an import rewrites the days anyway, and once more than
+    // MAX_RECENT_DAYS have piled up. `base` is the length of the
+    // ENTRIES_KEY text the changes were made on top of, so changes left by
+    // a version that knew nothing of them (after a rollback) are never
+    // applied over newer days; they're kept as a damaged copy instead.
+    //
+    // Each key has an automatic copy (":backup"). If a stored value is
+    // ever unreadable, we restore from that copy instead of treating the
+    // history as empty; if both are unreadable, the damaged text is kept
+    // under ":corrupt" so the next save can't erase what's left.
 
     /** @param {unknown} v @returns {v is Record<string, unknown>} */
     function isPlainObject(v) {
@@ -207,11 +224,25 @@
       }
     }
 
-    function readRaw() {
+    // The parsed ENTRIES_KEY text, kept while that text is unchanged, so a
+    // save doesn't parse the whole history again. Never changed in place.
+    /** @type {{ text: string | null, raw: Record<string, unknown> }} */
+    let parsedSnapshot = { text: null, raw: {} };
+
+    /**
+     * Every day as last folded in (ENTRIES_KEY), recovering from damage.
+     * `length` is that text's length (0 when there is none), for `base`.
+     * @returns {{ raw: Record<string, unknown>, length: number, recovered: boolean }}
+     */
+    function readSnapshot() {
       const text = storage.getItem(ENTRIES_KEY);
-      if (text === null) return {};
+      if (text === null) return { raw: {}, length: 0, recovered: false };
+      if (text === parsedSnapshot.text) return { raw: parsedSnapshot.raw, length: text.length, recovered: false };
       const parsed = parseObject(text);
-      if (parsed) return parsed;
+      if (parsed) {
+        parsedSnapshot = { text, raw: parsed };
+        return { raw: parsed, length: text.length, recovered: false };
+      }
 
       keepCorruptCopy(text);
       const backupText = storage.getItem(BACKUP_KEY);
@@ -227,7 +258,7 @@
           message:
             'Your saved data was damaged, so Kenna restored it from its automatic copy. The last change before that may be missing. Please check recent days.',
         });
-        return recovered;
+        return { raw: recovered, length: backupText.length, recovered: true };
       }
       onNotice({
         tone: 'error',
@@ -239,22 +270,161 @@
       } catch {
         // Ignore: the next successful write replaces it anyway.
       }
-      return {};
+      return { raw: {}, length: 2, recovered: true };
     }
 
-    /** @param {Record<string, unknown>} obj */
-    function writeRaw(obj) {
-      try {
-        const previous = storage.getItem(ENTRIES_KEY);
-        if (previous !== null && parseObject(previous)) storage.setItem(BACKUP_KEY, previous);
-        storage.setItem(ENTRIES_KEY, JSON.stringify(obj));
-      } catch (e) {
-        throw new StorageWriteError(
-          core.isQuotaError(e)
-            ? `Not saved. ${core.STORAGE_FULL}`
-            : "Not saved: this browser is blocking storage (Private Browsing or another app's built-in browser). Open Kenna from Safari or your Home Screen instead.",
-          { cause: e }
+    /**
+     * @param {string | null} text
+     * @returns {{ base: number, days: Record<string, unknown> } | null}
+     */
+    function parseRecent(text) {
+      const value = text === null ? null : parseObject(text);
+      if (!value || typeof value.base !== 'number' || !isPlainObject(value.days)) return null;
+      return { base: value.base, days: value.days };
+    }
+
+    /**
+     * The days changed since the last fold (RECENT_KEY), recovering from
+     * damage, for a snapshot `length` long; empty when there are none.
+     * @param {{ length: number, recovered: boolean }} snapshot
+     * @returns {{ base: number, days: Record<string, unknown> }}
+     */
+    function readRecent(snapshot) {
+      const text = storage.getItem(RECENT_KEY);
+      const empty = { base: snapshot.length, days: {} };
+      if (text === null) return empty;
+      let recent = parseRecent(text);
+      if (!recent) {
+        keepCorruptCopy(text);
+        recent = parseRecent(storage.getItem(RECENT_BACKUP_KEY));
+        onNotice(
+          recent
+            ? { tone: 'warning', message: 'Your latest changes were damaged, so Kenna restored them from its automatic copy. The very last change may be missing. Please check recent days.' }
+            : { tone: 'warning', message: "Your latest changes were damaged and couldn't be restored; your other days are safe. Kenna has kept the damaged copy: Settings can download it. Please check recent days." }
         );
+        if (!recent) {
+          dropRecent();
+          return empty;
+        }
+      }
+      // Changes made on top of other days than these (a version that knew
+      // nothing of them saved since) are kept aside, never applied. After
+      // recovering the days from their copy, the changes are newer still.
+      if (!snapshot.recovered && recent.base !== snapshot.length) {
+        keepCorruptCopy(text);
+        dropRecent();
+        onNotice({
+          tone: 'warning',
+          message: 'Kenna found changes left by a different version of the app that no longer match your saved days, so it set them aside: Settings can download them. Please check recent days.',
+        });
+        return empty;
+      }
+      return recent;
+    }
+
+    function dropRecent() {
+      try {
+        storage.removeItem(RECENT_KEY);
+        storage.removeItem(RECENT_BACKUP_KEY);
+      } catch {
+        // Nothing more to do.
+      }
+    }
+
+    /** @param {unknown} e @param {string} [what] */
+    function writeError(e, what) {
+      return new StorageWriteError(
+        core.isQuotaError(e)
+          ? `${what || 'Not saved.'} ${core.STORAGE_FULL}`
+          : "Not saved: this browser is blocking storage (Private Browsing or another app's built-in browser). Open Kenna from Safari or your Home Screen instead.",
+        { cause: e }
+      );
+    }
+
+    /**
+     * @param {Record<string, unknown>} snapshot
+     * @param {Record<string, unknown>} changes
+     */
+    function withChanges(snapshot, changes) {
+      const raw = { ...snapshot };
+      for (const date of Object.keys(changes)) {
+        if (changes[date] === null) delete raw[date];
+        else raw[date] = changes[date];
+      }
+      return raw;
+    }
+
+    /**
+     * The stored days and the changes since, read once. Days just
+     * recovered from their copy get the changes folded in straight away,
+     * since those were made on top of the days that were damaged.
+     */
+    function readState() {
+      const snapshot = readSnapshot();
+      const recent = readRecent(snapshot);
+      if (!snapshot.recovered || Object.keys(recent.days).length === 0) return { snapshot, recent };
+      const raw = withChanges(snapshot.raw, recent.days);
+      try {
+        writeRaw(raw);
+        return { snapshot: { raw: parsedSnapshot.raw, length: String(parsedSnapshot.text).length, recovered: false }, recent: { base: 0, days: {} } };
+      } catch {
+        // The changes stay where they are, now on top of the recovered days.
+        try {
+          writeRecent({ base: snapshot.length, days: recent.days });
+        } catch {
+          // Read again next time, the same way.
+        }
+        return { snapshot, recent };
+      }
+    }
+
+    /** Every day, with the recent changes applied. */
+    function readRaw() {
+      const { snapshot, recent } = readState();
+      return withChanges(snapshot.raw, recent.days);
+    }
+
+    /**
+     * Writes every day (and its automatic copy) and clears the recent
+     * changes, which it includes.
+     * @param {Record<string, unknown>} obj
+     * @param {string} [what] how a failure starts ("Nothing was restored.")
+     */
+    function writeRaw(obj, what) {
+      const text = JSON.stringify(obj);
+      try {
+        storage.setItem(BACKUP_KEY, text);
+        storage.setItem(ENTRIES_KEY, text);
+      } catch (e) {
+        throw writeError(e, what);
+      }
+      parsedSnapshot = { text, raw: /** @type {Record<string, unknown>} */ (JSON.parse(text)) };
+      dropRecent();
+    }
+
+    /** @param {{ base: number, days: Record<string, unknown> }} recent */
+    function writeRecent(recent) {
+      try {
+        const previous = storage.getItem(RECENT_KEY);
+        if (previous !== null && parseRecent(previous)) storage.setItem(RECENT_BACKUP_KEY, previous);
+        storage.setItem(RECENT_KEY, JSON.stringify(recent));
+      } catch (e) {
+        throw writeError(e);
+      }
+    }
+
+    // Folds the recent changes into ENTRIES_KEY. Nothing is written when
+    // there are none. A fold that fails (storage full) leaves the changes
+    // where they are.
+    function settle() {
+      try {
+        if (storage.getItem(RECENT_KEY) === null) return false;
+        const { snapshot, recent } = readState();
+        if (Object.keys(recent.days).length === 0) return false;
+        writeRaw(withChanges(snapshot.raw, recent.days));
+        return true;
+      } catch {
+        return false;
       }
     }
 
@@ -273,10 +443,21 @@
       return core.sanitizeEntries(readRaw()).entries;
     }
 
+    /**
+     * One day as stored, without reading every day. Undefined when there
+     * is none (or it was removed).
+     * @param {{ snapshot: { raw: Record<string, unknown> }, recent: { days: Record<string, unknown> } }} state from readState
+     * @param {string} date
+     */
+    function storedDay(state, date) {
+      const { days } = state.recent;
+      if (Object.prototype.hasOwnProperty.call(days, date)) return days[date] === null ? undefined : days[date];
+      return state.snapshot.raw[date];
+    }
+
     /** @param {string} date */
     async function getEntry(date) {
-      const raw = readRaw();
-      return core.normalizeEntry(date, raw[date]);
+      return core.normalizeEntry(date, storedDay(readState(), date));
     }
 
     // Applies only the fields in `patch` to the stored day, so edits made
@@ -288,11 +469,13 @@
       if (core.isFutureDate(date)) throw new core.InputError(`Not saved. ${core.FUTURE_DAY}`);
       const checked = core.validatePatch(patch);
       if (!checked.ok) throw checked.fault ? new core.KennaError(checked.error) : new core.InputError(checked.error);
-      const raw = readRaw();
-      const next = core.applyPatch(date, raw[date], checked.patch);
-      if (core.isEntryEmpty(next)) delete raw[date];
-      else raw[date] = next;
-      writeRaw(raw);
+      const state = readState();
+      const next = core.applyPatch(date, storedDay(state, date), checked.patch);
+      // Only this day is written, with the others changed since the last
+      // fold: the cost of a save doesn't grow with the years logged.
+      const days = { ...state.recent.days, [date]: core.isEntryEmpty(next) ? null : next };
+      writeRecent({ base: state.snapshot.length, days });
+      if (Object.keys(days).length > MAX_RECENT_DAYS) settle();
       return next;
     }
 
@@ -315,7 +498,7 @@
         );
       }
       for (const date of Object.keys(entries)) raw[date] = entries[date];
-      writeRaw(raw);
+      writeRaw(raw, 'Nothing was restored.');
       return Object.keys(entries).length;
     }
 
@@ -620,6 +803,7 @@
     async function init() {
       if (!storageWorks()) return { ok: false, reason: 'blocked' };
       readRaw(); // surfaces any recovery notice straight away
+      settle();
       return { ok: true };
     }
 
@@ -647,7 +831,7 @@
     function onExternalChange(callback) {
       if (!win) return;
       win.addEventListener('storage', (event) => {
-        if (event.key === ENTRIES_KEY || event.key === null) callback();
+        if (event.key === ENTRIES_KEY || event.key === RECENT_KEY || event.key === null) callback();
       });
     }
 
@@ -658,6 +842,7 @@
       updateEntry,
       importEntries,
       undoImport,
+      settle: async () => settle(),
       damagedCopies,
       deleteDamagedCopies,
       // Every photo operation fails with a Kenna sentence, never the
@@ -676,5 +861,5 @@
     };
   }
 
-  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, CORRUPT_KEY, UNDO_IMPORT_KEY, MAX_CORRUPT_COPIES, StorageWriteError });
+  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS, CORRUPT_KEY, UNDO_IMPORT_KEY, MAX_CORRUPT_COPIES, StorageWriteError });
 });
