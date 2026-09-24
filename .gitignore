@@ -1,4 +1,6 @@
 node_modules/
-data/*.json
-data/*.json.bak
-data/photos/
+# Left over from the retired server version, which kept its data here.
+data/
+test-results/
+playwright-report/
+coverage/

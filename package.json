@@ -1,12 +1,41 @@
 {
   "name": "kenna-calorie-tracker",
   "version": "1.0.0",
-  "description": "Local, phone-hosted daily calorie tracker",
-  "main": "server.js",
+  "description": "Private calorie and weight tracker: an installable offline phone app",
   "scripts": {
-    "start": "node server.js"
+    "serve:docs": "node scripts/serve-docs.js",
+    "build": "node scripts/build.js",
+    "build:watch": "node scripts/build.js --watch",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.sw.json",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "pretest:e2e": "npm run build",
+    "test:e2e": "playwright test",
+    "coverage": "node scripts/coverage.js",
+    "test": "npm run lint && npm run typecheck && npm run test:unit && npm run test:e2e"
   },
-  "dependencies": {
-    "express": "^4.19.2"
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^9.39.5",
+    "@jridgewell/sourcemap-codec": "^1.6.0",
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "@playwright/test": "1.56.1",
+    "@types/istanbul-lib-coverage": "^2.0.6",
+    "@types/istanbul-lib-report": "^3.0.3",
+    "@types/istanbul-reports": "^3.0.4",
+    "@types/node": "^22.20.4",
+    "c8": "^10.1.3",
+    "esbuild": "0.28.2",
+    "eslint": "^9.39.5",
+    "fake-indexeddb": "^6.2.5",
+    "globals": "^17.12.0",
+    "istanbul-lib-coverage": "^3.2.2",
+    "istanbul-lib-report": "^3.0.1",
+    "istanbul-reports": "^3.2.0",
+    "typescript": "~5.9.3",
+    "v8-to-istanbul": "^9.3.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

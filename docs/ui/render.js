@@ -1,0 +1,176 @@
+// Draws the current route. Screens load their data first and only then
+// replace the page, and a newer navigation discards an older one's late
+// results.
+
+import { h, byId } from './dom.js';
+import { closeAllDialogs } from './feedback.js';
+import { route, updateTabs } from './router.js';
+import { failureText, recordProblem } from './problems.js';
+
+/**
+ * What a screen builder returns.
+ * @typedef {object} View
+ * @property {HTMLElement} root
+ * @property {string} title names the screen in the browser tab and history
+ * @property {() => void} [mounted] runs once the view is on the page
+ * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
+ * @property {() => void} [release] frees resources such as object URLs
+ * @property {() => void} [flush] saves typed input now (the page is being hidden or closed)
+ * @property {() => Promise<void> | void} [leave] another screen, or another day, is being opened: saves typed input on the way out; the next screen loads its data once this has finished
+ */
+
+/**
+ * Passed to each screen builder.
+ * @typedef {object} ScreenContext
+ * @property {import('./router.js').Route} route
+ * @property {() => boolean} isCurrent false once a newer render has started
+ * @property {(fn: () => void) => void} onRelease runs `fn` when the view is replaced
+ */
+
+/** @typedef {(ctx: ScreenContext) => Promise<View>} ScreenBuilder */
+
+/** @type {Record<string, ScreenBuilder>} */
+let builders = {};
+
+/** @param {Record<string, ScreenBuilder>} screens */
+export function registerScreens(screens) {
+  builders = screens;
+}
+
+let renderSeq = 0;
+/** @type {View | null} */
+let currentView = null;
+// The screen and day the current view shows. Drawing it again (new data,
+// a new calendar day) isn't leaving it; drawing anything else is.
+/** @param {import('./router.js').Route} r */
+const placeOf = (r) => `${r.screen}/${r.date || ''}`;
+let currentPlace = '';
+// The save made on the way out of the last screen left. Every screen
+// opened after it waits for it before reading its data, so it never shows
+// a day from before that save.
+/** @type {Promise<void>} */
+let leaving = Promise.resolve();
+
+export const getCurrentView = () => currentView;
+
+/**
+ * Shows data changed elsewhere (another tab, or an Undo offered on another
+ * screen) on the screen that's open: in place where the screen can, or by
+ * drawing History or Compare again.
+ */
+export function refreshCurrentScreen() {
+  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage().catch((err) => recordProblem('Show changes made elsewhere', err));
+  else if (route.screen === 'history' || route.screen === 'compare') render();
+}
+
+/** @param {{ focus?: boolean }} [options] */
+export async function render(options) {
+  const opts = options || {};
+  const main = byId('main');
+  const seq = (renderSeq += 1);
+  const isCurrent = () => seq === renderSeq;
+  const place = placeOf(route);
+  if (currentView && currentView.leave && place !== currentPlace) {
+    const leave = currentView.leave;
+    currentView.leave = undefined;
+    leaving = leaveScreen(leave);
+  }
+  closeAllDialogs();
+  updateTabs();
+  const stopLoading = startLoading(main);
+  await leaving;
+  if (!isCurrent()) return;
+  /** @type {(() => void)[]} */
+  const releases = [];
+  /** @type {ScreenContext} */
+  const ctx = { route, isCurrent, onRelease: (fn) => releases.push(fn) };
+  /** @type {View} */
+  let view;
+  try {
+    view = await builders[route.screen](ctx);
+  } catch (err) {
+    view = errorView(err, route.screen);
+  }
+  if (!isCurrent()) {
+    releases.forEach((fn) => fn());
+    return;
+  }
+  stopLoading();
+  if (currentView && currentView.release) currentView.release();
+  view.release = () => releases.forEach((fn) => fn());
+  currentView = view;
+  currentPlace = place;
+  main.replaceChildren(view.root);
+  document.title = `${view.title} · Kenna`;
+  if (opts.focus) {
+    const heading = main.querySelector('h2');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    }
+    window.scrollTo(0, 0);
+  }
+  if (view.mounted) view.mounted();
+}
+
+/**
+ * Runs a screen's leave, which never stops the next screen from opening.
+ * @param {() => Promise<void> | void} leave
+ * @returns {Promise<void>}
+ */
+function leaveScreen(leave) {
+  try {
+    return Promise.resolve(leave()).catch((err) => recordProblem('Leave a screen', err));
+  } catch (err) {
+    recordProblem('Leave a screen', err);
+    return Promise.resolve();
+  }
+}
+
+// While a screen loads, the screen being left can't be used (so nothing is
+// typed into a screen that's about to disappear), and if loading takes
+// more than a moment a "Loading…" indicator covers it.
+const LOADING_DELAY_MS = 200;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let loadingTimer;
+
+/**
+ * @param {HTMLElement} main
+ * @returns {() => void} ends this loading state
+ */
+function startLoading(main) {
+  const indicator = byId('loading');
+  clearTimeout(loadingTimer);
+  main.setAttribute('aria-busy', 'true');
+  main.inert = true;
+  loadingTimer = setTimeout(() => {
+    main.classList.add('is-loading');
+    indicator.hidden = false;
+  }, LOADING_DELAY_MS);
+  return () => {
+    clearTimeout(loadingTimer);
+    main.removeAttribute('aria-busy');
+    main.inert = false;
+    main.classList.remove('is-loading');
+    indicator.hidden = true;
+  };
+}
+
+/**
+ * @param {unknown} err
+ * @param {string} screen
+ * @returns {View}
+ */
+function errorView(err, screen) {
+  const message = failureText(`Open ${screen}`, err, 'Nothing has been changed. Try again, and if it keeps happening, close Kenna completely and open it again.');
+  return {
+    title: "Couldn't load",
+    root: h(
+      'section',
+      { class: 'card' },
+      h('h2', { class: 'card-title', text: "Couldn't load this screen" }),
+      h('p', { class: 'card-sub', role: 'alert', text: message }),
+      h('button', { type: 'button', class: 'btn btn-primary', text: 'Try again', onClick: () => render() })
+    ),
+  };
+}

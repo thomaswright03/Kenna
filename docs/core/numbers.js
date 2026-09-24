@@ -1,0 +1,48 @@
+// Numbers as Kenna shows them: US English grouping ("1,200"), calories as
+// whole numbers and weights in pounds.
+'use strict';
+
+const { LOCALE } = require('./dates.js');
+
+/** @type {Record<string, Intl.NumberFormat>} */
+const numberFormats = {};
+/**
+ * @param {number} value
+ * @param {number} [maxDecimals] at most this many decimals (0 when omitted)
+ * @param {number} [minDecimals] at least this many (0 when omitted): 1 keeps "166.0"
+ */
+function formatNumber(value, maxDecimals, minDecimals) {
+  const most = maxDecimals || 0;
+  const least = Math.min(minDecimals || 0, most);
+  const key = `${most}.${least}`;
+  if (!numberFormats[key]) {
+    numberFormats[key] = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: most, minimumFractionDigits: least });
+  }
+  return numberFormats[key].format(value);
+}
+
+/** @param {number} value */
+function formatCalories(value) {
+  return `${formatNumber(Math.round(value))} cal`;
+}
+
+// A logged weight is shown as it was entered (up to two decimals, the
+// most the input accepts).
+/** @param {number} value @param {number} [decimals] at most this many (2 when omitted) */
+function formatWeight(value, decimals) {
+  return `${formatNumber(value, decimals === undefined ? 2 : decimals)} lbs`;
+}
+
+// An average weight, or a difference from one, always to one decimal, so
+// "166.0 lbs" sits beside "164.3 lbs" rather than "166 lbs".
+/** @param {number} value */
+function formatAverageWeight(value) {
+  return `${formatNumber(value, 1, 1)} lbs`;
+}
+
+module.exports = {
+  formatNumber,
+  formatCalories,
+  formatWeight,
+  formatAverageWeight,
+};
