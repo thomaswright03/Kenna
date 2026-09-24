@@ -21,7 +21,9 @@ here touches your real days or photos.
    icon. The "Add Kenna to your Home Screen" card is not shown there.
 5. Log a meal: **Log Meal**, type a number, **Save and close**. Today shows
    "Saved for Today" and the new total.
-6. Log a weight and check it in History and on Compare.
+6. Log a weight and check it in History and on Compare. In History, tap
+   **Show earlier months**, open a day further down and swipe back: History
+   shows the same months, with that day where it was.
 7. Add a progress photo from the photo library (a HEIC one if you have it).
    It appears on the Photos screen and opens in the viewer.
 8. Settings → **Export Backup** → **Save or share…** → **Save to Files**.

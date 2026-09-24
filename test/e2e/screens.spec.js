@@ -84,9 +84,9 @@ test('tapping a History day opens it for editing, with a way back to today', asy
 test('the header controls are reachable by keyboard', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Settings' })).toBeFocused();
-  await page.keyboard.press('Tab');
   await expect(nav(page).getByRole('link', { name: 'Today' })).toBeFocused();
+  for (let i = 0; i < 4; i += 1) await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeFocused();
 });
 
 test('charts use a time axis, open on the newest data and label ticks uniquely', async ({ page, appURL, data }) => {

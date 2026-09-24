@@ -90,3 +90,29 @@ test('the restore question, its result, photo comparison and the damaged-data ca
     await check('damaged data');
   }
 });
+
+test('the wide layout (tabs in the header, History month by month) and a photo that cannot be shown have no problems axe can find', async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 0; i < 120; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { lunch: 1500 + (i % 10) * 10 }, 170 + (i % 5) / 10);
+  }
+  await data.seed(entries);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(appURL);
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate((t) => localStorage.setItem('kenna:theme', t), theme);
+    await page.goto(`${appURL}/#/history`);
+    await expect(page.locator('.months-overview')).toBeVisible();
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+    expect(results.violations.map((v) => `history (${theme}): ${v.id}`)).toEqual([]);
+  }
+
+  await page.goto(`${appURL}/#/photos`);
+  const heic = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypheic'), Buffer.alloc(64)]);
+  await page.locator('input[type=file]').setInputFiles({ name: 'IMG_0001.HEIC', mimeType: 'image/heic', buffer: heic });
+  await page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' }).click();
+  await expect(page.getByRole('dialog').getByText("Can't preview in this browser")).toBeVisible();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+  expect(results.violations.map((v) => `photo viewer: ${v.id} — ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([]);
+});

@@ -143,12 +143,19 @@ h2[tabindex='-1']:focus { outline: none; }
 
 /* ------------------------------------------------------------ header + tabs */
 
+/* On a phone the brand and Settings share the first row and the tabs fill
+   the second; on a wide screen all three share one row (see the end). */
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  padding: var(--s3) var(--s4) var(--s2);
+  row-gap: var(--s2);
+  padding: var(--s3) var(--s4);
 }
+
+.brand-block { flex: 1; order: 1; }
+.topbar > .icon-btn { order: 2; }
 
 .brand {
   font-size: var(--fs-lg);
@@ -164,10 +171,12 @@ h2[tabindex='-1']:focus { outline: none; }
 }
 
 .tabs {
+  order: 3;
+  flex: 1 0 100%;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--s1);
-  margin: 0 var(--s4) var(--s3);
+  margin: 0;
   padding: var(--s1);
   background: var(--card);
   border-radius: var(--r-md);
@@ -517,6 +526,9 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .history-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
 
 .history-month + .history-month { margin-top: var(--s5); }
+.months-overview { display: none; }
+.months-overview .meal-table thead th { position: sticky; top: 0; background: var(--card); }
+.month-link { min-height: 32px; min-width: 0; padding: 0 var(--s1); margin-left: calc(-1 * var(--s1)); }
 .history-month-title { font-size: var(--fs-md); font-weight: 700; margin: var(--s2) 0 0; }
 .history-month-title:focus { outline: none; }
 .history-month-title:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
@@ -952,7 +964,17 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
    answers on the left, charts and the rest on the right. */
 @media (min-width: 900px) {
   .app { max-width: 1120px; }
-  .tabs { max-width: 560px; }
+  /* Brand, tabs and Settings in one row, their outer edges lined up with
+     the columns below. */
+  .topbar { flex-wrap: nowrap; column-gap: var(--s4); padding-top: var(--s4); padding-bottom: var(--s4); }
+  .tabs { order: 2; flex: 0 1 560px; }
+  .topbar > .icon-btn { order: 3; }
+  /* History: the months' averages beside the list (and in place of Go to
+     month), staying in view while the list scrolls. */
+  .months-overview { display: block; }
+  .history-jump { display: none; }
+  .history-side { position: sticky; top: var(--s4); }
+  .months-overview-scroll { max-height: calc(100vh - 26rem); min-height: 12rem; overflow-y: auto; }
   .screen-stack.two-col {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
