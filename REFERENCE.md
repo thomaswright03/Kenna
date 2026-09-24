@@ -267,8 +267,10 @@ The damaged data itself is kept aside (the two most recent damaged copies,
 never more), and Settings then shows a card to **Download damaged data**
 as a file or **Delete damaged data**.
 
-Kenna open in two windows or tabs on the same device (say, the Home
-Screen app and a Safari tab) shares the same days. A change saved in one
+Kenna open in two windows or tabs of the same browser (two Safari tabs,
+two windows on a laptop, or Chrome and the app installed from it on
+Android) shares the same days; on iPhone the Home Screen app keeps its
+own, separate storage. A change saved in one
 shows in the other at once, and again whenever that one comes back into
 view. The Weight box and the Log Meal box take the new value if nothing
 different was typed in them ("Breakfast changed to 450 cal in another
