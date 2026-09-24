@@ -36,6 +36,54 @@ async function stallableServer() {
 }
 
 test.describe('phone version', () => {
+  test('a slow screen shows Loading…, the screen being left can’t be used meanwhile, and a newer screen wins', async ({ page, appURL }) => {
+    // Photo storage that answers slowly once __photoDelay is set, as on a
+    // phone short of memory.
+    await page.addInitScript(() => {
+      const own = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, 'oncomplete');
+      Object.defineProperty(IDBTransaction.prototype, 'oncomplete', {
+        configurable: true,
+        get() {
+          return own.get.call(this);
+        },
+        set(fn) {
+          own.set.call(
+            this,
+            fn &&
+              function (event) {
+                const delay = window.__photoDelay || 0;
+                if (delay) setTimeout(() => fn.call(this, event), delay);
+                else fn.call(this, event);
+              }
+          );
+        },
+      });
+    });
+    await page.goto(appURL);
+    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+    await page.evaluate(() => {
+      window.__photoDelay = 1500;
+    });
+    const nav = page.getByRole('navigation', { name: 'Main' });
+    await nav.getByRole('link', { name: 'Photos' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeVisible();
+    await expect(page.locator('#main')).toHaveAttribute('inert', '');
+    const focused = await page.getByLabel('Weight (lbs)').evaluate((el) => {
+      el.focus();
+      return document.activeElement === el;
+    });
+    expect(focused).toBe(false);
+
+    // History, opened before Photos has loaded, stays once Photos arrives.
+    await nav.getByRole('link', { name: 'History' }).click();
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+    await expect(page.locator('#main')).not.toHaveAttribute('inert', '');
+    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeHidden();
+    await page.waitForTimeout(2000);
+    await expect(page.getByRole('heading', { name: 'Photos' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  });
+
   test('two tabs editing the same day keep both meals', async ({ page, appURL, context, data }) => {
     await page.goto(`${appURL}/#/log/breakfast`);
     const other = await context.newPage();
