@@ -881,6 +881,18 @@
     return null;
   }
 
+  // A photo's bytes as base64, for backup files and uploads to the server.
+  // Encoded in slices so a large photo never needs one huge argument list.
+  /** @param {Blob} blob @returns {Promise<string>} */
+  async function blobToBase64(blob) {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const SLICE = 0x2000;
+    /** @type {string[]} */
+    const parts = [];
+    for (let i = 0; i < bytes.length; i += SLICE) parts.push(String.fromCharCode(...bytes.subarray(i, i + SLICE)));
+    return btoa(parts.join(''));
+  }
+
   /** @type {Record<string, string>} */
   const IMAGE_EXTENSIONS = {
     'image/jpeg': 'jpg',
@@ -906,7 +918,6 @@
     IMAGE_EXTENSIONS,
     todayStr,
     localDateStr,
-    parseDateStr,
     isValidDateStr,
     dayNumber,
     dateFromDayNumber,
@@ -918,16 +929,13 @@
     yearsBetween,
     formatRelativeDate,
     formatMonth,
-    formatMonthDay,
     formatNumber,
     formatCalories,
     formatWeight,
     emptyMeals,
     normalizeMealValue,
-    normalizeWeight,
     normalizeEntry,
     sanitizeEntries,
-    hasMeals,
     isEntryEmpty,
     totalCalories,
     applyPatch,
@@ -955,5 +963,6 @@
     axisMinSpan,
     dateAxisLabels,
     sniffImageType,
+    blobToBase64,
   });
 });

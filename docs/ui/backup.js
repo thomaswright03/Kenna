@@ -4,19 +4,6 @@ import { core, h, uid, prefs, today, visibleEntries, plural, formatBytes, errorT
 import { confirmDialog } from './feedback.js';
 import { store } from './store.js';
 
-/**
- * @param {Blob} blob
- * @returns {Promise<string>} the blob's bytes as base64
- */
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
-}
-
 /** @param {Blob} blob @param {string} filename */
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -49,7 +36,7 @@ export async function exportBackup(onProgress) {
   for (let i = 0; i < photos.length; i += 1) {
     onProgress(`Adding photos: ${i + 1} of ${photos.length}…`, i, photos.length);
     const blob = await store.getPhotoBlob(photos[i]);
-    writer.addPhoto({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await blobToBase64(blob) });
+    writer.addPhoto({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await core.blobToBase64(blob) });
   }
   onProgress('Creating backup file…', photos.length, photos.length);
   const file = writer.finish();

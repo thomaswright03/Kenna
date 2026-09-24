@@ -390,3 +390,10 @@ test('a day long before anything logged is flagged as a likely mistyped year', (
   assert.equal(core.yearsBetween('2025-09-25', '2026-09-24'), 0);
   assert.equal(core.yearsBetween('2024-09-24', '2026-09-24'), 2);
 });
+
+test('photo bytes are encoded as base64 exactly as the browser would', async () => {
+  const bytes = new Uint8Array(70000);
+  for (let i = 0; i < bytes.length; i += 1) bytes[i] = (i * 7) % 256;
+  assert.equal(await core.blobToBase64(new Blob([bytes])), Buffer.from(bytes).toString('base64'));
+  assert.equal(await core.blobToBase64(new Blob([])), '');
+});

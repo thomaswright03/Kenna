@@ -162,13 +162,8 @@
     }
 
     /** @param {Blob} blob @returns {Promise<string>} */
-    function blobToDataUrl(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(blob);
-      });
+    async function blobToDataUrl(blob) {
+      return `data:${blob.type || 'application/octet-stream'};base64,${await core.blobToBase64(blob)}`;
     }
 
     /** @param {{ date: string, createdAt?: string, blob?: Blob, type?: string, data?: string, thumb?: Blob | null }} photo */

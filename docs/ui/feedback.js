@@ -39,7 +39,7 @@ const liveToasts = new Map();
  * A short message at the bottom of the screen. At most one message without
  * a button shows at a time (a new one replaces it), a tap on it dismisses
  * it, and moving to another screen clears it unless `keepOnNavigate` says
- * it's about the screen being opened (Done's "Saved for Today").
+ * it's about the screen being opened (Save and close's "Saved for Today").
  * @param {string} message
  * @param {ToastOptions & { keepOnNavigate?: boolean }} [options]
  * @returns {() => void} dismisses the toast
