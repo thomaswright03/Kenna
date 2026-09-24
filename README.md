@@ -93,6 +93,14 @@ saves one straight away, and **Not now** hides the reminder for three days.
 
 The file does not contain settings such as the theme or chart range.
 
+Backup files are written and read a photo at a time (reading goes through
+the file in 1 MB pieces), so a large photo library never has to fit in the
+browser's memory at once: a year of daily photos makes a file of about
+150 MB. The automated tests export and restore 365 photos of that size.
+Import checks the whole file first, then adds the days and the photos; if
+it is interrupted part-way, importing the same file again adds only the
+photos that are still missing.
+
 ## Alternative: run your own server (`server.js`)
 
 A Node/Express version stores everything in files on the computer running it
@@ -140,6 +148,7 @@ addresses on the server show a "Page not found" page with a link to the app.
 ```
 docs/            the app (also what GitHub Pages serves)
   core.js        data rules shared by the app, the server and the tests
+  backup-file.js writes and reads backup files a piece at a time
   store-local.js browser storage (localStorage + IndexedDB)
   store-server.js server storage (HTTP API)
   backend.js     picks the storage; server.js serves its own version

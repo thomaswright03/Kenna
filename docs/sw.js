@@ -9,7 +9,7 @@
 // pre-caches the whole new set together, so a phone that goes offline right
 // after an update still has matching files. A test checks every listed file
 // exists.
-const CACHE_NAME = 'kenna-v7';
+const CACHE_NAME = 'kenna-v8';
 
 const APP_SHELL = [
   './',
@@ -18,6 +18,7 @@ const APP_SHELL = [
   './core.js',
   './store-local.js',
   './store-server.js',
+  './backup-file.js',
   './app.js',
   './ui/backup-reminder.js',
   './ui/backup.js',

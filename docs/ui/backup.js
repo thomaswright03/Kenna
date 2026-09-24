@@ -44,13 +44,14 @@ export async function exportBackup(onProgress) {
   const days = {};
   for (const e of visibleEntries(entries)) days[e.date] = e;
   const photos = await store.listPhotos();
-  const encoded = [];
+  const writer = window.KennaBackupFile.createBackupWriter(days, new Date().toISOString());
   for (let i = 0; i < photos.length; i += 1) {
     onProgress(`Adding photos: ${i + 1} of ${photos.length}…`, i, photos.length);
     const blob = await store.getPhotoBlob(photos[i]);
-    encoded.push({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await blobToBase64(blob) });
+    writer.addPhoto({ date: photos[i].date, createdAt: photos[i].createdAt, type: blob.type || photos[i].type, data: await blobToBase64(blob) });
   }
-  const file = new Blob(core.serializeBackup(days, encoded, new Date().toISOString()), { type: 'application/json' });
+  onProgress('Saving backup file…', photos.length, photos.length);
+  const file = writer.finish();
   const filename = `kenna-backup-${today()}.json`;
   downloadBlob(file, filename);
   prefs.set('lastBackupAt', new Date().toISOString());
@@ -152,40 +153,45 @@ export function buildBackupSection() {
     fileInput.value = '';
     if (!file) return;
     busy(true);
+    shareSlot.replaceChildren();
+    const backupFile = window.KennaBackupFile;
     try {
+      // First pass: check the whole file without changing anything.
       setMessage('pending', 'Checking backup file…');
-      const parsed = core.parseBackup(await file.text());
-      if (!parsed.ok) {
-        setMessage('error', parsed.error);
+      const checked = await backupFile.checkBackup(file, (n) => setMessage('pending', `Checking backup file: ${plural(n, 'photo')} so far…`));
+      if (!checked.ok) {
+        setMessage('error', checked.error);
         return;
       }
       setMessage(null, '');
       const ok = await confirmDialog({
         title: 'Restore from this backup?',
-        message: `It has ${plural(parsed.dayCount, 'day')} and ${plural(
-          parsed.photoCount,
+        message: `It has ${plural(checked.dayCount, 'day')} and ${plural(
+          checked.photoCount,
           'photo'
-        )}. Days in the file replace the same days here; other days and photos stay as they are.`,
+        )} (${formatBytes(file.size)}). Days in the file replace the same days here; other days and photos stay as they are.`,
         confirmLabel: 'Restore',
       });
       if (!ok) return;
       setMessage('pending', 'Restoring days…');
-      const restored = await store.importEntries(parsed.entries);
-      let photoResult = { added: 0, skipped: 0 };
-      if (parsed.photos.length) {
-        setProgress(0, parsed.photos.length);
-        photoResult = await store.importPhotos(parsed.photos, (done, total) => {
-          setMessage('pending', `Restoring photos: ${done} of ${total}…`);
-          setProgress(done, total);
+      const restored = await store.importEntries(checked.entries);
+      // Second pass: add the photos one at a time.
+      let added = 0;
+      let skipped = 0;
+      if (checked.photoCount > 0) {
+        setProgress(0, checked.photoCount);
+        const importer = await store.createPhotoImporter();
+        await backupFile.forEachBackupPhoto(file, async (photo, n) => {
+          if (await importer.add(photo)) added += 1;
+          else skipped += 1;
+          setMessage('pending', `Restoring photos: ${n} of ${checked.photoCount}…`);
+          setProgress(n, checked.photoCount);
         });
       }
-      const skippedNote = photoResult.skipped
-        ? ` ${plural(photoResult.skipped, 'photo')} ${photoResult.skipped === 1 ? 'was' : 'were'} already here.`
-        : '';
-      const summary = `Restored ${plural(restored, 'day')} and ${plural(photoResult.added, 'photo')}.${skippedNote}`;
-      setMessage('saved', summary);
+      const skippedNote = skipped ? ` ${plural(skipped, 'photo')} ${skipped === 1 ? 'was' : 'were'} already here.` : '';
+      setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}`);
     } catch (err) {
-      setMessage('error', `Import stopped. ${errorText(err)}`);
+      setMessage('error', `Import stopped. ${errorText(err)} Days already restored are kept; importing the file again adds the photos that are missing.`);
     } finally {
       setProgress(0, 0);
       busy(false);

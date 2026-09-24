@@ -213,6 +213,13 @@
       });
     }
 
+    async function createPhotoImporter() {
+      return {
+        /** @param {import('./core.js').BackupPhoto} p */
+        add: (p) => serial(async () => !((await postPhoto(p)) || {}).duplicate),
+      };
+    }
+
     return {
       kind: /** @type {const} */ ('server'),
       init: async () => ({ ok: true }),
@@ -228,11 +235,12 @@
       getPhotoBlob,
       photoSrc,
       importPhotos,
+      createPhotoImporter,
       requestPersistence: async () => null,
       persistenceStatus: async () => null,
       onExternalChange: () => {},
     };
   }
 
-  return { createServerStore, REQUEST_TIMEOUT_MS, NOT_RESPONDING };
+  return Object.freeze({ createServerStore, REQUEST_TIMEOUT_MS, NOT_RESPONDING });
 });

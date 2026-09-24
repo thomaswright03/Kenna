@@ -466,38 +466,15 @@
     return String(p.createdAt);
   }
 
-  // Returns the backup as an array of string chunks (for a Blob), so a
-  // backup with many photos never has to exist as one giant string.
-  function serializeBackup(entries, photos, exportedAt) {
-    const parts = [
-      `{"app":"kenna","version":${BACKUP_VERSION},"exportedAt":${JSON.stringify(exportedAt)},"entries":`,
-      JSON.stringify(entries),
-      ',"photos":[',
-    ];
-    (photos || []).forEach((p, i) => {
-      if (i > 0) parts.push(',');
-      parts.push(JSON.stringify({ date: p.date, createdAt: p.createdAt, type: p.type, data: p.data }));
-    });
-    parts.push(']}');
-    return parts;
-  }
-
-  // Validates a whole backup before anything is changed. Returns
-  // { ok: true, entries, photos, dayCount, photoCount } or { ok: false, error }.
   /**
-   * @param {unknown} input the file's text, or its parsed JSON
-   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number } | { ok: false, error: string }}
+   * Checks everything in a backup except its photos: that it's a Kenna
+   * backup this version can read, and every day in it. Problems are added
+   * to `problems`.
+   * @param {any} payload the backup's top-level object (photos not needed)
+   * @param {string[]} problems
+   * @returns {{ ok: true, entries: Record<string, Entry> } | { ok: false, error: string }}
    */
-  function parseBackup(input) {
-    /** @type {any} */
-    let payload = input;
-    if (typeof input === 'string') {
-      try {
-        payload = JSON.parse(input);
-      } catch {
-        return { ok: false, error: "This file isn't a Kenna backup: it isn't readable backup data." };
-      }
-    }
+  function checkBackupDays(payload, problems) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return { ok: false, error: "This file isn't a Kenna backup." };
     }
@@ -510,15 +487,68 @@
     if (!payload.entries || typeof payload.entries !== 'object' || Array.isArray(payload.entries)) {
       return { ok: false, error: "This file isn't a Kenna backup: it has no days in it." };
     }
-
     /** @type {Record<string, Entry>} */
     const entries = {};
-    const problems = [];
     for (const date of Object.keys(payload.entries)) {
       const result = validateIncomingEntry(date, payload.entries[date]);
       if (result.ok) entries[date] = result.entry;
       else problems.push(result.error);
     }
+    return { ok: true, entries };
+  }
+
+  /**
+   * Checks one photo from a backup (`n` counts from 1, for messages).
+   * @param {any} p
+   * @param {number} n
+   * @returns {{ ok: true, photo: BackupPhoto } | { ok: false, error: string }}
+   */
+  function checkBackupPhoto(p, n) {
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return { ok: false, error: `Photo ${n} isn't in the expected format.` };
+    if (!isValidDateStr(p.date)) return { ok: false, error: `Photo ${n} has no valid date.` };
+    if (typeof p.createdAt !== 'string' || Number.isNaN(Date.parse(p.createdAt))) {
+      return { ok: false, error: `Photo ${n} has no valid upload time.` };
+    }
+    if (typeof p.type !== 'string' || !/^image\/[\w.+-]+$/.test(p.type)) return { ok: false, error: `Photo ${n} isn't an image.` };
+    if (typeof p.data !== 'string' || p.data.length === 0 || !/^[A-Za-z0-9+/]+=*$/.test(p.data)) {
+      return { ok: false, error: `Photo ${n}'s image data is damaged.` };
+    }
+    return { ok: true, photo: { date: p.date, createdAt: p.createdAt, type: p.type, data: p.data } };
+  }
+
+  /**
+   * The message for a backup with problems (the first one, and how many more).
+   * @param {string[]} problems
+   */
+  function backupProblemsMessage(problems) {
+    const extra = problems.length > MAX_BACKUP_ISSUES_SHOWN ? ` (and ${problems.length - 1} more problem${problems.length > 2 ? 's' : ''})` : '';
+    return `Nothing was imported. ${problems[0]}${extra}`;
+  }
+
+  const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
+
+  // Validates a whole backup held in memory before anything is changed (the
+  // server's import, and small files). The app reads backup files in pieces
+  // instead (backup-file.js), so a large photo library never has to be in
+  // memory at once; both apply the same checks.
+  /**
+   * @param {unknown} input the file's text, or its parsed JSON
+   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number } | { ok: false, error: string }}
+   */
+  function parseBackup(input) {
+    /** @type {any} */
+    let payload = input;
+    if (typeof input === 'string') {
+      try {
+        payload = JSON.parse(input);
+      } catch {
+        return { ok: false, error: UNREADABLE_BACKUP };
+      }
+    }
+    /** @type {string[]} */
+    const problems = [];
+    const days = checkBackupDays(payload, problems);
+    if (!days.ok) return days;
 
     /** @type {BackupPhoto[]} */
     const photos = [];
@@ -526,30 +556,16 @@
       if (!Array.isArray(payload.photos)) {
         problems.push('The photos section is not in the expected format.');
       } else {
-        payload.photos.forEach((p, i) => {
-          const n = i + 1;
-          if (!p || typeof p !== 'object') return problems.push(`Photo ${n} isn't in the expected format.`);
-          if (!isValidDateStr(p.date)) return problems.push(`Photo ${n} has no valid date.`);
-          if (typeof p.createdAt !== 'string' || Number.isNaN(Date.parse(p.createdAt))) {
-            return problems.push(`Photo ${n} has no valid upload time.`);
-          }
-          if (typeof p.type !== 'string' || !/^image\/[\w.+-]+$/.test(p.type)) {
-            return problems.push(`Photo ${n} isn't an image.`);
-          }
-          if (typeof p.data !== 'string' || p.data.length === 0 || !/^[A-Za-z0-9+/]+=*$/.test(p.data)) {
-            return problems.push(`Photo ${n}'s image data is damaged.`);
-          }
-          photos.push({ date: p.date, createdAt: p.createdAt, type: p.type, data: p.data });
-          return undefined;
+        payload.photos.forEach((/** @type {unknown} */ p, /** @type {number} */ i) => {
+          const result = checkBackupPhoto(p, i + 1);
+          if (result.ok) photos.push(result.photo);
+          else problems.push(result.error);
         });
       }
     }
 
-    if (problems.length > 0) {
-      const extra = problems.length > MAX_BACKUP_ISSUES_SHOWN ? ` (and ${problems.length - 1} more problem${problems.length > 2 ? 's' : ''})` : '';
-      return { ok: false, error: `Nothing was imported. ${problems[0]}${extra}` };
-    }
-    return { ok: true, entries, photos, dayCount: Object.keys(entries).length, photoCount: photos.length };
+    if (problems.length > 0) return { ok: false, error: backupProblemsMessage(problems) };
+    return { ok: true, entries: days.entries, photos, dayCount: Object.keys(days.entries).length, photoCount: photos.length };
   }
 
   // When the Today screen reminds the user to save a backup file.
@@ -644,7 +660,9 @@
     'image/heif': 'heif',
   };
 
-  return {
+  // Frozen: nothing may replace these rules at run time, and it lets the
+  // type checker flag a misspelt name.
+  return Object.freeze({
     MEAL_STEPS,
     MEAL_KEYS,
     LIMITS,
@@ -685,9 +703,12 @@
     validateIncomingEntry,
     photoKey,
     backupReminderDue,
-    serializeBackup,
+    checkBackupDays,
+    checkBackupPhoto,
+    backupProblemsMessage,
+    UNREADABLE_BACKUP,
     parseBackup,
     niceTicks,
     sniffImageType,
-  };
+  });
 });

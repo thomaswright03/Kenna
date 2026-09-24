@@ -38,6 +38,7 @@
  * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob
  * @property {(photo: Photo) => { url: string, release: () => void }} photoSrc
  * @property {(photos: BackupPhoto[], onProgress?: (done: number, total: number) => void) => Promise<{ added: number, skipped: number }>} importPhotos
+ * @property {() => Promise<{ add: (photo: BackupPhoto) => Promise<boolean> }>} createPhotoImporter adds backup photos one at a time; `add` resolves false for a photo that's already here
  * @property {() => Promise<boolean | null>} requestPersistence
  * @property {() => Promise<boolean | null>} persistenceStatus
  * @property {(callback: () => void) => void} onExternalChange
@@ -312,24 +313,34 @@
       return new Blob([bytes], { type });
     }
 
-    // Adds backup photos ({ date, createdAt, type, data: base64 }) that
-    // aren't already here (matched by the time each was first added), so
-    // importing the same backup twice never duplicates anything.
+    // Adds backup photos ({ date, createdAt, type, data: base64 }) one at a
+    // time, skipping any already here (matched by the time each was first
+    // added), so importing the same backup twice never duplicates anything.
+    async function createPhotoImporter() {
+      const seen = new Set((await listPhotos()).map(core.photoKey));
+      return {
+        /** @param {BackupPhoto} p */
+        async add(p) {
+          const key = core.photoKey(p);
+          if (seen.has(key)) return false;
+          await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
+          seen.add(key);
+          return true;
+        },
+      };
+    }
+
+    /**
+     * @param {BackupPhoto[]} photos
+     * @param {(done: number, total: number) => void} [onProgress]
+     */
     async function importPhotos(photos, onProgress) {
-      const existing = await listPhotos();
-      const seen = new Set(existing.map(core.photoKey));
+      const importer = await createPhotoImporter();
       let added = 0;
       let skipped = 0;
       for (let i = 0; i < photos.length; i += 1) {
-        const p = photos[i];
-        const key = core.photoKey(p);
-        if (seen.has(key)) {
-          skipped += 1;
-        } else {
-          await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
-          seen.add(key);
-          added += 1;
-        }
+        if (await importer.add(photos[i])) added += 1;
+        else skipped += 1;
         if (onProgress) onProgress(i + 1, photos.length);
       }
       return { added, skipped };
@@ -385,11 +396,12 @@
       getPhotoBlob,
       photoSrc,
       importPhotos,
+      createPhotoImporter,
       requestPersistence,
       persistenceStatus,
       onExternalChange,
     };
   }
 
-  return { createLocalStore, ENTRIES_KEY, BACKUP_KEY, CORRUPT_KEY, StorageWriteError };
+  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, CORRUPT_KEY, StorageWriteError });
 });

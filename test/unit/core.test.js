@@ -156,14 +156,13 @@ test('backup parsing rejects malformed files with a specific message', () => {
   );
 });
 
-test('backup round-trip keeps days and photos; version-1 files still import', () => {
+test('a whole backup parses with its days and photos; version-1 files still import', () => {
   const entries = {
     '2026-09-23': entry('2026-09-23', { breakfast: 400 }, 180.2),
     '2026-09-24': entry('2026-09-24', {}, 179.8),
   };
   const photos = [{ date: '2026-09-23', createdAt: '2026-09-23T08:00:00.000Z', type: 'image/jpeg', data: 'AAECAw==' }];
-  const text = core.serializeBackup(entries, photos, '2026-09-24T10:00:00.000Z').join('');
-  const parsed = core.parseBackup(text);
+  const parsed = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, exportedAt: '2026-09-24T10:00:00.000Z', entries, photos }));
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.entries, entries);
   assert.deepEqual(parsed.photos, photos);
