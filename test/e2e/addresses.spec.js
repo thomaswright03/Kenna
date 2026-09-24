@@ -38,6 +38,5 @@ test('days dated in the future are left out of History and averages', async ({ p
   await page.goto(`${appURL}/#/history`);
   await expect(page.locator('.history-item')).toHaveCount(2);
   await page.goto(`${appURL}/#/compare`);
-  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
-  await expect(total.locator('.compare-row').nth(2)).toContainText('2,000 cal');
+  await expect(page.locator('[data-answer="calories"]')).toContainText('average day 2,000 cal');
 });

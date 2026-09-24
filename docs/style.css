@@ -47,6 +47,7 @@
   --chart-calories: #15803d;
   --chart-weight: #1d4ed8;
   --bar-muted: #94a3b8;
+  --bar-today: #334155;
   --shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
   --scrim: rgba(15, 23, 42, 0.6);
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.2);
@@ -81,6 +82,7 @@
   --chart-calories: #22c55e;
   --chart-weight: #60a5fa;
   --bar-muted: #64748b;
+  --bar-today: #e2e8f0;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --scrim: rgba(0, 0, 0, 0.85);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -508,51 +510,68 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 
 /* ------------------------------------------------------------ compare */
 
-.compare-metric {
-  padding: var(--s3) 0 var(--s4);
-  border-bottom: 1px solid var(--border);
+.compare-answers { display: flex; flex-direction: column; gap: var(--s3); }
+
+.compare-answer {
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+  background: var(--card-2);
 }
 
-.compare-metric:last-child { border-bottom: none; padding-bottom: 0; }
+.compare-answer-label {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 
-.compare-label { font-size: var(--fs-sm); font-weight: 600; margin: 0 0 var(--s2); }
+.compare-answer-text { margin: var(--s1) 0 0; font-size: var(--fs-md); font-weight: 600; line-height: 1.35; }
+.compare-answer-text strong { font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
+.compare-answer-detail { margin: var(--s1) 0 0; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 
-.compare-row {
+/* Plain amounts from zero: longer means more, nothing more. */
+.amount-bars { list-style: none; margin: var(--s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.amount-row {
   display: grid;
-  grid-template-columns: 88px 1fr 88px;
+  grid-template-columns: 96px 1fr auto;
   align-items: center;
   gap: var(--s2);
-  min-height: 24px;
-  margin-bottom: var(--s1);
+  font-size: var(--fs-xs);
+  color: var(--muted);
 }
+.amount-row.is-today { color: var(--text); font-weight: 600; }
+.amount-track { height: 12px; border-radius: var(--s1); background: var(--card); overflow: hidden; }
+.amount-bar { display: block; height: 100%; border-radius: var(--s1); background: var(--bar-muted); }
+.amount-row.is-today .amount-bar { background: var(--bar-today); }
+.amount-value { font-variant-numeric: tabular-nums; text-align: right; min-width: 64px; }
 
-.compare-cat { font-size: var(--fs-xs); color: var(--muted); }
-.compare-row.is-today .compare-cat { color: var(--text); font-weight: 600; }
-
-.compare-track { position: relative; height: 20px; background: var(--card-2); border-radius: var(--s1); overflow: hidden; }
-/* The average: the line every bar starts from. */
-.compare-track::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(50% - 1px);
-  width: 2px;
-  background: var(--muted);
+.compare-meals { margin-top: var(--s4); border-top: 1px solid var(--border); }
+.compare-meals summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: var(--s2) 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-text);
+  cursor: pointer;
+  list-style: none;
 }
-.compare-track.is-plain { visibility: hidden; }
-.compare-bar { position: absolute; top: 3px; bottom: 3px; background: var(--bar-muted); }
-.compare-bar.is-above { left: 50%; border-radius: 0 var(--s1) var(--s1) 0; }
-.compare-bar.is-below { right: 50%; border-radius: var(--s1) 0 0 var(--s1); }
-.compare-bar.is-today { background: var(--accent); }
+.compare-meals summary::-webkit-details-marker { display: none; }
+.compare-meals summary::before { content: '▸'; display: inline-block; width: 1.2em; flex-shrink: 0; }
+.compare-meals[open] summary::before { content: '▾'; }
 
-.compare-value { font-size: var(--fs-xs); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
-
-.compare-empty { grid-column: 2 / 4; font-size: var(--fs-xs); color: var(--muted); }
+.meal-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.meal-table th, .meal-table td { padding: var(--s2) var(--s1); text-align: right; border-bottom: 1px solid var(--border); }
+.meal-table th:first-child { text-align: left; }
+.meal-table thead th { font-size: var(--fs-xs); color: var(--muted); font-weight: 600; }
+.meal-table tbody th { font-weight: 600; }
 
 .compare-caption { font-size: var(--fs-xs); color: var(--muted); margin: var(--s2) 0 0; }
 
-.compare-first { padding: var(--s3); margin: 0; }
+.compare-first { padding: var(--s3); margin: 0 0 var(--s3); }
 
 /* ------------------------------------------------------------ charts */
 
@@ -608,7 +627,9 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .chart-title { font-size: var(--fs-md); font-weight: 600; margin: 0; }
 .chart-sub { font-size: var(--fs-xs); color: var(--muted); margin: 0; }
 
-.chart-latest { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chart-head > :first-child { flex: 1; min-width: 0; }
+/* The latest value and its date each stay on one line. */
+.chart-latest { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chart-latest-date { font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
 .chart-latest.series-calories { color: var(--chart-calories); }
 .chart-latest.series-weight { color: var(--chart-weight); }

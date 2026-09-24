@@ -26,12 +26,16 @@ data never leaves your device.
   keeps an **Undo** button in its row until you leave that screen.
 - **History** lists every logged day with its total calories and weight. Tap a
   day to open it.
-- **Compare** puts today's weight, total calories and each meal next to
-  yesterday and your all-time average, with bars showing how far each is
-  above or below the average, followed by 7-day rolling averages of
-  calories and weight. Today's calories are labelled "so far", and the
-  7-day calorie average leaves today out until the day is over (today's
-  running total is drawn hollow on the Today screen's Calories chart).
+- **Compare** answers "how am I doing today?" first, in two sentences:
+  calories so far against your average day ("So far today: 500 cal more
+  than your average day") and today's weight against your average weight
+  and yesterday ("0.6 lbs below your average"), with the numbers behind
+  each. Plain bars show today's calories so far, the average day and
+  yesterday side by side, from zero. Each meal's today, yesterday and
+  average are one tap further down (**Each meal…**). Below that are
+  7-day rolling averages of calories and weight. The 7-day calorie average
+  leaves today out until the day is over (today's running total is drawn
+  hollow on the Today screen's Calories chart).
 - **Photos** stores progress pictures, filed under the day they were taken:
   pick the day before adding one (it starts at today, and future days aren't
   allowed), and change it later from the photo viewer. Deleting one asks for

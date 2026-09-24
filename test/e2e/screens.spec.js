@@ -15,12 +15,10 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
   });
 
   await page.goto(`${appURL}/#/compare`);
-  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
-  await expect(total.locator('.compare-row').nth(1)).toContainText('No meals logged');
-  await expect(total.locator('.compare-row').nth(2)).toContainText('2,000 cal');
-  await expect(total).toContainText('▼ −1,000 cal vs average');
-  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
-  await expect(weight.locator('.compare-row').nth(1)).toContainText('180 lbs');
+  const calories = page.locator('[data-answer="calories"]');
+  await expect(calories).toContainText('So far today: 1,000 cal less than your average day.');
+  await expect(calories).toContainText('average day 2,000 cal · no meals logged yesterday');
+  await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180 lbs)');
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 
   await page.goto(`${appURL}/#/history`);
@@ -171,34 +169,53 @@ test('a weight is shown everywhere as it was entered, to two decimals', async ({
   await page.goto(`${appURL}/#/history`);
   await expect(page.locator('.history-item', { hasText: 'Today' })).toContainText('165.25 lbs');
   await page.goto(`${appURL}/#/compare`);
-  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
-  await expect(weight.locator('.compare-row').first()).toContainText('165.25 lbs');
-  await expect(weight.locator('.compare-caption')).toContainText('▼ −0.75 lbs vs yesterday');
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(weight).toContainText('165.25 lbs today: 0.8 lbs below your average.');
+  await expect(weight).toContainText('average 166 lbs · 0.75 lbs down from yesterday (166 lbs)');
 });
 
-test('Compare bars show the difference from the all-time average', async ({ page, appURL, data }) => {
+test('Compare answers how today stands in plain sentences, within the first screenful', async ({ page, appURL, data }) => {
   await data.seed({
-    '2026-09-22': day('2026-09-22', { lunch: 1900 }, 174.7),
-    '2026-09-23': day('2026-09-23', { lunch: 2100 }, 180.3),
-    [TODAY]: day(TODAY, { lunch: 1800 }, 179),
+    '2026-09-22': day('2026-09-22', { breakfast: 400, lunch: 1500 }, 174.7),
+    '2026-09-23': day('2026-09-23', { breakfast: 500, lunch: 1600 }, 180.3),
+    [TODAY]: day(TODAY, { breakfast: 450, lunch: 2300 }, 179),
   });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${appURL}/#/compare`);
-  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
-  const rows = weight.locator('.compare-row');
-  await expect(rows.nth(2)).toContainText('177.5 lbs');
-  await expect(rows.nth(2).locator('.compare-bar')).toHaveCount(0);
-  const track = await rows.nth(1).locator('.compare-track').boundingBox();
-  const yBar = await rows.nth(1).locator('.compare-bar.is-above').boundingBox();
-  const tBar = await rows.nth(0).locator('.compare-bar.is-above').boundingBox();
-  // Yesterday is the furthest from average (2.8 lbs), so its bar fills half the track.
-  expect(yBar.width).toBeGreaterThan(track.width * 0.45);
-  expect(tBar.width).toBeGreaterThan(track.width * 0.2);
-  expect(tBar.width).toBeLessThan(yBar.width * 0.7);
-  expect(Math.abs(yBar.x - (track.x + track.width / 2))).toBeLessThan(2);
+  const calories = page.locator('[data-answer="calories"]');
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 750 cal more than your average day.');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('179 lbs today: 1.5 lbs above your average.');
+  await expect(weight).toContainText('average 177.5 lbs · 1.3 lbs down from yesterday (180.3 lbs)');
+  for (const a of [calories.locator('.compare-answer-text'), weight.locator('.compare-answer-text')]) {
+    const box = await a.boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(844);
+  }
 
-  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
-  await expect(total.locator('.compare-row').nth(0).locator('.compare-bar.is-below')).toHaveCount(1);
-  await expect(total.locator('.compare-row').nth(1).locator('.compare-bar.is-above')).toHaveCount(1);
+  // Bars are plain amounts from zero, each labelled with its value; today's
+  // is set apart by shade only.
+  const rows = calories.locator('.amount-row');
+  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Average day\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
+  const widths = await rows.locator('.amount-bar').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+  expect(widths[0]).toBeGreaterThan(widths[2]);
+  expect(widths[2]).toBeGreaterThan(widths[1]);
+  expect(Math.abs(widths[1] / widths[0] - 2000 / 2750)).toBeLessThan(0.02);
+
+  // Each meal is one tap further down.
+  const meals = page.locator('.compare-meals');
+  await expect(meals.locator('summary')).toHaveText('Each meal: today, yesterday and average (2 logged today)');
+  await expect(meals.locator('table')).toBeHidden();
+  await meals.locator('summary').click();
+  await expect(meals.locator('tr[data-meal="lunch"]')).toHaveText(/Lunch\s*2,300\s*1,600\s*1,550/);
+  await expect(meals).toContainText('Never logged: Snack 1, Snack 2, Dinner, Snack 3.');
+});
+
+test('with no meals yet today, Compare says so and gives the average day', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, {}, 180) });
+  await page.goto(`${appURL}/#/compare`);
+  await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('No meals logged yet today. Your average day is 1,600 cal.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('180 lbs today: the same as your average.');
+  await expect(page.locator('.amount-bars')).toHaveCount(0);
 });
 
 test('Compare shows 7-day averages instead of repeating the daily charts', async ({ page, appURL, data }) => {
@@ -225,11 +242,10 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(trend).toContainText('1,900 cal');
   await expect(trend).toContainText('Yesterday');
   await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
-  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
-  await expect(total.locator('.compare-caption')).toHaveText('So far today: ▼ −1,500 cal vs yesterday · ▼ −1,500 cal vs average');
-  await expect(total.locator('.compare-row').first()).toContainText('Today so far');
-  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
-  await expect(weight.locator('.compare-caption')).not.toContainText('So far');
+  const calories = page.locator('[data-answer="calories"]');
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 1,500 cal less than your average day.');
+  await expect(calories.locator('.amount-row').first()).toContainText('Today so far');
+  await expect(page.locator('[data-answer="weight"]')).not.toContainText('So far');
 
   // The daily chart on Today shows the running total, marked as unfinished.
   await page.goto(appURL);
@@ -300,16 +316,14 @@ test('the header says what the app is, and each screen has its own title', async
 test('Compare explains once that there is nothing to compare with yet', async ({ page, appURL, data }) => {
   await page.goto(`${appURL}/#/compare`);
   await expect(page.getByText(/^Nothing logged yet\. Log today's weight/)).toBeVisible();
-  await expect(page.locator('.compare-metric')).toHaveCount(0);
+  await expect(page.locator('.compare-answer')).toHaveCount(0);
 
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 450 }, 181) });
   await page.goto(`${appURL}/#/compare`);
   await page.reload();
   await expect(page.getByText('Log a few more days to see how today compares.')).toHaveCount(1);
-  await expect(page.getByText('Not enough history to compare yet.')).toHaveCount(0);
-  await expect(page.locator('.compare-caption')).toHaveCount(0);
+  await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('450 cal so far today.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('181 lbs today.');
+  await expect(page.locator('.compare-answer-detail')).toHaveCount(0);
   await expect(page.getByText('No weight logged')).toHaveCount(0);
-  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
-  await expect(total.locator('.compare-row').first()).toContainText('450 cal');
-  await expect(page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) })).toContainText('181 lbs');
 });

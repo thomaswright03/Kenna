@@ -1,87 +1,188 @@
-// Compare: today next to yesterday and the all-time average, then 7-day
-// rolling averages.
+// Compare: how today stands against your average day and yesterday. The
+// top answers that in two sentences, calories and weight; each meal's
+// numbers are one tap further down; then the 7-day trend charts.
 
 import { core, h, MEAL_STEPS, today } from './dom.js';
 import { store } from './store.js';
 import { buildChartsCard } from './charts.js';
 
+/** @typedef {Record<string, number | null>} Stats */
+
+/** @param {number} n */
+const cal = (n) => core.formatCalories(n);
+/** @param {number} n @param {number} [decimals] */
+const lbs = (n, decimals) => core.formatWeight(n, decimals);
+
 /**
- * @typedef {'cal' | 'lbs'} Unit
- * @typedef {{ key: string, label: string, unit: Unit, empty: string, emptyToday: string, optional?: boolean }} Metric
+ * "500 cal more than", "the same as": today against a reference value.
+ * Calories compare in whole calories, weight to one decimal.
+ * @param {number} diff
+ * @param {'cal' | 'lbs'} unit
+ * @param {[string, string]} words above/below words, e.g. ['more than', 'less than']
+ * @param {number} [decimals] for weight: 1 against an average, 2 between two days as entered
  */
-
-// Weights logged on a day are shown as entered (up to two decimals);
-// averages, and differences from them, to one.
-/** @param {number} value @param {Unit} unit @param {number} [decimals] */
-function formatMetric(value, unit, decimals) {
-  return unit === 'lbs' ? core.formatWeight(value, decimals) : core.formatCalories(value);
-}
-
-/** @param {number} diff @param {Unit} unit @param {number} decimals */
-function formatDelta(diff, unit, decimals) {
+function difference(diff, unit, words, decimals = 1) {
   const scale = 10 ** decimals;
-  const rounded = unit === 'lbs' ? Math.round(diff * scale) / scale : Math.round(diff);
-  const arrow = rounded > 0 ? '▲' : rounded < 0 ? '▼' : '=';
-  const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '';
-  return `${arrow} ${sign}${formatMetric(Math.abs(rounded), unit, decimals)}`;
-}
-
-// Bars show each day's difference from the all-time average (the line down
-// the middle of each track): right of it is above average, left below. The
-// scale is set by the largest difference shown, but never finer than these,
-// so a trivial difference doesn't look dramatic.
-/** @type {Record<Unit, number>} */
-const MIN_SCALE = { lbs: 1, cal: 100 };
-
-/**
- * @param {{ label: string, value: number | null, unit: Unit, decimals: number, isToday: boolean, emptyText: string, baseline: number | null, scale: number, isBaseline?: boolean }} row
- */
-function compareRow(row) {
-  const el = h('div', { class: `compare-row${row.isToday ? ' is-today' : ''}` }, h('div', { class: 'compare-cat', text: row.label }));
-  if (row.value === null || row.value === undefined) {
-    el.append(h('div', { class: 'compare-empty', text: row.emptyText }));
-    return el;
-  }
-  const track = h('div', { class: `compare-track${row.baseline === null ? ' is-plain' : ''}`, 'aria-hidden': 'true' });
-  if (row.baseline !== null && !row.isBaseline) {
-    const diff = row.value - row.baseline;
-    const pct = Math.min(50, (Math.abs(diff) / row.scale) * 50);
-    if (pct > 0) {
-      const side = diff > 0 ? 'is-above' : 'is-below';
-      track.append(h('div', { class: `compare-bar ${side}${row.isToday ? ' is-today' : ''}`, style: `width:${Math.max(pct, 1.5)}%` }));
-    }
-  }
-  el.append(track, h('div', { class: 'compare-value', text: formatMetric(row.value, row.unit, row.decimals) }));
-  return el;
+  // Rounded the same way above and below (0.75 is 0.8 either way).
+  const rounded = (Math.sign(diff) * Math.round(Math.abs(diff) * (unit === 'lbs' ? scale : 1))) / (unit === 'lbs' ? scale : 1);
+  if (rounded === 0) return { amount: '', text: 'the same as', direction: 'same' };
+  const amount = unit === 'lbs' ? lbs(Math.abs(rounded), decimals) : cal(Math.abs(rounded));
+  return { amount, text: rounded > 0 ? words[0] : words[1], direction: rounded > 0 ? 'above' : 'below' };
 }
 
 /**
- * @param {Metric} metric
- * @param {number | null} t today
- * @param {number | null} y yesterday
- * @param {number | null} avg all-time average
- * @param {boolean} withCaption false when there's no earlier day: only today's value is shown
+ * One headline answer: a label, a sentence with the difference in bold,
+ * and the numbers behind it.
+ * @param {{ id: string, label: string, sentence: Node[], details: string[], extra?: HTMLElement | null }} a
  */
-function compareMetric(metric, t, y, avg, withCaption) {
-  const baseline = withCaption ? avg : null;
-  const diffs = [t, y].filter((v) => v !== null && v !== undefined && baseline !== null).map((v) => Math.abs(Number(v) - Number(baseline)));
-  const scale = Math.max(MIN_SCALE[metric.unit], ...diffs);
-  const parts = [];
-  if (t !== null && y !== null) parts.push(`${formatDelta(t - y, metric.unit, 2)} vs yesterday`);
-  if (t !== null && avg !== null) parts.push(`${formatDelta(t - avg, metric.unit, 1)} vs average`);
-  // Today's calories are still being logged, so they're compared as "so far".
-  const partial = metric.unit === 'cal';
-  let caption = parts.length ? `${partial ? 'So far today: ' : ''}${parts.join(' · ')}` : '';
-  if (!caption) caption = t === null ? `${metric.emptyToday} yet today.` : 'Not enough history to compare yet.';
-  const common = { unit: metric.unit, emptyText: metric.empty, baseline, scale };
+function answer(a) {
   return h(
     'div',
-    { class: 'compare-metric' },
-    h('h3', { class: 'compare-label', text: metric.label }),
-    compareRow({ ...common, label: partial ? 'Today so far' : 'Today', value: t, decimals: 2, isToday: true }),
-    withCaption ? compareRow({ ...common, label: 'Yesterday', value: y, decimals: 2, isToday: false }) : null,
-    withCaption ? compareRow({ ...common, label: 'All-time avg', value: avg, decimals: 1, isToday: false, isBaseline: true }) : null,
-    withCaption ? h('p', { class: 'compare-caption', text: caption }) : null
+    { class: 'compare-answer', 'data-answer': a.id },
+    h('h3', { class: 'compare-answer-label', text: a.label }),
+    h('p', { class: 'compare-answer-text' }, a.sentence),
+    a.details.length ? h('p', { class: 'compare-answer-detail', text: a.details.join(' · ') }) : null,
+    a.extra || null
+  );
+}
+
+/**
+ * Plain bars for calories: each starts at zero and is labelled with its
+ * value, so longer simply means more. Today's bar is darker; no colour
+ * means good or bad.
+ * @param {{ label: string, value: number | null, today?: boolean }[]} rows
+ */
+function calorieBars(rows) {
+  const shown = rows.filter((r) => r.value !== null);
+  if (shown.length < 2) return null;
+  const max = Math.max(...shown.map((r) => Number(r.value)), 1);
+  return h(
+    'ul',
+    { class: 'amount-bars', 'aria-label': 'Calories side by side' },
+    shown.map((r) =>
+      h(
+        'li',
+        { class: `amount-row${r.today ? ' is-today' : ''}` },
+        h('span', { class: 'amount-label', text: r.label }),
+        h(
+          'span',
+          { class: 'amount-track', 'aria-hidden': 'true' },
+          h('span', { class: 'amount-bar', style: `width:${Math.max(1, (Number(r.value) / max) * 100).toFixed(1)}%` })
+        ),
+        h('span', { class: 'amount-value', text: cal(Number(r.value)) })
+      )
+    )
+  );
+}
+
+/**
+ * @param {Stats} t today
+ * @param {Stats} y yesterday
+ * @param {Stats} avg all-time averages (before today)
+ * @param {boolean} earlier there's a day before today to compare with
+ */
+function calorieAnswer(t, y, avg, earlier) {
+  const details = [];
+  if (t.total !== null) details.push(`${cal(t.total)} so far`);
+  if (avg.total !== null) details.push(`average day ${cal(avg.total)}`);
+  if (y.total !== null) details.push(`yesterday ${cal(y.total)}`);
+  else if (earlier) details.push('no meals logged yesterday');
+  /** @type {Node[]} */
+  let sentence;
+  if (t.total === null) {
+    sentence = [document.createTextNode(avg.total === null ? 'No meals logged yet today.' : `No meals logged yet today. Your average day is ${cal(avg.total)}.`)];
+    details.splice(0, details.length, ...(y.total !== null ? [`yesterday ${cal(y.total)}`] : []));
+  } else if (avg.total === null) {
+    sentence = [document.createTextNode(`${cal(t.total)} so far today.${earlier ? ' No earlier day has meals logged to compare with yet.' : ''}`)];
+    details.length = 0;
+  } else {
+    const d = difference(t.total - avg.total, 'cal', ['more than', 'less than']);
+    sentence = [
+      document.createTextNode('So far today: '),
+      d.amount ? h('strong', { text: d.amount }) : null,
+      document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average day.`),
+    ].filter((n) => n !== null);
+  }
+  const bars =
+    t.total !== null && avg.total !== null
+      ? calorieBars([
+        { label: 'Today so far', value: t.total, today: true },
+        { label: 'Average day', value: avg.total },
+        { label: 'Yesterday', value: y.total },
+      ])
+    : null;
+  return answer({ id: 'calories', label: 'Calories', sentence, details, extra: bars });
+}
+
+/**
+ * @param {Stats} t
+ * @param {Stats} y
+ * @param {Stats} avg
+ */
+function weightAnswer(t, y, avg) {
+  /** @type {Node[]} */
+  let sentence;
+  const details = [];
+  if (t.weight === null) {
+    sentence = [document.createTextNode('No weight logged yet today.')];
+    if (avg.weight !== null) details.push(`average ${lbs(avg.weight, 1)}`);
+    if (y.weight !== null) details.push(`yesterday ${lbs(y.weight)}`);
+  } else if (avg.weight === null) {
+    sentence = [document.createTextNode(`${lbs(t.weight)} today.`)];
+  } else {
+    const d = difference(t.weight - avg.weight, 'lbs', ['above', 'below']);
+    sentence = [
+      document.createTextNode(`${lbs(t.weight)} today: `),
+      d.amount ? h('strong', { text: d.amount }) : null,
+      document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average.`),
+    ].filter((n) => n !== null);
+    details.push(`average ${lbs(avg.weight, 1)}`);
+    if (y.weight !== null) {
+      const dy = difference(t.weight - y.weight, 'lbs', ['up', 'down'], 2);
+      details.push(dy.direction === 'same' ? `same as yesterday (${lbs(y.weight)})` : `${dy.amount} ${dy.text} from yesterday (${lbs(y.weight)})`);
+    }
+  }
+  return answer({ id: 'weight', label: 'Weight', sentence, details });
+}
+
+/**
+ * Each meal's numbers, one tap away.
+ * @param {Stats} t
+ * @param {Stats} y
+ * @param {Stats} avg
+ */
+function mealsTable(t, y, avg) {
+  const logged = MEAL_STEPS.filter((m) => [t[m.key], y[m.key], avg[m.key]].some((v) => v !== null));
+  const never = MEAL_STEPS.filter((m) => !logged.includes(m));
+  if (logged.length === 0) return null;
+  /** @param {number | null} v */
+  const cell = (v) => h('td', { text: v === null ? '—' : core.formatNumber(Math.round(v)) });
+  const todayCount = logged.filter((m) => t[m.key] !== null).length;
+  return h(
+    'details',
+    { class: 'compare-meals' },
+    h('summary', { text: `Each meal: today, yesterday and average (${todayCount} logged today)` }),
+    h(
+      'table',
+      { class: 'meal-table' },
+      h('caption', { class: 'visually-hidden', text: 'Calories for each meal' }),
+      h(
+        'thead',
+        null,
+        h('tr', null, h('th', { scope: 'col', text: 'Meal' }), h('th', { scope: 'col', text: 'Today' }), h('th', { scope: 'col', text: 'Yesterday' }), h('th', { scope: 'col', text: 'Average' }))
+      ),
+      h(
+        'tbody',
+        null,
+        logged.map((m) => h('tr', { 'data-meal': m.key }, h('th', { scope: 'row', text: m.label }), cell(t[m.key]), cell(y[m.key]), cell(avg[m.key])))
+      )
+    ),
+    h('p', {
+      class: 'compare-caption',
+      text: `In calories; — means not logged. A meal’s average counts only the days it was logged.${
+        never.length ? ` Never logged: ${never.map((m) => m.label).join(', ')}.` : ''
+      }`,
+    })
   );
 }
 
@@ -89,29 +190,19 @@ function compareMetric(metric, t, y, avg, withCaption) {
 export async function buildCompare() {
   const now = today();
   const entries = await store.loadEntries();
-  /** @type {Record<string, number | null>} */
-  const todayStats = core.computeDayStats(entries[now]);
-  /** @type {Record<string, number | null>} */
-  const yStats = core.computeDayStats(entries[core.shiftDate(now, -1)]);
-  /** @type {Record<string, number | null>} */
-  const avgs = core.computeAllTimeAverages(entries, now);
-  /** @type {Metric[]} */
-  const metrics = [
-    { key: 'weight', label: 'Weight', unit: 'lbs', empty: 'No weight logged', emptyToday: 'No weight logged' },
-    { key: 'total', label: 'Total calories', unit: 'cal', empty: 'No meals logged', emptyToday: 'No meals logged' },
-    ...MEAL_STEPS.map((m) => /** @type {Metric} */ ({ key: m.key, label: m.label, unit: 'cal', empty: 'Not logged', emptyToday: `${m.label} not logged`, optional: true })),
-  ];
-  // Before there's an earlier day, one explanation replaces the same
-  // "nothing to compare" line under every metric.
+  const t = core.computeDayStats(entries[now]);
+  const y = core.computeDayStats(entries[core.shiftDate(now, -1)]);
+  const avg = core.computeAllTimeAverages(entries, now);
   const earlier = Object.values(entries).some((e) => e.date < now && !core.isEntryEmpty(e));
   const loggedToday = !core.isEntryEmpty(entries[now]);
+
   const card = h(
     'section',
     { class: 'card' },
     h('h2', { class: 'card-title', text: 'Compare' }),
     h('p', {
       class: 'card-sub',
-      text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Bars run from the average (the middle line): right is above it, left is below. Averages leave out today and days with nothing logged.`,
+      text: `Today, ${core.formatDate(now, now)}, against your average day and yesterday. Averages leave out today and days with nothing logged.`,
     })
   );
   if (!earlier) {
@@ -125,16 +216,10 @@ export async function buildCompare() {
     );
   }
   if (earlier || loggedToday) {
-    card.append(
-      ...metrics
-        .filter((m) => !m.optional || [todayStats[m.key], yStats[m.key], avgs[m.key]].some((v) => v !== null))
-        .map((m) => compareMetric(m, todayStats[m.key], yStats[m.key], avgs[m.key], earlier))
-    );
-  }
-  const neverLogged = metrics.filter((m) => m.optional && [todayStats[m.key], yStats[m.key], avgs[m.key]].every((v) => v === null));
-  if (earlier && neverLogged.length) {
-    card.append(h('p', { class: 'compare-caption', text: `Never logged, so nothing to compare: ${neverLogged.map((m) => m.label).join(', ')}.` }));
+    card.append(h('div', { class: 'compare-answers' }, calorieAnswer(t, y, avg, earlier), weightAnswer(t, y, avg)));
+    const meals = mealsTable(t, y, avg);
+    if (meals) card.append(meals);
   }
   const trends = buildChartsCard({ title: 'Trends', entries, smoothing: true });
-  return { title: 'Compare', root: h('div', { class: 'screen-stack' }, card, trends.root), mounted: trends.draw };
+  return { title: 'Compare', root: h('div', { class: 'screen-stack two-col' }, card, trends.root), mounted: trends.draw };
 }
