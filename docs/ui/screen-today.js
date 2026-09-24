@@ -14,6 +14,7 @@ import { buildBackupReminder, buildBackupStatus, loggedDayCount } from './backup
 import { buildInstallNote } from './install-note.js';
 import { buildWeightField } from './today-weight.js';
 import { buildMealList } from './today-meals.js';
+import { recordProblem } from './problems.js';
 
 /**
  * Opens `picked` as the day shown, or says under the heading why it can't
@@ -213,8 +214,13 @@ export async function buildToday(ctx) {
   const now = today();
   const date = ctx.route.date || now;
   // Asked for alongside the days, so a slow connection waits once, not
-  // twice: which days have photos counts toward the backup reminder.
-  const photos = store.listPhotos().catch(() => []);
+  // twice: which days have photos counts toward the backup reminder. If
+  // the photos can't be read, Today goes by the days alone, and the
+  // problem is noted.
+  const photos = store.listPhotos().catch((err) => {
+    recordProblem('Check which days have photos', err);
+    return [];
+  });
   const [storedEntry, allEntries] = await Promise.all([store.getEntry(date), store.loadEntries()]);
   /** @type {import('./today-weight.js').DayView} */
   const view = { date, entry: storedEntry || blankEntry(date), rolledOver: false };

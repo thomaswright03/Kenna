@@ -545,7 +545,11 @@
       /** @type {Promise<IDBDatabase> | null} */
       let promise = null;
       return function open() {
-        if (!idb) return Promise.reject(new core.KennaError(PHOTO_ERRORS.off));
+        if (!idb) {
+          // Named, so the problem log can say what it was.
+          const missing = Object.assign(new Error('This browser has no IndexedDB.'), { name: 'PhotoStorageUnavailable' });
+          return Promise.reject(new core.KennaError(PHOTO_ERRORS.off, { cause: missing }));
+        }
         const factory = idb;
         if (!promise) {
           promise = new Promise((/** @type {(db: IDBDatabase) => void} */ resolve, reject) => {

@@ -1,4 +1,4 @@
-const { test, expect, TODAY } = require('./fixtures');
+const { test, expect, TODAY, day } = require('./fixtures');
 
 /** Makes the next saves of days fail, as when the phone's storage is full. */
 async function breakSaving(page) {
@@ -80,6 +80,22 @@ test('one failed save is noted once, however many ways it is tried again on the 
   await page.getByRole('button', { name: 'Save and close' }).click();
   await page.getByRole('link', { name: 'Settings' }).click();
   await expect(item.first().locator('.problem-op')).toHaveText('Save a meal');
+});
+
+test('photos that can’t be read on Today are noted, and Today still shows the day', async ({ page, appURL, data }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', { get: () => undefined, configurable: true });
+  });
+  await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 600 }, 180) });
+  await page.goto(appURL);
+  await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('180');
+  await page.getByRole('link', { name: 'Settings' }).click();
+  const item = page.locator('[data-problem-log] [data-problem]');
+  // Once for each time Today was opened (seeding opened it too).
+  await expect(item).toHaveCount(1);
+  await expect(item.locator('.problem-op')).toHaveText(/^Check which days have photos/);
+  await expect(item).toContainText('The browser’s photo storage wasn’t available');
 });
 
 test('an error nothing else caught is noted with where in the code it happened', async ({ page, appURL }) => {
