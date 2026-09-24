@@ -104,8 +104,8 @@ to month); tapping a month goes to it.
 | Weight | 50 to 1,000 lbs, at most two decimal places |
 | Days that can be logged | today and earlier |
 | Averages | leave out today; calories count only days with meals |
-| Averages shown | to one decimal for weight (166.0 lbs), whole calories |
-| Weight differences | always one decimal (12.0 lbs down, 0.4 lbs up) |
+| Weights shown together | one decimal (171.0 lbs), or two when one of them was logged with two |
+| Calorie averages | whole calories |
 | Units and language | pounds, US English only |
 
 - A day counts toward calorie statistics (averages, the "yesterday"
@@ -160,11 +160,13 @@ to month); tapping a month goes to it.
   calorie axis never goes below 0. The value axis always covers at least
   2 lbs, or 200 cal (a fifth of the value, when that's more), so a single
   day or a tiny change doesn't look like a dramatic one.
-- A weight is shown as it was entered, to up to two decimals (165.25);
-  averages, and every difference between weights (from an average or
-  from yesterday), always show one decimal (166.0 lbs, 1.0 lbs above your
-  average, 12.0 lbs down from yesterday). A difference too small to show
-  at one decimal (0.04 lbs) reads "less than 0.1 lbs", never "the same".
+- Weights shown together (one answer on Compare, one month in History,
+  two photos compared) all have the same number of decimals, their
+  averages and the differences between them included: one ("average 171.0
+  lbs · yesterday 171.0 lbs", "1.0 lbs above your average"), or two when
+  any weight among them was logged with two ("165.25 lbs today: 0.75 lbs
+  below your average"), so a weight is never rounded away. A weight on
+  its own (the Weight box, the chart's latest value) shows as entered.
 - Weight is in pounds (lbs) and dates and numbers are written the US English
   way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. Pounds and
   US English only are a deliberate limit of scope: there is no kilogram
