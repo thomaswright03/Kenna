@@ -308,6 +308,9 @@ export function showWhatsNew() {
   // Only the tour can be used while it runs; the screens behind it are
   // there to be looked at.
   if (app instanceof HTMLElement) app.inert = true;
+  // Room to scroll a feature near the end of a short screen up far enough
+  // for the card to fit under it.
+  document.body.classList.add('is-touring');
   document.body.append(t.layer);
 
   async function show() {
@@ -353,6 +356,7 @@ export function showWhatsNew() {
     window.removeEventListener('scroll', reposition);
     document.removeEventListener('keydown', onKey, true);
     t.layer.remove();
+    document.body.classList.remove('is-touring');
     if (app instanceof HTMLElement) app.inert = false;
     if (currentHash() !== startHash) navigate(startHash);
     else if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) returnFocus.focus();

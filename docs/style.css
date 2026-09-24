@@ -858,6 +858,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
    around the feature; the card sits beside it with an arrow pointing at
    it, and both glide to the next stop. */
 .tour-layer { position: fixed; inset: 0; z-index: 100; }
+body.is-touring { padding-bottom: 100vh; }
 .tour-spot {
   position: fixed;
   border-radius: var(--r-md);
