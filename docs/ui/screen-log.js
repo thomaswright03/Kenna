@@ -6,7 +6,7 @@ import { store } from './store.js';
 import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
 import { render } from './render.js';
 import { farBackGate } from './day.js';
-import { claimDraft, draftMealFor } from './drafts.js';
+import { claimDraft, draftMealFor, waitingDrafts } from './drafts.js';
 import { unusualGuard } from './unusual.js';
 import { mealSaver, mealExits } from './log-saving.js';
 
@@ -16,7 +16,8 @@ const HOW_IT_SAVES = 'Each meal saves as soon as you leave its box, pick another
 
 /**
  * The meal buttons. Each shows a ✓ and its calories once saved, for as long
- * as the screen is open.
+ * as the screen is open, and "Not saved" while a value typed for it earlier
+ * waits to be confirmed or fixed (picking it brings the value back).
  * @param {(key: string) => void} onPick
  */
 function mealPicker(onPick) {
@@ -35,15 +36,18 @@ function mealPicker(onPick) {
   }
   /** @param {LogState} state */
   function refresh(state) {
+    const waiting = new Set(waitingDrafts({ [state.date]: state.entry }, state.date).map((d) => d.field));
     for (const step of MEAL_STEPS) {
       const pill = /** @type {HTMLButtonElement} */ (pills.get(step.key));
       const value = state.entry.meals[step.key];
       const active = step.key === state.activeKey;
-      pill.className = `meal-pill${active ? ' active' : ''}${value !== null ? ' filled' : ''}`;
+      const unsaved = !active && waiting.has(step.key);
+      pill.className = `meal-pill${active ? ' active' : ''}${value !== null ? ' filled' : ''}${unsaved ? ' waiting' : ''}`;
       pill.setAttribute('aria-pressed', active ? 'true' : 'false');
       const valueEl = pill.querySelector('.pill-value');
-      if (valueEl) valueEl.textContent = value !== null ? `✓ ${core.formatNumber(value)}` : '';
-      pill.setAttribute('aria-label', value !== null ? `${step.label}, ${core.formatCalories(value)}, saved` : `${step.label}, not logged`);
+      if (valueEl) valueEl.textContent = unsaved ? 'Not saved' : value !== null ? `✓ ${core.formatNumber(value)}` : '';
+      const saved = value !== null ? `${core.formatCalories(value)}, saved` : 'not logged';
+      pill.setAttribute('aria-label', unsaved ? `${step.label}, ${saved}, a value typed earlier not saved yet` : `${step.label}, ${saved}`);
     }
   }
   return { el, refresh };
@@ -128,6 +132,18 @@ function boxKeys(input, on) {
   });
 }
 
+/**
+ * A value typed earlier and not saved, back in the box: says why, and asks
+ * about it again if it waits for an answer.
+ * @param {import('./drafts.js').Draft} d
+ * @param {import('./feedback.js').StatusLine} status
+ * @param {{ commit: () => Promise<boolean> }} saver
+ */
+function showDraft(d, status, saver) {
+  status.set('error', `Not saved yet. ${d.error}`);
+  if (d.ask) saver.commit();
+}
+
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildLog(ctx) {
   const now = today();
@@ -166,9 +182,14 @@ export async function buildLog(ctx) {
     state.activeKey = key;
     status.set(null);
     loadInput();
+    // A value typed for this meal earlier and not saved comes back in the
+    // box, and is asked about again if it waits for an answer.
+    const waiting = claimDraft(key, state.date);
+    if (waiting) input.value = waiting.text;
     refresh();
     replaceHashSilently(logHash(ctx.route.date, key));
     input.focus();
+    if (waiting) showDraft(waiting, status, saver);
   }
   // Nothing to save: switch within the same tap. Otherwise save first.
   /** @param {string} key */
@@ -198,10 +219,10 @@ export async function buildLog(ctx) {
     title: date === now ? 'Log Meal' : `Log Meal, ${core.formatDate(date, now)}`,
     root,
     mounted: () => {
-      if (draft) status.set('error', `Not saved yet. ${draft.error}`);
-      // A number kept to be asked about is asked about now.
-      if (draft && draft.ask) saver.commit();
-      else if (window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
+      // A number kept to be asked about is asked about now (the question
+      // takes the focus).
+      if (draft) showDraft(draft, status, saver);
+      if (!(draft && draft.ask) && window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
     },
     flush: exits.flush,
     leave: () => exits.leave(logHash(ctx.route.date, state.activeKey)),

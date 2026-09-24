@@ -8,7 +8,7 @@ import { announce, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
 import { saveDateFor } from './day.js';
-import { keepDraft, claimDraft } from './drafts.js';
+import { keepDraft, claimDraft, settleDraft } from './drafts.js';
 import { sayLeftSaved, keepLeftUnsaved } from './leaving.js';
 import { unusualGuard, afterTap } from './unusual.js';
 
@@ -61,6 +61,7 @@ function weightSaver(view, input, status, guard) {
     status.set('pending', 'Saving…');
     try {
       view.entry = await store.updateEntry(target, { weight: value });
+      settleDraft('weight', target);
       failed = '';
       track.lastSave = { date: target, saved: value, previous };
       if (value !== null) status.set('saved', 'Saved');

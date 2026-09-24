@@ -571,6 +571,18 @@ input[type='date'].day-switch-input {
 .meal-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .meal-value { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
 .meal-empty { font-size: var(--fs-sm); color: var(--muted); }
+/* A value typed for the meal and not saved yet (see drafts.js). */
+.meal-waiting {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px var(--s2);
+  border-radius: var(--r-sm);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.total-waiting { margin-top: var(--s1); color: var(--warning-text); font-size: var(--fs-sm); font-weight: 600; }
 
 .meal-actions { display: flex; align-items: center; gap: var(--s3); }
 
@@ -603,6 +615,7 @@ input[type='date'].day-switch-input {
 .meal-pill .pill-value { font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
 .meal-pill .pill-value:empty { display: none; }
 .meal-pill.filled { border-color: var(--accent); color: var(--text); }
+.meal-pill.waiting { border-color: var(--warning-border); border-style: dashed; }
 .meal-pill.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 .running-total {
@@ -653,6 +666,8 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
 .history-date { font-weight: 600; flex: 1; }
 .history-stats { color: var(--text); font-size: var(--fs-sm); text-align: right; font-variant-numeric: tabular-nums; }
 .history-stats.is-muted { color: var(--muted); }
+.history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.history-waiting { padding: 1px var(--s2); border-radius: var(--r-sm); background: var(--warning-soft); color: var(--warning-text); font-size: var(--fs-sm); font-weight: 600; text-align: right; }
 .chevron { color: var(--muted); font-size: var(--fs-lg); }
 
 /* ------------------------------------------------------------ compare */

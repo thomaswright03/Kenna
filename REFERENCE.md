@@ -166,6 +166,14 @@ to month); tapping a month goes to it.
   Leaving the screen, or putting the app away, can't wait for an answer,
   so the number is kept, not saved, and asked about the next time its box
   is shown. After **Change it**, **Keep it** under the box still saves it.
+  Until a kept meal is confirmed or changed, Today shows it in that meal's
+  row ("4,000 cal not saved yet", with **Confirm**; a number that isn't
+  valid shows as typed, with **Fix**), the day's total adds "+ 4,000 cal
+  not saved yet", Log Meal marks that meal's button **Not saved**, and
+  History marks the day ("Breakfast not saved yet"). Tapping the row, or
+  the meal's button, brings the number back into its box and asks again.
+  A number kept this way isn't counted in totals, averages or charts until
+  it's saved.
 - A day after today can't be logged, whether picked or typed into the
   address bar. The same goes for filing a photo. A backup's days and photos dated
   after today are left out on import, and the import says how many. An

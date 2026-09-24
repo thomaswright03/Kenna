@@ -116,3 +116,81 @@ test('leaving the box for elsewhere on the screen asks too, and Keep it under th
   expect((await data.entry(TODAY)).weight).toBe(108.4);
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('a meal waiting to be confirmed shows on Today and in History until it is kept', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  const box = page.getByLabel('Breakfast calories');
+  await box.fill('4000');
+  await box.press('Enter');
+  const question = page.getByRole('dialog', { name: 'Keep 4,000 cal for breakfast?' });
+  await question.getByRole('button', { name: 'Change it' }).click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  const message = page.locator('.toast').filter({ hasText: 'Breakfast not saved (“4000”).' });
+  await message.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(message).toHaveCount(0);
+  expect(await data.entry(TODAY)).toBe(null);
+
+  // Today's row shows the number waiting, and the total says it isn't in it.
+  const row = page.locator('[data-meal="breakfast"]');
+  await expect(row).toContainText('4,000 cal not saved yet');
+  await expect(row).toContainText('Confirm');
+  await expect(row).not.toContainText('Not logged');
+  await expect(page.locator('.total-box')).toContainText('+ 4,000 cal not saved yet');
+  await expect(page.locator('[data-meal="lunch"]')).toContainText('Not logged');
+
+  // It's still there after the app is closed and opened again, and History marks the day.
+  await page.reload();
+  await expect(row).toContainText('4,000 cal not saved yet');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
+  const historyDay = page.locator(`.history-item[data-date="${TODAY}"]`);
+  await expect(historyDay).toContainText('Breakfast not saved yet');
+  await expect(page.getByText('No days logged yet. Tap a day to view or edit it.')).toBeVisible();
+  await historyDay.click();
+
+  // A tap on the row asks again; Keep it saves it and the marker goes.
+  await page.getByRole('link', { name: 'Confirm Breakfast, 4,000 cal not saved yet' }).click();
+  await expect(page.getByLabel('Breakfast calories')).toHaveValue('4000');
+  await page.getByRole('dialog', { name: 'Keep 4,000 cal for breakfast?' }).getByRole('button', { name: 'Keep it' }).click();
+  await expect(page.getByText('Breakfast saved')).toBeVisible();
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(4000);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(row).toContainText('4,000 cal');
+  await expect(row).not.toContainText('not saved');
+  await expect(page.locator('.total-waiting')).toBeHidden();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
+  await expect(historyDay).not.toContainText('not saved');
+});
+
+test('a meal waiting on Log Meal is marked on its button and comes back when picked; changing it clears the mark', async ({ page, appURL, data }) => {
+  await data.seed(usualWeek());
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('4500');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(page.locator('[data-meal="breakfast"]')).toContainText('4,500 cal not saved yet');
+
+  // Log Meal opened for another meal shows breakfast as not saved.
+  await page.locator('[data-meal="lunch"] a').click();
+  const pill = page.locator('.meal-pill[data-meal="breakfast"]');
+  await expect(pill).toContainText('Not saved');
+  await pill.click();
+  const question = page.getByRole('dialog', { name: 'Keep 4,500 cal for breakfast?' });
+  await question.getByRole('button', { name: 'Change it' }).click();
+  await expect(page.getByLabel('Breakfast calories')).toHaveValue('4500');
+  await page.getByLabel('Breakfast calories').fill('450');
+  await page.getByLabel('Breakfast calories').press('Enter');
+  await expect.poll(async () => (await data.entry(TODAY)).meals.breakfast).toBe(450);
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(page.locator('[data-meal="breakfast"]')).toContainText('450 cal');
+  await expect(page.locator('[data-meal="breakfast"]')).not.toContainText('not saved');
+});
+
+test('an unsaved value kept by an earlier version is still read', async ({ page, appURL }) => {
+  await page.addInitScript((date) => {
+    if (!sessionStorage.getItem('seeded')) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('kenna:unsavedInput', JSON.stringify({ field: 'dinner', date, text: '3900', error: "That's more than 3,000 cal for one meal.", ask: true }));
+    }
+  }, TODAY);
+  await page.goto(appURL);
+  await expect(page.locator('[data-meal="dinner"]')).toContainText('3,900 cal not saved yet');
+});

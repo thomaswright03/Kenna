@@ -9,7 +9,7 @@ import { toast } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
 import { saveDateFor } from './day.js';
-import { keepDraft } from './drafts.js';
+import { keepDraft, settleDraft } from './drafts.js';
 import { sayLeftSaved, keepLeftUnsaved } from './leaving.js';
 import { afterTap } from './unusual.js';
 
@@ -59,6 +59,7 @@ export function mealSaver(state, input, status, onSaved, guard) {
     status.set('pending', 'Saving…');
     try {
       state.entry = await store.updateEntry(target, { meals: { [key]: value } });
+      settleDraft(key, target);
       failed = '';
       track.lastSave = { key, date: target, saved: value, previous };
       if (state.rolledOver) {

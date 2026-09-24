@@ -5,12 +5,17 @@ const SCREENS = ['#/', '#/log', '#/history', '#/compare', '#/photos', '#/setting
 
 test('no screen has accessibility problems axe can find, in either theme', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 181), [TODAY]: day(TODAY, { breakfast: 400 }, 180) });
+  // A lunch typed for Sep 20 and waiting to be confirmed, shown on that day and in History.
+  await page.evaluate(() =>
+    localStorage.setItem('kenna:unsavedInput', JSON.stringify([{ field: 'lunch', date: '2026-09-20', text: '4000', error: 'Far more than usual.', ask: true }]))
+  );
   await page.goto(appURL);
   for (const theme of ['light', 'dark']) {
     await page.evaluate((t) => localStorage.setItem('kenna:theme', t), theme);
     for (const hash of SCREENS) {
       await page.goto(`${appURL}/${hash}`);
       await page.locator('main h2').first().waitFor();
+      if (hash === '#/history' || hash === '#/day/2026-09-20') await expect(page.locator('.history-waiting, .meal-waiting')).toHaveCount(1);
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
       const found = results.violations.map((v) => `${hash} (${theme}): ${v.id} — ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
       expect(found).toEqual([]);
