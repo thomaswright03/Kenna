@@ -43,7 +43,7 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   const cal = page.getByLabel('Breakfast calories');
   await cal.fill('-300');
   await cal.blur();
-  await expect(page.getByText('Enter calories as a whole number, like 450.')).toBeVisible();
+  await expect(page.getByText("Calories can't be negative. Enter 0 or more.")).toBeVisible();
   await expect(cal).toHaveAttribute('aria-invalid', 'true');
   await page.locator('[data-meal="lunch"]').click();
   await expect(page.locator('[data-meal="breakfast"]')).toHaveAttribute('aria-pressed', 'true');
@@ -54,11 +54,14 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
 
   await page.goto(appURL);
   const weight = page.getByLabel('Weight (lbs)');
-  for (const bad of ['-5', '0', '1e3']) {
+  for (const bad of ['-5', '0', '1001']) {
     await weight.fill(bad);
     await weight.blur();
     await expect(page.getByText('Enter a weight between 50 and 1,000 lbs.')).toBeVisible();
   }
+  await weight.fill('165.255');
+  await weight.blur();
+  await expect(page.getByText('Use at most two decimal places, like 165.25.')).toBeVisible();
   const stored = await data.entry(TODAY);
   expect(stored === null || stored.weight === null).toBe(true);
 });
@@ -147,4 +150,12 @@ test('a second tap on Done while it is saving does nothing more', async ({ page,
   expect((await data.entry(TODAY)).meals.breakfast).toBe(420);
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+});
+
+test('calories typed with a thousands comma are saved as that number', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/dinner`);
+  await page.getByLabel('Dinner calories').fill('1,200');
+  await page.getByLabel('Dinner calories').blur();
+  await expect.poll(async () => (await data.entry(TODAY))?.meals.dinner).toBe(1200);
+  await expect(page.getByText('Day total: 1,200 cal')).toBeVisible();
 });

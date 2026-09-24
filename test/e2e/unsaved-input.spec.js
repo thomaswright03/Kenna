@@ -54,7 +54,7 @@ test('an invalid number is not saved; the next visit puts it back and says why',
   await page.getByLabel('Dinner calories').fill('64o');
   await page.reload();
   await expect(page.getByLabel('Dinner calories')).toHaveValue('64o');
-  await expect(page.getByText('Not saved yet. Enter calories as a whole number, like 450.')).toBeVisible();
+  await expect(page.getByText('Not saved yet. Enter calories using digits only, like 450.')).toBeVisible();
   expect((await data.entry(TODAY)).meals.dinner).toBe(null);
 
   // The app is discarded in the background and reopened on another screen:

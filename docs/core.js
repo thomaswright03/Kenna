@@ -372,8 +372,14 @@
   function validateCalories(raw) {
     const text = String(raw === null || raw === undefined ? '' : raw).trim();
     if (text === '') return { ok: true, value: null };
-    if (!/^\d+$/.test(text)) return { ok: false, error: 'Enter calories as a whole number, like 450.' };
-    const value = Number(text);
+    // "1,200" is read as 1200: commas are fine between groups of thousands.
+    const plain = /^\d{1,3}(,\d{3})+$/.test(text) ? text.replace(/,/g, '') : text;
+    if (!/^\d+$/.test(plain)) {
+      if (/^-\s*\d/.test(text)) return { ok: false, error: "Calories can't be negative. Enter 0 or more." };
+      if (/^\d*[.,]\d+$/.test(text)) return { ok: false, error: 'Enter calories as a whole number, like 450, without decimals.' };
+      return { ok: false, error: 'Enter calories using digits only, like 450.' };
+    }
+    const value = Number(plain);
     if (value > LIMITS.caloriesMax) {
       return { ok: false, error: `That's over ${formatNumber(LIMITS.caloriesMax)} calories for one meal. Check the number.` };
     }
@@ -382,12 +388,18 @@
 
   /** @param {unknown} raw @returns {Validation} */
   function validateWeight(raw) {
-    const text = String(raw === null || raw === undefined ? '' : raw).trim();
-    if (text === '') return { ok: true, value: null };
-    const message = `Enter a weight between ${LIMITS.weightMin} and ${formatNumber(LIMITS.weightMax)} lbs.`;
-    if (!/^\d{1,4}(\.\d{1,2})?$/.test(text)) return { ok: false, error: message };
+    const typed = String(raw === null || raw === undefined ? '' : raw).trim();
+    if (typed === '') return { ok: true, value: null };
+    const text = /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(typed) ? typed.replace(/,/g, '') : typed;
+    const range = `Enter a weight between ${LIMITS.weightMin} and ${formatNumber(LIMITS.weightMax)} lbs.`;
+    if (/^-\s*\d/.test(text)) return { ok: false, error: range };
+    if (/^\d*,\d+$/.test(text)) return { ok: false, error: 'Use a period for the decimal point, like 165.2.' };
+    if (/^\d*\.\d{3,}$/.test(text)) return { ok: false, error: 'Use at most two decimal places, like 165.25.' };
+    if (!/^\d+(\.\d{1,2})?$/.test(text) && !/^\.\d{1,2}$/.test(text)) {
+      return { ok: false, error: 'Enter your weight using digits and a decimal point only, like 165.2.' };
+    }
     const value = Number(text);
-    if (value < LIMITS.weightMin || value > LIMITS.weightMax) return { ok: false, error: message };
+    if (value < LIMITS.weightMin || value > LIMITS.weightMax) return { ok: false, error: range };
     return { ok: true, value };
   }
 

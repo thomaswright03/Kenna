@@ -115,6 +115,30 @@ test('calorie and weight input validation', () => {
   }
 });
 
+test('each rejected number is told what is actually wrong with it', () => {
+  const calError = (text) => core.validateCalories(text).error;
+  const weightError = (text) => core.validateWeight(text).error;
+
+  // Thousands separators in calories are understood.
+  assert.deepEqual(core.validateCalories('1,200'), { ok: true, value: 1200 });
+  assert.deepEqual(core.validateCalories(' 10,000 '), { ok: true, value: 10000 });
+  assert.match(calError('12,00'), /without decimals/);
+  assert.match(calError('450.5'), /without decimals/);
+  assert.match(calError('-300'), /can't be negative/);
+  assert.match(calError('64o'), /digits only/);
+  assert.match(calError('1e3'), /digits only/);
+  assert.match(calError('10,001'), /over 10,000 calories/);
+
+  assert.equal(weightError('165.255'), 'Use at most two decimal places, like 165.25.');
+  assert.equal(weightError('165,2'), 'Use a period for the decimal point, like 165.2.');
+  assert.deepEqual(core.validateWeight('1,000'), { ok: true, value: 1000 });
+  assert.deepEqual(core.validateWeight('165.25'), { ok: true, value: 165.25 });
+  assert.match(weightError('1e2'), /digits and a decimal point/);
+  assert.match(weightError('abc'), /digits and a decimal point/);
+  assert.equal(weightError('49'), 'Enter a weight between 50 and 1,000 lbs.');
+  assert.equal(weightError('-165'), 'Enter a weight between 50 and 1,000 lbs.');
+});
+
 test('patches change only the given fields, and empty days are detectable', () => {
   const base = entry('2026-09-24', { breakfast: 400 }, 180);
   const next = core.applyPatch('2026-09-24', base, { meals: { lunch: 650 } });

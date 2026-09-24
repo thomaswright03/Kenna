@@ -39,8 +39,11 @@ How the numbers work:
   chart. Weight statistics use every day that has a weight.
 - All-time averages leave out today, so Compare shows "today vs a typical day".
 - A meal's average uses only the days that meal was logged.
-- Calories must be whole numbers from 0 to 10,000 per meal; weight must be
-  between 50 and 1,000 lbs. Anything else shows a message and isn't saved.
+- Calories must be whole numbers from 0 to 10,000 per meal ("1,200" is read
+  as 1200); weight must be between 50 and 1,000 lbs, with at most two decimal
+  places. Anything else isn't saved and shows a message naming what's wrong
+  (a decimal, a minus sign, a stray letter, a decimal comma, too many decimal
+  places, or out of range).
 - A day after today can't be logged, whether picked, typed into the address
   bar or sent to the server's API (the server allows one day ahead of its
   own clock, for a phone in a time zone ahead of it). A backup's days dated
