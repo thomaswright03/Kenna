@@ -46,6 +46,10 @@ data never leaves your device.
 - **Settings** (gear icon) has the light/dark theme (or follow the system),
   backup export and import, and where your data is stored.
 
+On a screen wider than about 900 pixels (a laptop or tablet), Today,
+Compare, History and Settings use two columns: the day's entry or the
+answers on the left, charts and the rest on the right.
+
 How the numbers work:
 
 - A day counts toward calorie statistics (averages, the "yesterday"

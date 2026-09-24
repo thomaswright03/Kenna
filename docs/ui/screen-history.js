@@ -150,5 +150,5 @@ export async function buildHistory() {
     }),
     h('a', { class: 'btn btn-secondary', href: '#/settings', text: 'Back up or restore' })
   );
-  return { title: 'History', root: h('div', { class: 'screen-stack' }, card, backupCard) };
+  return { title: 'History', root: h('div', { class: 'screen-stack two-col' }, card, backupCard) };
 }

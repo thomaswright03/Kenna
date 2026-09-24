@@ -388,3 +388,37 @@ test('History groups days by month and shows older months on request, even with 
   await page.locator('[data-month="2017-03"] .history-item', { hasText: 'Wed, Mar 15, 2017' }).click();
   await expect(page.getByRole('heading', { name: 'Wed, Mar 15, 2017' })).toBeVisible();
 });
+
+test('on a wide screen Today and Compare use two columns', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, { breakfast: 400 }, 179) });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(appURL);
+  const entry = await page.locator('main .card').filter({ has: page.getByRole('heading', { name: 'Today', exact: true }) }).boundingBox();
+  const charts = await page.locator('main .card').filter({ has: page.getByRole('heading', { name: 'Graphs' }) }).boundingBox();
+  expect(charts.x).toBeGreaterThan(entry.x + entry.width - 1);
+  expect(Math.abs(charts.y - entry.y)).toBeLessThan(2);
+  expect(entry.width + charts.width).toBeGreaterThan(900);
+  await page.goto(`${appURL}/#/compare`);
+  const answers = await page.locator('.compare-answers').boundingBox();
+  const trends = await page.locator('main .card').filter({ has: page.getByRole('heading', { name: 'Trends' }) }).boundingBox();
+  expect(trends.x).toBeGreaterThan(answers.x + answers.width);
+});
+
+test('the chosen theme and chart range stand out in dark mode', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  await page.evaluate(() => localStorage.setItem('kenna:theme', 'dark'));
+  await page.goto(`${appURL}/#/settings`);
+  const look = (el) => {
+    const s = getComputedStyle(el);
+    return { bg: s.backgroundColor, shadow: s.boxShadow };
+  };
+  const chosen = await page.locator('label.segment', { hasText: 'Dark' }).evaluate(look);
+  const other = await page.locator('label.segment', { hasText: 'Light' }).evaluate(look);
+  const track = await page.locator('fieldset.segmented').evaluate(look);
+  expect(chosen.bg).not.toBe(other.bg);
+  expect(chosen.bg).not.toBe(track.bg);
+  expect(chosen.shadow).toContain('inset');
+  await page.goto(appURL);
+  const range = await page.locator('.segment[aria-pressed="true"]').first().evaluate(look);
+  expect(range.shadow).toContain('inset');
+});

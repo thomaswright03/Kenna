@@ -48,6 +48,7 @@
   --chart-weight: #1d4ed8;
   --bar-muted: #94a3b8;
   --bar-today: #334155;
+  --segment-on: #ffffff;
   --shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
   --scrim: rgba(15, 23, 42, 0.6);
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.2);
@@ -83,6 +84,7 @@
   --chart-weight: #60a5fa;
   --bar-muted: #64748b;
   --bar-today: #e2e8f0;
+  --segment-on: #475569;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   --scrim: rgba(0, 0, 0, 0.85);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -624,11 +626,13 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
   cursor: pointer;
 }
 
+/* The chosen option: its own surface and an accent outline, clear in
+   both themes. */
 .segment[aria-pressed='true'],
 input:checked + .segment {
-  background: var(--card);
+  background: var(--segment-on);
   color: var(--text);
-  box-shadow: var(--shadow-sm);
+  box-shadow: inset 0 0 0 2px var(--accent), var(--shadow-sm);
 }
 
 input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset: 1px; }
@@ -884,6 +888,23 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 }
 
 .progress { width: 100%; height: var(--s2); margin-top: var(--s3); accent-color: var(--accent); }
+
+/* ------------------------------------------------------------ wide screens */
+
+/* On a laptop or tablet the screens use the width: the day's entry or the
+   answers on the left, charts and the rest on the right. */
+@media (min-width: 900px) {
+  .app { max-width: 1120px; }
+  .tabs { max-width: 560px; }
+  .screen-stack.two-col {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+  .screen-stack.two-col > .notice-card { grid-column: 1 / -1; }
+  .main > section.card { max-width: 560px; }
+  .photo-grid { grid-template-columns: repeat(5, 1fr); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

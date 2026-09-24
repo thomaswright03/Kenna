@@ -282,7 +282,7 @@ export async function buildToday(ctx) {
 
   return {
     title: isToday ? 'Today' : core.formatDate(date, now),
-    root: h('div', { class: 'screen-stack' }, installNote ? installNote.root : null, reminder ? reminder.root : null, todayCard, charts.root),
+    root: h('div', { class: 'screen-stack two-col' }, installNote ? installNote.root : null, reminder ? reminder.root : null, todayCard, charts.root),
     mounted: () => {
       charts.draw();
       if (installNote) installNote.mounted();

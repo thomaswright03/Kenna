@@ -72,11 +72,13 @@ export async function buildSettings() {
       storageCard.append(
         h('p', {
           class: 'card-sub',
-          text: 'This browser may clear Kenna’s data if the device runs low on space. Adding Kenna to your Home Screen and saving backup files regularly keeps it safe.',
+          text: runningInstalled()
+            ? 'This browser may clear Kenna’s data if the device runs low on space. Saving backup files regularly keeps it safe.'
+            : 'This browser may clear Kenna’s data if the device runs low on space. Adding Kenna to your Home Screen and saving backup files regularly keeps it safe.',
         })
       );
     }
   }
 
-  return { title: 'Settings', root: h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), storageCard) };
+  return { title: 'Settings', root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), storageCard) };
 }
