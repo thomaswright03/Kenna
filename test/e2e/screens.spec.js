@@ -121,6 +121,37 @@ test('charts use a time axis, open on the newest data and label ticks uniquely',
   await expect(page.locator('.chart-tooltip.visible').nth(0)).toContainText('151.2 lbs');
 });
 
+test('a chart that spans more than one year dates every label with its year', async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 0; i <= 400; i += 20) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { lunch: 1800 + (i % 3) * 50 }, 170 + (i % 7) / 2);
+  }
+  await data.seed(entries);
+  await page.goto(appURL);
+  await page.getByRole('button', { name: 'All' }).first().click();
+  for (const series of ['calories', 'weight']) {
+    const chart = page.locator(`.chart-svg.series-${series}`);
+    const labels = (await chart.locator('.axis-label').allTextContents()).filter((t) => /^[A-Z][a-z]{2} /.test(t));
+    expect(labels.length).toBeGreaterThanOrEqual(3);
+    for (const label of labels) expect(label).toMatch(/^[A-Z][a-z]{2} \d{1,2}, 20\d\d$/);
+    // The labels don't run into each other.
+    const boxes = [];
+    for (const el of await chart.locator('.axis-label').all()) if (/^[A-Z]/.test(await el.textContent())) boxes.push(await el.boundingBox());
+    for (let i = 1; i < boxes.length; i += 1) expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width);
+  }
+});
+
+test('the calorie axis never shows a negative value', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 0 }) });
+  await page.goto(appURL);
+  const labels = await page.locator('.chart-svg.series-calories .axis-label').allTextContents();
+  const values = labels.filter((t) => /^-?[\d,]+$/.test(t)).map((t) => Number(t.replace(/,/g, '')));
+  expect(values[0]).toBe(0);
+  expect(values.every((v) => v >= 0)).toBe(true);
+  expect(labels.join(' ')).not.toMatch(/[-−]\d/);
+});
+
 test('Compare shows 7-day averages instead of repeating the daily charts', async ({ page, appURL, data }) => {
   await data.seed({
     '2026-09-22': day('2026-09-22', { lunch: 1000 }),

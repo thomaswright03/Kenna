@@ -217,6 +217,18 @@ test('axis ticks are unique and carry the precision of the step', () => {
   assert.equal(big.decimals, 0);
 });
 
+test('a calorie axis never goes below zero', () => {
+  const zero = core.niceTicks(0, 0, 5, 10, 0);
+  assert.equal(zero.ticks[0], 0);
+  assert.ok(zero.ticks.length >= 2);
+  assert.ok(zero.ticks.every((t) => t >= 0));
+  const low = core.niceTicks(0, 120, 5, 10, 0);
+  assert.ok(low.ticks.every((t) => t >= 0));
+  assert.ok(low.ticks[low.ticks.length - 1] >= 120);
+  const normal = core.niceTicks(1800, 2100, 5, 10, 0);
+  assert.ok(normal.ticks[0] > 0, 'an axis well above zero is not stretched down to it');
+});
+
 test('rolling average uses the trailing seven calendar days', () => {
   const pts = [
     { date: '2026-09-01', value: 100 },
@@ -294,4 +306,16 @@ test('backup days dated after the latest allowed day are left out and counted', 
   assert.deepEqual(Object.keys(parsed.entries), ['2026-09-23']);
   assert.equal(parsed.futureDays, 1);
   assert.equal(core.parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
+});
+
+test('chart dates carry their year on every label when the range crosses a year', () => {
+  const end = core.dayNumber('2026-09-24');
+  const within = core.dateAxisLabels(end - 29, end, 4).map((l) => l.text);
+  assert.deepEqual(within, ['Aug 26', 'Sep 5', 'Sep 14', 'Sep 24']);
+  const across = core.dateAxisLabels(end - 400, end, 4).map((l) => l.text);
+  assert.equal(across.length, 4);
+  for (const text of across) assert.match(text, /, \d{4}$/);
+  assert.equal(across[0], 'Aug 20, 2025');
+  assert.equal(across[3], 'Sep 24, 2026');
+  assert.equal(core.dateAxisLabels(end - 400, end, 3).length, 3);
 });

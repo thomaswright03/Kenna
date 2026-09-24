@@ -155,7 +155,11 @@ function drawChart(host, points, opts) {
   const width = Math.max(260, host.clientWidth || 320);
   const height = 220;
   const values = visible.map((p) => p.value);
-  const { ticks, decimals } = core.niceTicks(Math.min(...values), Math.max(...values), 5, opts.unit === 'lbs' ? 0.1 : 1);
+  // Calories can't go below zero, so neither does their axis.
+  const { ticks, decimals } =
+    opts.unit === 'lbs'
+      ? core.niceTicks(Math.min(...values), Math.max(...values), 5, 0.1)
+      : core.niceTicks(Math.min(...values), Math.max(...values), 5, 10, 0);
   const tickText = ticks.map((t) => core.formatNumber(t, decimals));
   const leftPad = 12 + Math.max(...tickText.map((t) => t.length)) * 7.5;
   const rightPad = 12;
@@ -189,19 +193,13 @@ function drawChart(host, points, opts) {
     chart.append(svg('text', { class: 'axis-label', x: leftPad - 6, y: y(t) + 4, 'text-anchor': 'end' }, tickText[i]));
   });
 
-  const labelCount = Math.min(4, span + 1);
-  const withYear = String(core.dateFromDayNumber(startDay)).slice(0, 4) !== now.slice(0, 4);
-  for (let k = 0; k < labelCount; k += 1) {
-    const day = Math.round(startDay + (k * span) / Math.max(1, labelCount - 1));
-    const anchor = k === 0 ? 'start' : k === labelCount - 1 ? 'end' : 'middle';
-    chart.append(
-      svg(
-        'text',
-        { class: 'axis-label', x: x(day), y: height - 8, 'text-anchor': anchor },
-        core.formatMonthDay(core.dateFromDayNumber(day), withYear && k === 0)
-      )
-    );
-  }
+  // Dates that carry their year are longer, so a narrow chart shows fewer.
+  const crossesYear = core.dateFromDayNumber(startDay).slice(0, 4) !== now.slice(0, 4);
+  const labels = core.dateAxisLabels(startDay, endDay, crossesYear && plotW < 330 ? 3 : 4);
+  labels.forEach((label, k) => {
+    const anchor = k === 0 ? 'start' : k === labels.length - 1 ? 'end' : 'middle';
+    chart.append(svg('text', { class: 'axis-label', x: x(label.day), y: height - 8, 'text-anchor': anchor }, label.text));
+  });
 
   // Solid line between consecutive days; dashed across skipped days.
   /** @type {string[]} */

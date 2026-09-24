@@ -647,7 +647,17 @@
 
   // Evenly spaced, unique axis ticks covering [min, max], plus how many
   // decimals the step needs (a 0.5 step shows 149.5, 150, 150.5, ...).
-  function niceTicks(min, max, count, minStep) {
+  // `floor` is the lowest value the axis may show (0 for calories, which
+  // can't be negative).
+  /**
+   * @param {number} min
+   * @param {number} max
+   * @param {number} [count]
+   * @param {number} [minStep]
+   * @param {number} [floor]
+   * @returns {{ ticks: number[], decimals: number }}
+   */
+  function niceTicks(min, max, count, minStep, floor) {
     let lo = min;
     let hi = max;
     const floorStep = minStep || 0;
@@ -657,17 +667,43 @@
       lo = mid - half;
       hi = mid + half;
     }
+    if (floor !== undefined && lo < floor) {
+      hi += floor - lo;
+      lo = floor;
+    }
     const range = niceNum(hi - lo, false);
     let step = niceNum(range / Math.max(1, (count || 5) - 1), true);
     if (step < floorStep) step = floorStep;
     const decimals = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
-    const start = Math.floor(lo / step + 1e-9) * step;
+    let start = Math.floor(lo / step + 1e-9) * step;
+    if (floor !== undefined && start < floor) start = Math.ceil(floor / step - 1e-9) * step;
     const end = Math.ceil(hi / step - 1e-9) * step;
     const ticks = [];
     for (let i = 0; start + i * step <= end + step / 2; i += 1) {
       ticks.push(Number((start + i * step).toFixed(decimals)));
     }
     return { ticks, decimals };
+  }
+
+  /**
+   * Evenly spaced date labels for a chart's time axis, from `startDay` to
+   * `endDay` (day numbers). When the range crosses into another year every
+   * label carries its year, so each can be placed in time.
+   * @param {number} startDay
+   * @param {number} endDay
+   * @param {number} maxLabels
+   * @returns {{ day: number, text: string }[]}
+   */
+  function dateAxisLabels(startDay, endDay, maxLabels) {
+    const span = Math.max(1, endDay - startDay);
+    const count = Math.max(2, Math.min(maxLabels, span + 1));
+    const withYear = dateFromDayNumber(startDay).slice(0, 4) !== dateFromDayNumber(endDay).slice(0, 4);
+    const labels = [];
+    for (let k = 0; k < count; k += 1) {
+      const day = Math.round(startDay + (k * span) / (count - 1));
+      labels.push({ day, text: formatMonthDay(dateFromDayNumber(day), withYear) });
+    }
+    return labels;
   }
 
   // ---------------------------------------------------------------- photos
@@ -752,6 +788,7 @@
     FUTURE_DAY,
     parseBackup,
     niceTicks,
+    dateAxisLabels,
     sniffImageType,
   });
 });
