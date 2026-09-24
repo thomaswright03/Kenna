@@ -132,9 +132,6 @@ test/unit/       Node tests: data rules, browser storage, server API
 test/e2e/        Playwright tests, run against both versions
 ```
 
-The `public/` folder is left over from when the server version had its own
-copy of the app; `server.js` no longer uses it.
-
 Run the phone app locally (no server storage involved):
 
 ```bash

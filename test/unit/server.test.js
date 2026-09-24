@@ -67,9 +67,9 @@ test('PATCH changes only the given fields', async (t) => {
 test('impossible dates and out-of-range values are rejected with readable JSON errors', async (t) => {
   const { call } = await startServer(t);
   for (const [method, url, body] of [
-    ['POST', '/api/entries', { date: '2026-99-99', meals: {} }],
-    ['POST', '/api/entries', { date: '2026-09-24', weight: -5, meals: {} }],
-    ['POST', '/api/entries', { date: '2026-09-24', meals: { breakfast: 99999999999 } }],
+    ['PATCH', '/api/entries/2026-99-99', { meals: {} }],
+    ['PATCH', '/api/entries/2026-09-24', { weight: -5 }],
+    ['PATCH', '/api/entries/2026-09-24', { meals: { breakfast: 99999999999 } }],
     ['PATCH', '/api/entries/2026-02-30', { weight: 180 }],
     ['PATCH', '/api/entries/2026-09-24', { meals: { breakfast: -300 } }],
     ['PATCH', '/api/entries/2026-09-24', { meals: { breakfast: 12.5 } }],
@@ -86,7 +86,7 @@ test('impossible dates and out-of-range values are rejected with readable JSON e
 
 test('malformed request bodies get a JSON error with no stack trace', async (t) => {
   const { call } = await startServer(t);
-  const res = await call('POST', '/api/entries', '', 'not json');
+  const res = await call('PATCH', '/api/entries/2026-09-24', '', 'not json');
   assert.equal(res.status, 400);
   assert.match(res.type, /json/);
   assert.equal(res.json.error, "The request wasn't valid JSON.");
@@ -179,4 +179,10 @@ test('the server serves the shared app and switches it to server storage', async
   assert.match(html, /<script src="app.js"><\/script>/);
   const backend = await (await fetch(`${base}/backend.js`)).text();
   assert.match(backend, /KENNA_BACKEND = 'server'/);
+});
+
+test('only the endpoints the app uses exist', async (t) => {
+  const { call } = await startServer(t);
+  const res = await call('POST', '/api/entries', { date: '2026-09-24', meals: {} });
+  assert.equal(res.status, 404);
 });

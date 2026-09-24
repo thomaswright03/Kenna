@@ -163,19 +163,6 @@ function createApp(options) {
     res.json(publicEntry(next));
   });
 
-  // Replace one whole day.
-  app.post('/api/entries', (req, res) => {
-    const body = req.body || {};
-    requireDate(body.date);
-    const result = core.validateIncomingEntry(body.date, { meals: body.meals, weight: body.weight === '' ? null : body.weight });
-    if (!result.ok) throw new ApiError(400, result.error);
-    const entries = store.readEntries();
-    if (core.isEntryEmpty(result.entry)) delete entries[body.date];
-    else entries[body.date] = result.entry;
-    store.writeEntries(entries);
-    res.json(publicEntry(result.entry));
-  });
-
   // Restore days from a backup file. Everything is checked first; if any
   // day is invalid, nothing is changed.
   app.post('/api/import', (req, res) => {
