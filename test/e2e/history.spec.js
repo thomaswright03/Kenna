@@ -20,7 +20,9 @@ test('Back from a day opened in History returns to the same months and the same 
 
   const may10 = page.locator('.history-item[data-date="2026-05-10"]');
   await may10.scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, -150);
+  // Scroll a little further so the day isn't pinned to an edge. (Mobile
+  // WebKit has no mouse wheel, so scroll the page directly.)
+  await page.evaluate(() => window.scrollBy(0, -150));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(3000);
   const before = await may10.boundingBox();
   await may10.click();
