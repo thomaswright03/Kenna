@@ -64,6 +64,12 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   await expect(page.getByText('Use at most two decimal places, like 165.25.')).toBeVisible();
   const stored = await data.entry(TODAY);
   expect(stored === null || stored.weight === null).toBe(true);
+
+  // A decimal point left at the end is read as the whole number.
+  await weight.fill('165.');
+  await weight.blur();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(165);
 });
 
 test('the date field cannot be emptied or set to the future', async ({ page, appURL, backend }) => {

@@ -409,7 +409,9 @@
   function validateWeight(raw) {
     const typed = String(raw === null || raw === undefined ? '' : raw).trim();
     if (typed === '') return { ok: true, value: null };
-    const text = /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(typed) ? typed.replace(/,/g, '') : typed;
+    const grouped = /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(typed) ? typed.replace(/,/g, '') : typed;
+    // "165." (easy to leave on a decimal keypad) is read as 165.
+    const text = /^\d+\.$/.test(grouped) ? grouped.slice(0, -1) : grouped;
     const range = `Enter a weight between ${LIMITS.weightMin} and ${formatNumber(LIMITS.weightMax)} lbs.`;
     if (/^-\s*\d/.test(text)) return { ok: false, error: range };
     if (/^\d*,\d+$/.test(text)) return { ok: false, error: 'Use a period for the decimal point, like 165.2.' };
