@@ -169,3 +169,56 @@ test('the manifest lists plain and maskable icons separately, with maskable artw
     }
   }
 });
+
+// The service worker, run in Node with a fake cache, network and clock.
+function loadServiceWorker() {
+  const vm = require('node:vm');
+  const clock = { now: 0 };
+  const listeners = {};
+  const network = { answer: () => new Promise(() => {}) };
+  const context = vm.createContext({
+    self: { location: { origin: 'https://kenna.test' }, addEventListener: (type, fn) => (listeners[type] = fn), skipWaiting() {}, clients: { claim: async () => {} } },
+    caches: { match: async () => new Response('cached'), open: async () => ({ put: async () => {}, addAll: async () => {} }), keys: async () => [] },
+    fetch: () => network.answer(),
+    // The network's time limit runs out at once; the clock moves only when told.
+    setTimeout: (fn) => setImmediate(fn),
+    Date: { now: () => clock.now },
+    URL,
+    Response,
+  });
+  vm.runInContext(fs.readFileSync(path.join(docs, 'sw.js'), 'utf8'), context);
+  /** Asks for a file as the page `clientId` would, and reads the answer. */
+  const get = async (clientId, file = 'build/app.js') => {
+    let answer;
+    listeners.fetch({ request: { method: 'GET', url: `https://kenna.test/${file}` }, clientId, resultingClientId: '', respondWith: (p) => (answer = p), waitUntil() {} });
+    return (await answer).text();
+  };
+  return { clock, network, get, slowCount: () => vm.runInContext('slowClients.size', context) };
+}
+
+test('a page load that found the network slow uses the cache for its other files, and is forgotten once its load is over', async () => {
+  const sw = loadServiceWorker();
+  assert.equal(await sw.get('page-1'), 'cached', 'the stalled network gave way to the cached copy');
+  sw.network.answer = async () => new Response('network');
+  assert.equal(await sw.get('page-1', 'style.css'), 'cached', 'the rest of that load comes from the cache, so the files match');
+  assert.equal(await sw.get('page-2'), 'network', 'another page load uses the network');
+  assert.equal(sw.slowCount(), 1);
+  sw.clock.now += 60000;
+  assert.equal(await sw.get('page-1', 'manifest.webmanifest'), 'network', 'long after its load, the page uses the network first again');
+  assert.equal(sw.slowCount(), 0);
+});
+
+test('the service worker remembers a bounded number of slow page loads', async () => {
+  const sw = loadServiceWorker();
+  for (let i = 0; i < 50; i += 1) await sw.get(`page-${i}`);
+  assert.equal(sw.slowCount(), 20);
+  // The latest are the ones kept.
+  sw.network.answer = async () => new Response('network');
+  assert.equal(await sw.get('page-49', 'style.css'), 'cached');
+  assert.equal(await sw.get('page-0', 'style.css'), 'network');
+  // Expired ones are dropped the next time one is added.
+  sw.clock.now += 60000;
+  sw.network.answer = () => new Promise(() => {});
+  await sw.get('page-new');
+  assert.equal(sw.slowCount(), 1);
+});
