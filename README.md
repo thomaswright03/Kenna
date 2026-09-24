@@ -33,13 +33,16 @@ data never leaves your device.
   grouped by month under headings with each month's average calories
   (days with meals, not counting today) and weight. The most recent
   months are shown first; **Show earlier months** adds more, and **Go to
-  month** jumps to any month. Tap a day to open it.
+  month** jumps to any month. Tap a day to open it; going back (Back, the
+  back gesture) returns to the same place in History, with the same months
+  shown, while opening History from the tab bar starts at the top.
 - **Compare** answers "how am I doing today?" first, in two sentences:
-  calories so far against your average day ("So far today: 500 cal more
-  than your average day") and today's weight against your average weight
-  and yesterday ("0.6 lbs below your average"), with the numbers behind
-  each. Plain bars show today's calories so far, the average day and
-  yesterday side by side, from zero. Each meal's today, yesterday and
+  calories so far against your average for the same meals ("So far today:
+  100 cal less than your average breakfast and lunch") and today's weight
+  against your average weight and yesterday ("0.6 lbs below your
+  average"), with the numbers behind each. Plain bars show today's
+  calories so far, your usual for those meals, the average day (when it's
+  different) and yesterday side by side, from zero. Each meal's today, yesterday and
   average are one tap further down (**Each meal…**). Below that are
   7-day rolling averages of calories and weight. The 7-day calorie average
   leaves today out until the day is over (on the Today screen's Calories
@@ -52,13 +55,21 @@ data never leaves your device.
   the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
   in the viewer) shows two photos side by side, older on the left, with
   each one's date and that day's weight and how far apart they are.
-  Deleting a photo asks for confirmation first.
+  Deleting a photo asks for confirmation first. A photo in a format the
+  browser can't draw (HEIC anywhere but Safari, for example after
+  restoring a backup on a laptop) is still kept and backed up as it is;
+  adding one says it can't be previewed in this browser, and the grid, the
+  viewer and the comparison say "Can't preview in this browser" in its
+  place.
 - **Settings** (gear icon) has the light/dark theme (or follow the system),
   backup export and import, and where your data is stored.
 
-On a screen wider than about 900 pixels (a laptop or tablet), Today,
-Compare, History and Settings use two columns: the day's entry or the
-answers on the left, charts and the rest on the right.
+On a screen wider than about 900 pixels (a laptop or tablet), the tabs
+move up beside the Kenna name and Settings, and Today, Compare, History
+and Settings use two columns: the day's entry or the answers on the left,
+charts and the rest on the right. History's right column lists every
+month's average calories and weight (**Month by month**, in place of Go
+to month); tapping a month goes to it.
 
 How the numbers work:
 
@@ -67,6 +78,12 @@ How the numbers work:
   weight shows "No meals logged", never "0 cal", and is a gap in the calorie
   chart. Weight statistics use every day that has a weight.
 - All-time averages leave out today, so Compare shows "today vs a typical day".
+- Compare's calorie sentence compares like with like: the meals logged
+  today against the sum of those same meals' averages (breakfast so far
+  against your average breakfast, not against a whole day). A meal logged
+  today that was never logged before has no average; it's left out of the
+  comparison and named under it. The average whole day is still shown
+  beside it.
 - A meal's average uses only the days that meal was logged.
 - Calories must be whole numbers from 0 to 10,000 per meal ("1,200" is read
   as 1200); weight must be between 50 and 1,000 lbs, with at most two decimal
@@ -189,7 +206,9 @@ makes one straight away, and **Not now** hides the reminder for three days.
   them and the button reads **Restore the rest**; the result lists them
   again. A file with nothing that can be restored isn't imported, and the
   message says what's wrong. Days in the file replace the same days on the
-  device (other days are kept); the days about to be replaced are saved
+  device (other days are kept); a day already on the device exactly as in
+  the file is left alone, and the result counts it as already here rather
+  than restored; the days about to be replaced are saved
   first, so **Undo restore**, shown with the result, puts them back as they
   were and removes the photos the restore added. Photos are added unless they're already there (a photo is recognised by
   the time it was first added, so moving it to another day doesn't make it
@@ -267,6 +286,14 @@ same `docs/404.html` that GitHub Pages shows for an unknown address). The
 server sends the app's files and its answers compressed when the browser
 accepts it.
 
+Opened at `http://localhost:3000` (on the computer running the server),
+the server version keeps a copy of the app's own files, never your data,
+so opening or reloading it while the server is stopped shows Kenna's
+"Couldn't reach the Kenna server" message with **Try again**. Browsers
+only allow that on `localhost` or `https`: opened by a network address
+(`http://192.168.1.23:3000` on a phone), the page doesn't open at all
+until the server is running, and the browser shows its own error page.
+
 ## Development
 
 ```
@@ -289,6 +316,7 @@ server.js        the server version and its API
 scripts/build.js       builds docs/build/ (esbuild)
 scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
                        404.html for unknown addresses)
+scripts/coverage.js    measures what the unit and browser tests run
 test/unit/       Node tests: data rules, browser storage, server API
 test/e2e/        Playwright tests, run against both versions
 ```
@@ -334,6 +362,14 @@ app again in WebKit, the engine behind Safari and iPhone Home Screen apps
 (project `phone-app-webkit`). Locally the WebKit project is included when
 WebKit is installed, and a run without it says so at the start; on CI it
 always runs.
+
+`npm run coverage` runs the unit tests and the Chromium browser tests
+(both versions) and prints one coverage table for every source file:
+`docs/app.js`, `docs/ui/*.js`, `docs/store-server.js`, `server.js` and the
+rest. The browser tests record which parts of the built scripts ran and
+the source maps turn that back into the source files. The HTML report is
+written to `coverage/index.html`; `npm run coverage -- --unit` measures
+the unit tests alone.
 
 GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
 request, as two checks: **Tests / test** (lint, type check, unit tests,
