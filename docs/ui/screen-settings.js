@@ -44,8 +44,8 @@ export async function buildSettings() {
     'section',
     { class: 'card' },
     h('h3', { class: 'section-title', text: 'What’s new' }),
-    h('p', { class: 'card-sub', text: 'A short tour of what Kenna’s latest update added, one screen at a time.' }),
-    h('button', { type: 'button', class: 'btn btn-secondary', text: 'Show what’s new', onClick: () => showWhatsNew() })
+    h('p', { class: 'card-sub', text: 'A quick guided tour of what Kenna’s latest update added, shown right where each feature is.' }),
+    h('button', { type: 'button', class: 'btn btn-secondary', text: 'Take the tour', onClick: () => showWhatsNew() })
   );
 
   const storageCard = h('section', { class: 'card' }, h('h3', { class: 'section-title', text: 'Where your data lives' }));

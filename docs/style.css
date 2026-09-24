@@ -854,23 +854,58 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .viewer-confirm .dialog-actions .btn { margin-top: 0; }
 .viewer .field { margin-bottom: 0; }
 
-/* What's new: one card at a time */
-.tour-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-bottom: var(--s1); }
+/* What's new: a guided tour. The light is a hole in a dimmed screen,
+   around the feature; the card sits beside it with an arrow pointing at
+   it, and both glide to the next stop. */
+.tour-layer { position: fixed; inset: 0; z-index: 100; }
+.tour-spot {
+  position: fixed;
+  border-radius: var(--r-md);
+  box-shadow: 0 0 0 9999px var(--scrim);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  pointer-events: none;
+  transition: top 0.35s ease, left 0.35s ease, width 0.35s ease, height 0.35s ease;
+}
+.tour-layer.is-centered .tour-spot { outline-color: transparent; }
+.tour-card {
+  position: fixed;
+  padding: var(--s4);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transition: top 0.35s ease, left 0.35s ease, opacity 0.2s ease;
+}
+.tour-layer.is-moving .tour-card { opacity: 0.4; }
+.tour-arrow {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  background: var(--card);
+  transform: rotate(45deg);
+  transition: left 0.35s ease;
+}
+.tour-card[data-side='below'] .tour-arrow { top: -7px; }
+.tour-card[data-side='above'] .tour-arrow { bottom: -7px; }
+.tour-layer.is-centered .tour-arrow { display: none; }
+.tour-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
 .tour-where { margin: 0; color: var(--accent-text); font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
 .tour-close { min-height: var(--tap); }
-.tour .dialog-title:focus { outline: none; }
-.tour-points { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: var(--s2); font-size: var(--fs-md); line-height: 1.45; }
-.tour-dots { display: flex; justify-content: center; gap: 6px; margin-top: var(--s4); }
-.tour-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--border); }
-.tour-dot.is-current { background: var(--accent); width: 20px; }
-.tour-position { margin: var(--s2) 0 0; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
-/* A short screen (iPhone SE) fits every card without scrolling. */
-@media (max-height: 700px) {
-  .tour.dialog-body { padding-top: var(--s3); }
-  .tour .dialog-title { font-size: var(--fs-md); }
-  .tour-points { font-size: var(--fs-sm); gap: var(--s1); }
-  .tour-dots { margin-top: var(--s3); }
-  .tour .dialog-actions { margin-top: var(--s3); }
+.tour-title { font-size: var(--fs-lg); margin: 0 0 var(--s2); }
+.tour-title:focus { outline: none; }
+.tour-points { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: var(--s1); font-size: var(--fs-sm); line-height: 1.45; }
+.tour-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin-top: var(--s3); }
+.tour-dots { display: flex; gap: 5px; }
+.tour-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--border); transition: width 0.2s ease; }
+.tour-dot.is-current { background: var(--accent); width: 16px; }
+.tour-position { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.tour-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-top: var(--s3); }
+.tour-actions .btn { margin-top: 0; }
+@media (max-height: 640px) {
+  .tour-card { padding: var(--s3); }
+  .tour-title { font-size: var(--fs-md); }
 }
 
 /* ------------------------------------------------------------ loading */
