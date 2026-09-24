@@ -11,12 +11,13 @@
 // the network answer, when it arrives, still refreshes the cache for the
 // next launch.
 //
-// Bump CACHE_NAME in the same change as any edit to the files below. A
-// changed sw.js is what makes browsers install the new worker, which
-// pre-caches the whole new set together, so a phone that goes offline right
-// after an update still has matching files. A test checks every listed file
-// exists.
-const CACHE_NAME = 'kenna-v42';
+// CACHE_NAME is written by npm run build: a hash of every file below, so
+// it changes whenever one of them does (a unit test fails if it's out of
+// date). A changed sw.js is what makes browsers install the new worker,
+// which pre-caches the whole new set together, so a phone that goes offline
+// right after an update still has matching files. A test checks every
+// listed file exists.
+const CACHE_NAME = 'kenna-49828082b880';
 
 const APP_SHELL = [
   './',

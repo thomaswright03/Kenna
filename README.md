@@ -332,11 +332,12 @@ in `docs/app.js` and `docs/ui/` to 80 lines of code or fewer.
 
 The page loads `docs/build/data.js` and `docs/build/app.js` rather than the
 thirty-odd source files, so a first visit on a slow connection waits for a
-few downloads instead of dozens. After changing any `.js` file in `docs/`
-(other than `sw.js` and `backend.js`), run `npm run build`, or keep `npm run
-build:watch` running, and commit the rebuilt files with the change: Pages
-serves `docs/` as it is. A unit test fails when the built files don't match
-the sources. The build minifies without changing the language level the
+few downloads instead of dozens. After changing any file in `docs/`, run
+`npm run build`, or keep `npm run build:watch` running, and commit the
+rebuilt files and `docs/sw.js` with the change: Pages serves `docs/` as it
+is. The build also writes the service worker's cache name, a hash of the
+files it keeps for offline use. A unit test fails when the built files
+don't match the sources, or the cache name doesn't match the files. The build minifies without changing the language level the
 sources are written in (ES2022), and the source maps point browser
 developer tools at the original files.
 
@@ -395,10 +396,11 @@ in `docs/build/` are committed (see Development).
 
 Releasing a change:
 
-1. If you changed a script in `docs/`, run `npm run build`. If any file
-   listed in `APP_SHELL` in `docs/sw.js` changed (a rebuilt file counts), bump
-   `CACHE_NAME` there (for example `kenna-v2` → `kenna-v3`) in the same
-   change, so phones pre-cache the new set of files together.
+1. Run `npm run build` and commit what it changes. It rebuilds the
+   scripts and names the service worker's cache (`CACHE_NAME` in
+   `docs/sw.js`) after a hash of every file it pre-caches, so any change
+   to one of them gives phones a new cache to pre-cache together. A unit
+   test fails if either is out of date.
 2. Make sure `npm test` passes, and go through the "Before merging" part
    of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install to
    the Home Screen, log a meal, add a photo, export with Save to Files and

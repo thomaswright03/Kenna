@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { buildFiles, CLASSIC_SCRIPTS } = require('../../scripts/build.js');
+const { buildFiles, CLASSIC_SCRIPTS, appShellFiles, cacheName, currentCacheName } = require('../../scripts/build.js');
 
 const docs = path.join(__dirname, '..', '..', 'docs');
 
@@ -60,4 +60,22 @@ test('the page and Node get the same rules', async () => {
   assert.deepEqual(Object.keys(window.KennaCore).sort(), Object.keys(core).sort());
   assert.ok(Object.isFrozen(window.KennaCore));
   assert.equal(window.KennaCore.formatWeight(165.25), core.formatWeight(165.25));
+});
+
+test("the service worker's cache is named after the files it pre-caches (run npm run build after changing one)", () => {
+  assert.equal(currentCacheName(), cacheName(), "docs/sw.js's CACHE_NAME doesn't match the app's files: run npm run build");
+});
+
+test('changing any pre-cached file changes the cache name', () => {
+  const shell = appShellFiles(fs.readFileSync(path.join(docs, 'sw.js'), 'utf8'));
+  assert.ok(shell.includes('style.css') && shell.includes('index.html') && shell.includes('build/app.js'));
+  const now = cacheName();
+  assert.match(now, /^kenna-[0-9a-f]{12}$/);
+  const names = new Set([now]);
+  for (const file of shell) {
+    const text = fs.readFileSync(path.join(docs, file), 'utf8');
+    names.add(cacheName({ [file]: `${text} ` }));
+  }
+  assert.equal(names.size, shell.length + 1, 'each file changes the name');
+  assert.equal(cacheName(), now, 'the same files give the same name');
 });
