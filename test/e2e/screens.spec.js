@@ -576,7 +576,7 @@ test('the chosen theme and chart range stand out in dark mode', async ({ page, a
   };
   const chosen = await page.locator('label.segment', { hasText: 'Dark' }).evaluate(look);
   const other = await page.locator('label.segment', { hasText: 'Light' }).evaluate(look);
-  const track = await page.locator('fieldset.segmented').evaluate(look);
+  const track = await page.locator('fieldset.segmented').first().evaluate(look);
   expect(chosen.bg).not.toBe(other.bg);
   expect(chosen.bg).not.toBe(track.bg);
   expect(chosen.shadow).toContain('inset');

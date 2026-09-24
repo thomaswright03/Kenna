@@ -172,25 +172,87 @@ function comparePhotos(incoming, here, latestDay) {
   return { added, alreadyHere, future };
 }
 
-// When the Today screen asks the user to save a backup file: once a few
-// days are logged (a first meal is too little to ask about), when no
-// backup has been saved yet or the last one is a week old. "Not now" puts
-// the question off for a few days; Today shows the backup's age meanwhile.
-const BACKUP_REMINDER = { REMIND_FROM_DAYS: 3, REMIND_AFTER_DAYS: 7, SNOOZE_DAYS: 3 };
+// When Kenna asks the user to save a backup file. Once a few days are
+// logged (a first meal is too little to ask about), it asks while no backup
+// has been saved, and again every EVERY_DAYS days after the last one: every
+// day, every 3 days (unless changed) or every week, as chosen in Settings.
+// A photo added since the last saved backup is asked about straight away,
+// however few days are logged, because a photo can't be logged again.
+// "Not now" puts the question off until the next day; a photo added after
+// that still brings it back.
+const BACKUP_REMINDER = Object.freeze({
+  REMIND_FROM_DAYS: 3,
+  EVERY_DAYS_CHOICES: Object.freeze([1, 3, 7]),
+  DEFAULT_EVERY_DAYS: 3,
+  // How long "Not now" put the question off before it lasted until the
+  // next day; a put-off time saved then is read with it.
+  OLD_SNOOZE_DAYS: 3,
+});
 
 /**
- * Whether a backup reminder is due, and what it should say. `loggedDays`
- * counts the days with anything logged (a weight, a meal or a photo);
- * `lastBackupAt` and `snoozedUntil` are ISO times or null.
- * @param {{ loggedDays: number, lastBackupAt: string | null, snoozedUntil: string | null, now: Date }} state
- * @returns {{ never: true } | { never: false, days: number } | null}
+ * The reminder interval chosen in Settings (a stored string), or the
+ * default when none, or something else, is stored.
+ * @param {unknown} stored
+ * @returns {number}
  */
-function backupReminderDue({ loggedDays, lastBackupAt, snoozedUntil, now }) {
+function backupEveryDays(stored) {
+  const n = Number(stored);
+  return BACKUP_REMINDER.EVERY_DAYS_CHOICES.includes(n) ? n : BACKUP_REMINDER.DEFAULT_EVERY_DAYS;
+}
+
+/**
+ * How many of the photos were added after `since` (an ISO time), so aren't
+ * in a backup made then; every photo when there's no such time.
+ * @param {string[]} addedAt each photo's createdAt
+ * @param {string | null} since
+ */
+function photosAddedSince(addedAt, since) {
+  const from = since ? Date.parse(since) : NaN;
+  if (Number.isNaN(from)) return addedAt.length;
+  return addedAt.filter((t) => Date.parse(t) > from).length;
+}
+
+/**
+ * The end of the day `now` is in, as an ISO time: until when "Not now" puts
+ * the reminder off.
+ * @param {Date} now
+ */
+function backupSnoozeEnd(now) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+}
+
+/**
+ * @typedef {object} BackupReminderState
+ * @property {number} loggedDays days with anything logged (a weight, a meal or a photo)
+ * @property {{ at: string, covers: string } | null} backup the last saved backup: when it was
+ *   saved, and when it was made (what it holds is everything up to then); null for none
+ * @property {{ until: string, at: string | null } | null} snooze "Not now": until when, and when it was tapped
+ * @property {string[]} photoAddedAt each photo's createdAt
+ * @property {number} everyDays the interval chosen in Settings
+ * @property {Date} now
+ */
+
+/**
+ * Whether a backup reminder is due, and what it should say: whether a
+ * backup was ever saved, how many days ago the last one was, and how many
+ * photos aren't in it. Null when not due.
+ * @param {BackupReminderState} state
+ * @returns {{ never: boolean, days: number | null, photos: number } | null}
+ */
+function backupReminderDue({ loggedDays, backup, snooze, photoAddedAt, everyDays, now }) {
+  const covers = backup ? backup.covers : null;
+  const photos = photosAddedSince(photoAddedAt, covers);
+  if (snooze && Date.parse(snooze.until) > now.getTime()) {
+    const tapped = snooze.at || new Date(Date.parse(snooze.until) - BACKUP_REMINDER.OLD_SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const later = covers && Date.parse(covers) > Date.parse(tapped) ? covers : tapped;
+    if (photosAddedSince(photoAddedAt, later) === 0) return null;
+  }
+  const days = backupAge(backup ? backup.at : null, now);
+  const never = days === null;
+  if (photos > 0) return { never, days, photos };
   if (loggedDays < BACKUP_REMINDER.REMIND_FROM_DAYS) return null;
-  if (snoozedUntil && Date.parse(snoozedUntil) > now.getTime()) return null;
-  const age = backupAge(lastBackupAt, now);
-  if (age === null) return { never: true };
-  return age >= BACKUP_REMINDER.REMIND_AFTER_DAYS ? { never: false, days: age } : null;
+  if (never || days >= everyDays) return { never, days, photos };
+  return null;
 }
 
 /**
@@ -216,6 +278,9 @@ module.exports = {
   compareWithStored,
   comparePhotos,
   BACKUP_REMINDER,
+  backupEveryDays,
+  photosAddedSince,
+  backupSnoozeEnd,
   backupReminderDue,
   backupAge,
 };

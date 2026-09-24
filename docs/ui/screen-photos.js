@@ -2,7 +2,7 @@
 // the viewer (photo-viewer.js); Compare photos puts two side by side
 // (photo-compare.js).
 
-import { core, h, uid, today } from './dom.js';
+import { core, h, uid, today, visibleEntries } from './dom.js';
 import { failureText } from './problems.js';
 import { toast, createStatusLine, createFieldStatus, announce } from './feedback.js';
 import { store } from './store.js';
@@ -10,6 +10,7 @@ import { render } from './render.js';
 import { preparePhoto, makeThumbnail, CANT_PREVIEW } from './photo-image.js';
 import { openPhotoViewer, photoDayProblem } from './photo-viewer.js';
 import { openPhotoCompare } from './photo-compare.js';
+import { buildBackupReminder, loggedState } from './backup-reminder.js';
 
 /** @typedef {import('../store-local.js').Photo} Photo */
 
@@ -305,6 +306,10 @@ export async function buildPhotos(ctx) {
     return { title: 'Photos', root: stack };
   }
 
+  // A photo can't be taken again, so one that isn't in a saved backup is
+  // asked about here, as soon as it's added.
+  const reminder = buildBackupReminder(loggedState(visibleEntries(entries), photos), { photosOnly: true });
+  if (reminder) stack.append(reminder.root);
   const picker = comparePicker(photos, entries, stack);
   if (picker.startBtn) addCard.append(picker.startBtn);
   stack.append(picker.bar);
@@ -325,5 +330,5 @@ export async function buildPhotos(ctx) {
     }
     stack.append(h('section', { class: 'card' }, h('h3', { class: 'section-title', text: core.formatRelativeDate(date, now) }), grid));
   }
-  return { title: 'Photos', root: stack };
+  return { title: 'Photos', root: stack, mounted: reminder ? reminder.mounted : undefined };
 }

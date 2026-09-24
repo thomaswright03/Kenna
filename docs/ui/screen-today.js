@@ -10,7 +10,7 @@ import { dayHash, logHash, navigate } from './router.js';
 import { render } from './render.js';
 import { farBackGate } from './day.js';
 import { buildChartsCard } from './charts.js';
-import { buildBackupReminder, buildBackupStatus, loggedDayCount } from './backup-reminder.js';
+import { buildBackupReminder, buildBackupStatus, loggedState } from './backup-reminder.js';
 import { buildInstallNote } from './install-note.js';
 import { buildWeightField } from './today-weight.js';
 import { buildMealList } from './today-meals.js';
@@ -225,8 +225,8 @@ export async function buildToday(ctx) {
   /** @type {import('./today-weight.js').DayView} */
   const view = { date, entry: storedEntry || blankEntry(date), rolledOver: false };
   const isToday = date === now;
-  const loggedDays = loggedDayCount(visibleEntries(allEntries), await photos);
-  const hasData = loggedDays > 0;
+  const logged = loggedState(visibleEntries(allEntries), await photos);
+  const hasData = logged.loggedDays > 0;
 
   // A day long before anything logged asks first; until then only Change
   // day is offered, to fix a mistyped year.
@@ -258,21 +258,21 @@ export async function buildToday(ctx) {
 
   // How old the last backup is, under the day, once there's anything to
   // lose; hidden while a card asks for a backup.
-  const backupStatus = hasData ? buildBackupStatus(loggedDays) : null;
+  const backupStatus = hasData ? buildBackupStatus(logged) : null;
   const showBackupStatus = () => backupStatus && backupStatus.show();
   // The day always comes first, so logging is the first thing on screen
   // on every visit; advice goes right under it, one card at a time. The
   // Home Screen note wins (it already says to back up first); the backup
   // reminder shows once the note is hidden or doesn't apply.
   const installNote = buildInstallNote(hasData, () => {
-    const next = buildBackupReminder(loggedDays, showBackupStatus);
+    const next = buildBackupReminder(logged, { onGone: showBackupStatus });
     if (!next) return;
     if (backupStatus) backupStatus.root.hidden = true;
     dayCard.after(next.root);
     next.root.setAttribute('tabindex', '-1');
     next.root.focus();
   });
-  const notice = installNote || buildBackupReminder(loggedDays, showBackupStatus);
+  const notice = installNote || buildBackupReminder(logged, { onGone: showBackupStatus });
   if (backupStatus && notice && notice !== installNote) backupStatus.root.hidden = true;
   const dayColumn = h('div', { class: 'screen-stack' }, dayCard, notice ? notice.root : null, backupStatus ? backupStatus.root : null);
   const root = h('div', { class: 'screen-stack two-col' }, dayColumn, charts.root);

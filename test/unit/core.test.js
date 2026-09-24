@@ -376,19 +376,66 @@ test('image sniffing recognises photos and rejects other files', () => {
   assert.equal(core.sniffImageType(text), null);
 });
 
-test('a backup reminder is due once a few days are logged and no backup is saved, or a week after the last one', () => {
+test('a backup reminder is due once a few days are logged and no backup is saved, or the chosen interval after the last one', () => {
   const now = new Date(2026, 8, 24, 10);
-  const at = (d) => new Date(2026, 8, d, 9).toISOString();
-  const due = (state) => core.backupReminderDue({ loggedDays: 3, lastBackupAt: null, snoozedUntil: null, now, ...state });
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const saved = (d) => ({ at: at(d), covers: at(d, 8) });
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 3, now, ...state });
   assert.equal(due({ loggedDays: 0 }), null, 'nothing to back up');
   assert.equal(due({ loggedDays: 2 }), null, 'a day or two is too little to ask about');
-  assert.deepEqual(due({}), { never: true });
-  assert.deepEqual(due({ lastBackupAt: 'garbage' }), { never: true });
-  assert.equal(due({ lastBackupAt: at(20) }), null, '4 days is recent enough');
-  assert.deepEqual(due({ lastBackupAt: at(17) }), { never: false, days: 7 });
-  assert.deepEqual(due({ lastBackupAt: at(14) }), { never: false, days: 10 });
-  assert.equal(due({ snoozedUntil: new Date(2026, 8, 25).toISOString() }), null, 'snoozed');
-  assert.deepEqual(due({ snoozedUntil: new Date(2026, 8, 23).toISOString() }), { never: true }, 'snooze over');
+  assert.deepEqual(due({}), { never: true, days: null, photos: 0 });
+  assert.deepEqual(due({ backup: { at: 'garbage', covers: 'garbage' } }), { never: true, days: null, photos: 0 });
+  // Every 3 days (the default): 2 days is recent enough, 3 is due.
+  assert.equal(due({ backup: saved(22) }), null);
+  assert.deepEqual(due({ backup: saved(21) }), { never: false, days: 3, photos: 0 });
+  // Every day: yesterday's backup is due today; today's isn't.
+  assert.equal(due({ everyDays: 1, backup: saved(24) }), null);
+  assert.deepEqual(due({ everyDays: 1, backup: saved(23) }), { never: false, days: 1, photos: 0 });
+  // Every week: 6 days is recent enough, 7 is due.
+  assert.equal(due({ everyDays: 7, backup: saved(18) }), null);
+  assert.deepEqual(due({ everyDays: 7, backup: saved(17) }), { never: false, days: 7, photos: 0 });
+  assert.deepEqual(due({ everyDays: 7, backup: saved(14) }), { never: false, days: 10, photos: 0 });
+});
+
+test('a photo that is not in a saved backup brings the reminder straight away', () => {
+  const now = new Date(2026, 8, 24, 10);
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 7, now, ...state });
+  const backup = { at: at(23, 21), covers: at(23, 19) };
+  assert.equal(due({ backup }), null, 'a backup yesterday, every week');
+  assert.equal(due({ backup, photoAddedAt: [at(20), at(23, 18)] }), null, 'photos added before the file was made are in it');
+  assert.deepEqual(due({ backup, photoAddedAt: [at(20), at(23, 20)] }), { never: false, days: 1, photos: 1 }, 'added after the file was made, before it was saved');
+  assert.deepEqual(due({ backup, photoAddedAt: [at(24, 9)] }), { never: false, days: 1, photos: 1 });
+  assert.deepEqual(due({ loggedDays: 1, photoAddedAt: [at(24, 9)] }), { never: true, days: null, photos: 1 }, 'a first photo, with no backup yet, is asked about');
+  assert.deepEqual(due({ loggedDays: 1, photoAddedAt: [at(24, 9), 'not a time'] }), { never: true, days: null, photos: 2 }, 'with no backup, every photo counts');
+});
+
+test('"Not now" puts the reminder off until the next day, unless a photo is added after it', () => {
+  const now = new Date(2026, 8, 24, 10);
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 3, now, ...state });
+  assert.equal(core.backupSnoozeEnd(new Date(2026, 8, 24, 10)), new Date(2026, 8, 25).toISOString());
+  assert.equal(core.backupSnoozeEnd(new Date(2026, 8, 30, 23, 59)), new Date(2026, 9, 1).toISOString(), 'across a month');
+  const snooze = { until: core.backupSnoozeEnd(new Date(2026, 8, 24, 8)), at: at(24, 8) };
+  assert.equal(due({ snooze }), null, 'put off');
+  assert.equal(due({ snooze, photoAddedAt: [at(24, 7)] }), null, 'a photo already there when Not now was tapped');
+  assert.deepEqual(due({ snooze, photoAddedAt: [at(24, 7), at(24, 9)] }), { never: true, days: null, photos: 2 }, 'a photo added since');
+  assert.deepEqual(due({ snooze: { until: at(24, 0), at: at(23, 8) } }), { never: true, days: null, photos: 0 }, 'put off until today: over');
+  // Put off by an earlier version, for 3 days from when it was tapped.
+  const old = { until: new Date(2026, 8, 26, 8).toISOString(), at: null };
+  assert.equal(due({ snooze: old, photoAddedAt: [at(23, 7)] }), null);
+  assert.deepEqual(due({ snooze: old, photoAddedAt: [at(23, 9)] }), { never: true, days: null, photos: 1 });
+});
+
+test('the reminder interval chosen in Settings is read safely', () => {
+  assert.equal(core.backupEveryDays(null), core.BACKUP_REMINDER.DEFAULT_EVERY_DAYS);
+  assert.equal(core.BACKUP_REMINDER.DEFAULT_EVERY_DAYS, 3);
+  assert.equal(core.backupEveryDays('1'), 1);
+  assert.equal(core.backupEveryDays('7'), 7);
+  assert.equal(core.backupEveryDays('5'), 3, 'not one of the choices');
+  assert.equal(core.backupEveryDays('week'), 3);
+  assert.equal(core.photosAddedSince(['2026-09-24T01:00:00Z', '2026-09-24T03:00:00Z'], '2026-09-24T02:00:00Z'), 1);
+  assert.equal(core.photosAddedSince(['2026-09-24T01:00:00Z'], null), 1);
 });
 
 test("a backup's age is counted in calendar days", () => {

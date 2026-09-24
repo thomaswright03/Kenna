@@ -56,9 +56,9 @@ The full rules: [How the numbers work](REFERENCE.md#how-the-numbers-work).
   on the phone only. Nothing is sent anywhere.
 - **Settings → Export Backup** saves one `.json` file with every day and
   photo; **Import Backup** restores it (and can be undone). Today always
-  shows how old the last saved backup is, with **Back up now**, and asks
-  for a backup once a few days are logged and none has been saved for a
-  week.
+  shows how old the last saved backup is, with **Back up now**. Once a few
+  days are logged it asks for a backup every 3 days (daily or weekly if
+  chosen in Settings), and as soon as a new photo isn't in a saved backup.
 - On iPhone, Safari may clear a tab's data after about a week unused, so
   Kenna asks to be added to the Home Screen when it runs in a tab.
 

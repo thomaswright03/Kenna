@@ -1248,6 +1248,9 @@ body.is-touring { padding-bottom: 100vh; }
 .item-list li { margin-bottom: var(--s1); }
 .dialog-text + .dialog-text { margin-top: var(--s2); }
 .import-result > .btn { margin-top: var(--s3); }
+.backup-every { margin-top: var(--s4); padding-top: var(--s2); border-top: 1px solid var(--border); }
+.backup-every .card-sub { margin: var(--s2) 0 0; }
+.backup-every .segment { flex: 1 1 auto; padding: 0 var(--s2); }
 .import-result .card-sub { margin-top: var(--s3); margin-bottom: 0; }
 
 /* Shown in the page itself until the app's first screen is ready. */

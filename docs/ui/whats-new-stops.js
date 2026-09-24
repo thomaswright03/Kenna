@@ -81,7 +81,7 @@ export const STOPS = [
     screen: 'today',
     find: inMain('[data-backup-status], [data-backup-reminder]'),
     title: 'Kenna reminds you to back up',
-    points: ['When a backup is due, Today says so, with Back up now.', 'Settings shows when you last saved one.'],
+    points: ['When a backup is due, or a new photo isn’t in one yet, Kenna says so, with Back up now.', 'In Settings, choose how often Kenna asks: daily, every 3 days or weekly.'],
     notYet: 'The reminder shows up here on Today when a backup is due.',
   },
   {

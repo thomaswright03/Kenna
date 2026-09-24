@@ -110,7 +110,8 @@ run, test and release it.
   viewer and the comparison say "Can't preview in this browser" in its
   place.
 - **Settings** (top right, the gear with the word Settings) has the light/dark theme (or follow the system),
-  backup export and import, where your data is stored, and the **Problem
+  backup export and import, how often Kenna asks for a backup (**Backup
+  reminders**), where your data is stored, and the **Problem
   log** (see [Where your data lives](#where-your-data-lives-and-backups)),
   and **What's new → Take the tour**: a guided tour of what the latest
   update added. It moves through the screens, lights up each new feature
@@ -322,16 +323,28 @@ That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
 logged, a line under the day on Today always says how old the last saved
 backup is, with **Back up now**, which makes the file and leads straight to
-saving it. Once three days have something logged (a weight, a meal or a
-photo), a card under the day asks for a backup when none has been saved from
-this device yet, or when the last one is more than a week old; **Back up
-now** makes one straight away, and **Not now** puts the question off for
-three days, while the line under the day keeps showing the backup's age,
-marked as overdue. (While the card shows, it says the age itself, so the
-line waits until the card is gone.) Today shows at most one of these cards
-at a time, always under the day, so the Weight box and Log Meal come first:
-the Home Screen card first (it already says to back up), then the backup
-reminder once that card is hidden or doesn't apply.
+saving it. A card under the day asks for a backup:
+
+- once three days have something logged (a weight, a meal or a photo), when
+  none has been saved from this device yet, or when the last one is as old
+  as the interval chosen in **Settings → Backup reminders**: **Daily**,
+  **Every 3 days** (unless changed) or **Weekly**. Settings says in words
+  what the choice means;
+- as soon as a progress photo is added that isn't in a saved backup (it was
+  added after the last saved backup file was made), however few days are
+  logged, because a photo can't be taken again. The card then also shows on
+  the Photos screen, straight after the photo is added, and says how many
+  photos aren't in a backup.
+
+**Back up now** makes one straight away; **Not now** puts the question off
+until the next day, unless another photo is added meanwhile, which brings it
+back. While it's put off, the line under the day keeps showing the backup's
+age, marked as overdue. (While the card shows, it says the age itself, so the
+line waits until the card is gone.) A question put off by an earlier version,
+for three days, stays put off for those three days. Today shows at most one of
+these cards at a time, always under the day, so the Weight box and Log Meal
+come first: the Home Screen card first (it already says to back up), then the
+backup reminder once that card is hidden or doesn't apply.
 
 - **Settings → Export Backup** makes one `.json` file containing every day
   (weight and each meal's calories) and every progress photo with the date
@@ -344,7 +357,8 @@ reminder once that card is hidden or doesn't apply.
 - A backup only counts as saved, for the reminder and for the "Last backup
   file saved" line in Settings and History, once a share has completed or
   you've tapped **I've saved it**; cancelling the share sheet or ignoring a
-  download leaves the reminder in place. (Versions before this recorded
+  download leaves the reminder in place. Kenna also notes when that file was
+  made, to tell which photos are in it. (Versions before this recorded
   the time a download started; that time is still used by the reminder, and
   Settings says it wasn't confirmed.)
 - **Settings → Import Backup** checks the whole file first, then asks
