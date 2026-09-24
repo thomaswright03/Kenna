@@ -56,6 +56,9 @@ How the numbers work:
   stays open.
 - Charts use a real time axis: days you didn't log are gaps (a dashed line
   bridges them), and each chart ends at today.
+- Weight is in pounds (lbs) and dates and numbers are written the US English
+  way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. There is
+  no kilogram setting.
 
 ## Using it on your phone (recommended — `docs/`)
 
@@ -207,7 +210,11 @@ before merging*, and select both checks.
 ## Deploying the phone app (GitHub Pages)
 
 Pages is configured in the repository's **Settings → Pages**: *Source:
-Deploy from a branch*, with the published branch and the **`/docs`** folder.
+Deploy from a branch*, branch **`claude/phone-calorie-tracker-gbxsn6`**,
+folder **`/docs`**. That branch (also the repository's default branch) is
+the published branch: whatever is in its `docs/` folder is the live app.
+Other branches, such as `claude/excellence-loop`, are not published until
+they are merged into it.
 Pages serves the files in `docs/` as they are; there is no build step.
 
 Releasing a change:

@@ -32,7 +32,7 @@ export async function buildSettings() {
     { class: 'card' },
     h('h2', { class: 'card-title', text: 'Settings' }),
     h('h3', { class: 'section-title', text: 'Appearance' }),
-    h('p', { class: 'card-sub', text: 'System follows your phone’s light or dark setting.' }),
+    h('p', { class: 'card-sub', text: 'System follows your device’s light or dark setting.' }),
     themeGroup
   );
 
