@@ -152,3 +152,66 @@ test('with no photos, Photos says what they are for and offers to add the first 
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
   await expect(empty).toHaveCount(0);
 });
+
+test('compared photos sit in frames of the same size, each with its weight or "No weight logged"', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  // A portrait photo and a landscape one, drawn by the browser.
+  const drawn = async (width, height) =>
+    Buffer.from(
+      await page.evaluate(
+        ([w, h]) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#3a7';
+          ctx.fillRect(0, 0, w, h);
+          return canvas.toDataURL('image/png').split(',')[1];
+        },
+        [width, height]
+      ),
+      'base64'
+    );
+  const photos = [
+    ['2026-09-10', await drawn(60, 120)],
+    ['2026-09-24', await drawn(120, 60)],
+  ];
+  for (const [i, [date, buffer]] of photos.entries()) {
+    await page.clock.setFixedTime(new Date(Date.parse('2026-09-24T10:00:00-05:00') + i * 60000));
+    await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer });
+    await page.getByLabel('Day this photo was taken').fill(date);
+    await page.getByRole('button', { name: 'Save photo' }).click();
+    await expect(page.locator('.photo-thumb')).toHaveCount(i + 1);
+  }
+
+  const openCompare = async () => {
+    await page.getByRole('button', { name: 'Compare photos' }).click();
+    await page.getByRole('button', { name: 'Progress photo, Thu, Sep 10' }).click();
+    await page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' }).click();
+    const compare = page.getByRole('dialog', { name: 'Compare photos' });
+    await expect(compare.locator('img')).toHaveCount(2);
+    for (const img of await compare.locator('img').all()) await expect.poll(() => img.evaluate((el) => el.complete && el.naturalWidth)).toBeGreaterThan(0);
+    return compare;
+  };
+  let compare = await openCompare();
+  await expect(compare.locator('figcaption')).toHaveText([/Thu, Sep 10\s*No weight logged/, /Thu, Sep 24\s*No weight logged/]);
+  await expect(compare.locator('.viewer-position')).toHaveText('14 days apart');
+  // Both frames are the same size, shaped like the portrait photo, and
+  // each photo is shown whole (contained, not cropped).
+  const frames = await compare.locator('.compare-frame').evaluateAll((els) => els.map((el) => el.getBoundingClientRect()).map((r) => ({ w: r.width, h: r.height })));
+  expect(frames).toHaveLength(2);
+  expect(Math.abs(frames[0].h - frames[1].h)).toBeLessThan(1);
+  expect(Math.abs(frames[0].w - frames[1].w)).toBeLessThan(1);
+  expect(frames[0].h / frames[0].w).toBeCloseTo(2, 1);
+  expect(await compare.locator('img').evaluateAll((els) => els.map((el) => getComputedStyle(el).objectFit))).toEqual(['contain', 'contain']);
+  await compare.getByRole('button', { name: 'Close' }).click();
+
+  // A weight logged for one of the days shows under its photo.
+  await page.goto(`${appURL}/#/day/2026-09-10`);
+  await page.getByLabel('Weight (lbs)').fill('181.4');
+  await page.getByLabel('Weight (lbs)').blur();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await page.goto(`${appURL}/#/photos`);
+  compare = await openCompare();
+  await expect(compare.locator('figcaption')).toHaveText([/Thu, Sep 10\s*181\.4 lbs/, /Thu, Sep 24\s*No weight logged/]);
+});

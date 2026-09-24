@@ -915,7 +915,20 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .dialog-compare { width: min(900px, calc(100vw - var(--s4))); }
 .compare-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .compare-photo { margin: 0; display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
-.compare-img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: var(--r-md); background: var(--card-2); }
+/* Both frames are the same size, shaped like the more upright photo
+   (--compare-shape, width over height), and each photo is shown whole in
+   its frame. */
+.compare-frame {
+  position: relative;
+  aspect-ratio: var(--compare-shape, 0.75);
+  max-height: 60vh;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--card-2);
+}
+.compare-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.compare-frame > .photo-unviewable,
+.compare-frame > .photo-missing { position: absolute; inset: 0; min-height: 0; overflow: auto; }
 .compare-photo figcaption { display: flex; flex-direction: column; font-size: var(--fs-sm); }
 .compare-date { font-weight: 700; }
 .compare-weight { color: var(--muted); font-variant-numeric: tabular-nums; }

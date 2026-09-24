@@ -93,7 +93,10 @@ run, test and release it.
   through the photos oldest first with **Previous** and **Next**, a swipe or
   the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
   in the viewer) shows two photos side by side, older on the left, with
-  each one's date and that day's weight and how far apart they are.
+  each one's date and that day's weight (or "No weight logged") and how
+  far apart they are. Both sit in frames of the same size, shaped like
+  the more upright of the two, and each is shown whole, so a portrait and
+  a landscape photo line up without either being cropped.
   Deleting a photo asks first, inside the viewer (the photo stays in view;
   **Cancel** or Escape goes back to it), so only one dialog is ever open.
   Once it's deleted, **Undo** in the message that follows brings it back
