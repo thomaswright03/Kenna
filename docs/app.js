@@ -16,6 +16,7 @@ import { buildCompare } from './ui/screen-compare.js';
 import { buildPhotos } from './ui/screen-photos.js';
 import { buildSettings } from './ui/screen-settings.js';
 import { recordProblem, recordUncaughtErrors } from './ui/problems.js';
+import { showWhatsNewOnce } from './ui/whats-new.js';
 
 registerScreens({
   today: buildToday,
@@ -91,6 +92,7 @@ async function start() {
   startRouter(render);
   await render();
   reportUnclaimedDraft();
+  showWhatsNewOnce();
 
   // The app's files are kept for opening offline. Browsers allow this on
   // https and on localhost only.
