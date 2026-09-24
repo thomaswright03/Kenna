@@ -9,6 +9,7 @@ import { render } from './render.js';
 import { saveDateFor, farBackGate } from './day.js';
 import { buildChartsCard } from './charts.js';
 import { buildBackupReminder } from './backup-reminder.js';
+import { buildInstallNote } from './install-note.js';
 import { keepDraft, claimDraft } from './drafts.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
@@ -277,13 +278,15 @@ export async function buildToday(ctx) {
 
   const hasData = visibleEntries(allEntries).length > 0 || (await store.countPhotos().catch(() => 0)) > 0;
   const reminder = buildBackupReminder(hasData);
+  const installNote = buildInstallNote(hasData);
 
   return {
     title: isToday ? 'Today' : core.formatDate(date, now),
-    root: h('div', { class: 'screen-stack' }, reminder ? reminder.root : null, todayCard, charts.root),
+    root: h('div', { class: 'screen-stack' }, installNote ? installNote.root : null, reminder ? reminder.root : null, todayCard, charts.root),
     mounted: () => {
       charts.draw();
-      if (reminder) reminder.mounted();
+      if (installNote) installNote.mounted();
+      else if (reminder) reminder.mounted();
       if (draft) weightStatus.set('error', `Not saved yet. ${draft.error}`);
     },
     flush: gate ? undefined : flush,

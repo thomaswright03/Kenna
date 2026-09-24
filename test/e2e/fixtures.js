@@ -15,6 +15,9 @@ function listen(server) {
 
 const test = base.test.extend({
   backend: ['local', { option: true }],
+  // Kenna opened from the Home Screen, as it's meant to be used. Tests of
+  // the browser-tab note set this to false.
+  installed: [true, { option: true }],
 
   // Starts a fresh, empty copy of the app; call again for a second, empty one.
   startApp: async ({ backend }, use) => {
@@ -42,8 +45,13 @@ const test = base.test.extend({
     await use(await startApp());
   },
 
-  page: async ({ page }, use) => {
+  page: async ({ page, context, installed }, use) => {
     await page.clock.setFixedTime(NOW);
+    if (installed) {
+      await context.addInitScript(() => {
+        Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true, configurable: true });
+      });
+    }
     // Backups go through the download path unless a test stands in a share
     // sheet (whether a desktop test browser can share files differs by engine).
     await page.addInitScript(() => {
