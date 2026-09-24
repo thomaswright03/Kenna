@@ -43,7 +43,7 @@ export const CARDS = [
     title: 'Logging is quicker, and nothing gets lost',
     points: [
       'Tap any meal’s row on Today to open Log Meal right at that meal.',
-      'Each number saves as soon as you leave its box, even if you switch apps or lock the phone. Enter moves to the next meal you haven’t logged.',
+      'Each number saves when you leave its box, even if you switch apps. Enter moves on to the next meal.',
       'Save and close takes you back to the day and tells you its total.',
     ],
   },
@@ -93,7 +93,7 @@ export const CARDS = [
     where: 'Settings',
     title: 'Back up everything in one file',
     points: [
-      'Settings → Export Backup saves one file with every day and every photo. Keep it in Files or iCloud Drive.',
+      'Export Backup in Settings saves every day and photo in one file. Keep it in Files or iCloud Drive.',
       'Import Backup restores it, and can be undone. Today reminds you when your last backup is a week old.',
       'Settings also has a light or dark theme.',
     ],

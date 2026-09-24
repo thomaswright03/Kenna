@@ -82,6 +82,8 @@ test('it doesn’t open by itself on a screen other than Today', async ({ page, 
 });
 
 test('Settings opens it again, and axe finds no problems in it', async ({ page, appURL }) => {
+  // No color transitions, so axe reads each theme's settled colors.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await returningUser(page, appURL);
   await page.keyboard.press('Escape');
   await page.goto(`${appURL}/#/settings`);
