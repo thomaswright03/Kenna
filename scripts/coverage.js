@@ -94,7 +94,7 @@ async function main() {
 
   // What ran in Node, from c8, then what ran in the pages.
   const nodeJson = path.join(OUT, 'node');
-  run('npx', ['c8', 'report', '--temp-directory', NODE_RAW, '--report-dir', nodeJson, '--reporter', 'json', '--include', 'docs/*.js', '--include', 'server.js', '--exclude', 'docs/sw.js']);
+  run('npx', ['c8', 'report', '--temp-directory', NODE_RAW, '--report-dir', nodeJson, '--reporter', 'json', '--include', 'docs/*.js', '--include', 'docs/core/*.js', '--include', 'server.js', '--exclude', 'docs/sw.js']);
   const coverage = libCoverage.createCoverageMap(JSON.parse(fs.readFileSync(path.join(nodeJson, 'coverage-final.json'), 'utf8')));
   await addPageCoverage(coverage);
 
