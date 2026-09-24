@@ -24,19 +24,26 @@ here touches your real days or photos.
 6. Log a weight and check it in History and on Compare. In History, tap
    **Show earlier months**, open a day further down and swipe back: History
    shows the same months, with that day where it was.
-7. Add a progress photo from the photo library (a HEIC one if you have it),
+7. On Log Meal, type 4000 for Breakfast and tap Return: Kenna asks "Keep
+   4,000 cal for breakfast?". Tap **Change it**, then the Today tab: the
+   Breakfast row shows "4,000 cal not saved yet" and History marks the day.
+   Tap the row, then **Keep it**: the row then shows 4,000 cal.
+8. Add a progress photo from the photo library (a HEIC one if you have it),
    confirm its day and tap **Save photo**.
-   It appears on the Photos screen and opens in the viewer.
-8. Settings → **Export Backup** → **Save or share…** → **Save to Files**.
+   It appears on the Photos screen and opens in the viewer. Delete it in the
+   viewer and tap **Undo** in the message: it comes back on the same day.
+9. Settings → **Export Backup** → **Save or share…** → **Save to Files**.
    Settings then says "Backup shared" and when.
-9. Delete the photo and change the meal, then Settings → **Import Backup**
-   and pick the file just saved. The question says 1 day will be replaced;
-   after **Restore**, the meal and the photo come back. **Undo restore**
-   brings back the changed meal and removes the photo again. Importing the
-   file twice adds nothing the second time.
-10. Open Photos with two photos added, step between them with a swipe,
+10. Delete the photo and change the meal, then Settings → **Import Backup**
+    and pick the file just saved. The question says 1 day will be replaced;
+    after **Restore**, the meal and the photo come back. **Undo restore**
+    brings back the changed meal and removes the photo again. Importing the
+    file twice adds nothing the second time.
+11. Open Photos with two photos added, step between them with a swipe,
     and compare them side by side (**Compare photos**).
-11. Delete the test copy from the Home Screen (touch and hold → Remove App).
+12. Delete the test copy from the Home Screen (touch and hold → Remove App).
+
+Finish every step, and record it below, before merging the pull request.
 
 ## After Pages deploys
 
