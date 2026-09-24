@@ -87,8 +87,9 @@ run, test and release it.
   photo**):
   **Add Photo** picks the photo first; then, beside a preview, **Which day
   was this photo taken?** asks for its day (it starts at today, and future
-  days aren't allowed) and **Save photo** saves it (**Cancel** leaves it
-  out). The day can be changed later from the photo viewer. Kenna keeps a
+  days aren't allowed: a day to come, or an empty box, stays as typed with
+  the reason under it, and **Save photo** saves nothing until the day is
+  fixed) and **Save photo** saves it (**Cancel** leaves it out). The day can be changed later from the photo viewer. Kenna keeps a
   smaller copy of each photo (at most 1,600 pixels on its longest side,
   re-saved as JPEG where the browser can), and the Photos screen says so:
   the original stays in the phone's photo library. The viewer steps

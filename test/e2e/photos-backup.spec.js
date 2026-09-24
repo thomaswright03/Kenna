@@ -250,12 +250,29 @@ test('a photo is picked first, then filed under the day it was taken, and can be
   await expect(day).toHaveAttribute('max', TODAY);
   // Nothing is saved until the day is confirmed.
   await expect(page.locator('.photo-thumb')).toHaveCount(0);
-  await day.fill('2026-09-30');
+  // A day to come is refused, stays in the box with why, and Save photo
+  // doesn't save the photo under any other day.
+  await day.fill('2027-09-30');
   await day.dispatchEvent('change');
-  await expect(page.getByText("A photo can't be filed under a day that hasn't happened yet.")).toBeVisible();
-  await expect(day).toHaveValue(TODAY);
+  const future = page.getByText("A photo can't be filed under a day that hasn't happened yet.");
+  await expect(future).toBeVisible();
+  await expect(day).toHaveValue('2027-09-30');
+  await expect(day).toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: 'Save photo' }).click();
+  await expect(future).toBeVisible();
+  await expect(day).toHaveValue('2027-09-30');
+  await expect(day).toBeFocused();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+  // An emptied box isn't taken as today either.
+  await day.fill('');
+  await page.getByRole('button', { name: 'Save photo' }).click();
+  await expect(page.getByText('Pick the day this photo was taken.')).toBeVisible();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
 
   await day.fill('2026-09-23');
+  await day.dispatchEvent('change');
+  await expect(future).toHaveCount(0);
+  await expect(day).not.toHaveAttribute('aria-invalid', 'true');
   await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added to Yesterday' })).toBeVisible();
   const yesterday = page.locator('.card', { has: page.getByRole('heading', { name: 'Yesterday' }) });

@@ -20,7 +20,8 @@ const KEPT_SIZE = 1600;
 /**
  * The step after a photo is picked: a preview and "Which day was this
  * photo taken?" (today unless changed, never a day to come), with Save
- * photo and Cancel.
+ * photo and Cancel. Save photo saves only once the box holds a day that
+ * can be used.
  * @param {{ blob: Blob, viewable: boolean }} prepared
  * @param {{ save: (day: string) => Promise<boolean>, cancel: () => void }} on save resolves false when it failed
  */
@@ -49,17 +50,22 @@ function photoDayPanel(prepared, on) {
     dayInput.disabled = on;
   };
 
+  // A day that can't be used stays in the box, with why, until it's
+  // changed: the photo is never filed under a day that wasn't picked.
   dayInput.addEventListener('change', () => {
     const problem = photoDayProblem(dayInput.value);
-    if (!problem) return;
-    dayInput.value = today();
-    dayStatus.set('error', problem);
+    if (problem) dayStatus.set('error', problem);
+    else dayStatus.set(null);
   });
   cancelBtn.addEventListener('click', on.cancel);
   saveBtn.addEventListener('click', async () => {
-    const day = dayInput.value || today();
+    const day = dayInput.value;
     const problem = photoDayProblem(day);
-    if (problem) return dayStatus.set('error', problem);
+    if (problem) {
+      dayStatus.set('error', problem);
+      dayInput.focus();
+      return;
+    }
     disable(true);
     if (!(await on.save(day))) disable(false);
   });
