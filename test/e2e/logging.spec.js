@@ -74,7 +74,7 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
 
 test('the date field cannot be emptied or set to the future', async ({ page, appURL, backend }) => {
   await page.goto(appURL);
-  const date = page.getByLabel('Date');
+  const date = page.getByLabel('Day to view or edit');
   await date.fill('');
   await date.dispatchEvent('change');
   await expect(date).toHaveValue(TODAY);
@@ -192,4 +192,40 @@ test('calories typed with a thousands comma are saved as that number', async ({ 
   await page.getByLabel('Dinner calories').blur();
   await expect.poll(async () => (await data.entry(TODAY))?.meals.dinner).toBe(1200);
   await expect(page.getByText('Day total: 1,200 cal')).toBeVisible();
+});
+
+test('a day long before anything logged asks first, so a mistyped year is not saved silently', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 180) });
+  await page.goto(`${appURL}/#/day/1990-01-01`);
+  const gate = page.getByRole('group', { name: 'Log a day in 1990?' });
+  await expect(gate).toContainText('Mon, Jan 1, 1990 is 36 years ago, long before anything else you’ve logged.');
+  await expect(page.getByLabel('Weight (lbs)')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Log Meal' })).toHaveCount(0);
+  await page.goto(`${appURL}/#/day/1990-01-01/log`);
+  await expect(page.getByRole('group', { name: 'Log a day in 1990?' })).toBeVisible();
+  await expect(page.getByLabel(/calories/)).toHaveCount(0);
+
+  // The day picker lands on the same question for a mistyped year.
+  await page.goto(appURL);
+  const picker = page.getByLabel('Day to view or edit');
+  await picker.fill('2002-09-23');
+  await picker.dispatchEvent('change');
+  await expect(page.getByRole('group', { name: 'Log a day in 2002?' })).toBeVisible();
+  await page.getByRole('link', { name: 'Back to today' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+
+  // Confirming opens the day as usual.
+  await page.goto(`${appURL}/#/day/1990-01-01`);
+  await page.getByRole('button', { name: 'Log 1990' }).click();
+  await page.getByLabel('Weight (lbs)').fill('170');
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect((await data.entry('1990-01-01')).weight).toBe(170);
+
+  // A day that already has data never asks, and nor does last month.
+  await page.reload();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('170');
+  await page.goto(`${appURL}/#/day/2026-08-15`);
+  await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+  await expect(page.locator('[data-far-back]')).toHaveCount(0);
 });

@@ -325,3 +325,15 @@ test('chart dates carry their year on every label when the range crosses a year'
   assert.equal(across[3], 'Sep 24, 2026');
   assert.equal(core.dateAxisLabels(end - 400, end, 3).length, 3);
 });
+
+test('a day long before anything logged is flagged as a likely mistyped year', () => {
+  assert.equal(core.isFarBack('2026-09-01', '2026-09-24', null), false);
+  assert.equal(core.isFarBack('2025-09-24', '2026-09-24', null), false, 'a year ago is fine');
+  assert.equal(core.isFarBack('2025-09-23', '2026-09-24', null), true);
+  assert.equal(core.isFarBack('2002-09-24', '2026-09-24', '2026-01-10'), true);
+  assert.equal(core.isFarBack('2023-06-01', '2026-09-24', '2023-06-20'), false, 'close to the first logged day');
+  assert.equal(core.isFarBack('2023-04-01', '2026-09-24', '2023-06-20'), true);
+  assert.equal(core.yearsBetween('1990-01-01', '2026-09-24'), 36);
+  assert.equal(core.yearsBetween('2025-09-25', '2026-09-24'), 0);
+  assert.equal(core.yearsBetween('2024-09-24', '2026-09-24'), 2);
+});

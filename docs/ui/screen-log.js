@@ -5,14 +5,21 @@ import { toast, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
 import { render } from './render.js';
-import { saveDateFor } from './day.js';
+import { saveDateFor, farBackGate } from './day.js';
 import { keepDraft, claimDraft, draftMealFor } from './drafts.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildLog(ctx) {
   const now = today();
   const date = ctx.route.date || now;
-  const stored = await store.getEntry(date);
+  const [stored, entries] = await Promise.all([store.getEntry(date), store.loadEntries()]);
+  const gate = farBackGate(date, entries, () => render());
+  if (gate) {
+    return {
+      title: `Log Meal, ${core.formatDate(date, now)}`,
+      root: h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'Log Meal' }), gate),
+    };
+  }
   const view = { date, entry: stored || blankEntry(date), rolledOver: false };
   const isToday = date === now;
   const firstOpen = MEAL_STEPS.find((m) => view.entry.meals[m.key] === null);

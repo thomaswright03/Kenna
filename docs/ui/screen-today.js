@@ -6,7 +6,7 @@ import { toast, announce, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, navigate } from './router.js';
 import { render } from './render.js';
-import { saveDateFor } from './day.js';
+import { saveDateFor, farBackGate } from './day.js';
 import { buildChartsCard } from './charts.js';
 import { buildBackupReminder } from './backup-reminder.js';
 import { keepDraft, claimDraft } from './drafts.js';
@@ -239,22 +239,34 @@ export async function buildToday(ctx) {
 
   const logBtn = h('a', { class: 'btn btn-primary', href: logHash(ctx.route.date, null), text: 'Log Meal' });
 
-  const todayCard = h(
-    'section',
-    { class: 'card' },
-    heading,
-    sub,
-    pastNote,
-    h(
-      'div',
-      { class: 'field-row' },
-      h('div', { class: 'field' }, h('label', { for: dateInput.id, text: 'Date' }), dateInput, dateStatus.el),
-      h('div', { class: 'field' }, h('label', { for: weightInput.id, text: 'Weight (lbs)' }), weightInput, weightStatus.el)
-    ),
-    h('div', { class: 'total-box' }, totalNum, totalLabel),
-    mealsList,
-    logBtn
+  const dateField = h(
+    'div',
+    { class: 'field' },
+    h('label', { for: dateInput.id, text: 'Day to view or edit' }),
+    dateInput,
+    dateStatus.el
   );
+  // A day long before anything logged asks first; until then only the
+  // day picker is offered, to fix a mistyped year.
+  const gate = farBackGate(date, allEntries, () => render());
+  const todayCard = gate
+    ? h('section', { class: 'card' }, heading, sub, gate, dateField)
+    : h(
+        'section',
+        { class: 'card' },
+        heading,
+        sub,
+        pastNote,
+        h(
+          'div',
+          { class: 'field-row' },
+          dateField,
+          h('div', { class: 'field' }, h('label', { for: weightInput.id, text: 'Weight (lbs)' }), weightInput, weightStatus.el)
+        ),
+        h('div', { class: 'total-box' }, totalNum, totalLabel),
+        mealsList,
+        logBtn
+      );
 
   const charts = buildChartsCard({
     title: 'Graphs',
@@ -274,7 +286,7 @@ export async function buildToday(ctx) {
       if (reminder) reminder.mounted();
       if (draft) weightStatus.set('error', `Not saved yet. ${draft.error}`);
     },
-    flush,
+    flush: gate ? undefined : flush,
     async refreshFromStorage() {
       const entry = (await store.getEntry(view.date)) || blankEntry(view.date);
       view.entry = entry;

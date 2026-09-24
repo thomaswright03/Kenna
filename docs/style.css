@@ -747,6 +747,16 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .notice-actions > :only-child { grid-column: 1 / -1; }
 .notice-card .field-status { color: inherit; }
 
+/* A day far back enough that its year was probably mistyped. */
+.far-back {
+  margin: 0 0 var(--s4);
+  padding: var(--s3);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--r-md);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
 /* A backup file that's been made but not saved anywhere yet. */
 .backup-delivery {
   margin-top: var(--s3);

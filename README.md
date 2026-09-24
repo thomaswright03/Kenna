@@ -7,8 +7,8 @@ data never leaves your device.
 
 - **Today** shows the day's date, your weight and the calories logged so far,
   one row per meal, and Calories and Weight charts (last 30 days, 90 days or
-  all time). Pick another date, or tap a day in History, to view or fix a past
-  day; **Back to today** returns to the current day.
+  all time). Pick another day in **Day to view or edit**, or tap a day in
+  History, to view or fix a past day; **Back to today** returns to the current day.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
   value saves as soon as you leave the box or tap another meal, and also if
@@ -55,6 +55,11 @@ How the numbers work:
   after today are left out on import, and the import says how many. An
   address that doesn't lead anywhere opens Today and is replaced by Today's
   address.
+- A day more than a year ago that is also more than a month before the
+  first day you logged is probably a mistyped year (2002 for 2026), so
+  opening it, by the day picker or by address, asks "Log a day in 2002?"
+  and nothing can be logged there until you confirm. Backups can still
+  restore days of any age.
 - The Today screen follows the calendar: if the app is left open (or resumed
   from the background) past midnight it moves to the new day, and anything
   logged after midnight goes to the new day. A past day you opened on purpose

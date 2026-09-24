@@ -136,6 +136,32 @@
     return (withYear ? monthDayYearFmt : monthDayFmt).format(utcDate(str));
   }
 
+  // A day more than a year ago that is also well before the first day
+  // logged is most likely a mistyped year (2002 for 2026), so the app asks
+  // before logging it. Days that already have data never ask.
+  const FAR_BACK = { YEAR_DAYS: 365, BEFORE_FIRST_DAYS: 30 };
+
+  /**
+   * @param {string} date
+   * @param {string} today
+   * @param {string | null} firstLogged the earliest day with data, if any
+   */
+  function isFarBack(date, today, firstLogged) {
+    if (!isValidDateStr(date)) return false;
+    if (date >= shiftDate(today, -FAR_BACK.YEAR_DAYS)) return false;
+    return !firstLogged || date < shiftDate(firstLogged, -FAR_BACK.BEFORE_FIRST_DAYS);
+  }
+
+  /** Whole years from `date` to `today`, for "36 years ago". @param {string} date @param {string} today */
+  function yearsBetween(date, today) {
+    const a = parseDateStr(date);
+    const b = parseDateStr(today);
+    if (!a || !b) return 0;
+    let years = b.y - a.y;
+    if (b.m < a.m || (b.m === a.m && b.d < a.d)) years -= 1;
+    return years;
+  }
+
   // ---------------------------------------------------------------- numbers
 
   const numberFormats = {};
@@ -761,6 +787,8 @@
     isFutureDate,
     daysBetween,
     formatDate,
+    isFarBack,
+    yearsBetween,
     formatRelativeDate,
     formatMonthDay,
     formatNumber,

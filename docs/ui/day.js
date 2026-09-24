@@ -2,7 +2,7 @@
 // from the background) past midnight, it moves to the new day unless the
 // user deliberately opened a specific date.
 
-import { today } from './dom.js';
+import { core, h, uid, today } from './dom.js';
 import { route } from './router.js';
 
 let knownToday = today();
@@ -31,4 +31,44 @@ export function saveDateFor(view) {
     view.rolledOver = true;
   }
   return view.date;
+}
+
+// Days confirmed this session as really meant, though far back.
+/** @type {Set<string>} */
+const confirmedFarBack = new Set();
+
+/**
+ * For a day long before anything logged (probably a mistyped year), a note
+ * that asks before anything can be logged there; null for any other day.
+ * @param {string} date
+ * @param {Record<string, import('../core.js').Entry>} entries
+ * @param {() => void} onConfirm runs once the user says it's the day they meant
+ * @returns {HTMLElement | null}
+ */
+export function farBackGate(date, entries, onConfirm) {
+  const now = today();
+  if (confirmedFarBack.has(date)) return null;
+  const logged = Object.values(entries)
+    .filter((e) => !core.isEntryEmpty(e))
+    .map((e) => e.date)
+    .sort();
+  if (!core.isFarBack(date, now, logged.length ? logged[0] : null)) return null;
+  const years = core.yearsBetween(date, now);
+  const when = `${core.formatDate(date, now)} is ${years} year${years === 1 ? '' : 's'} ago`;
+  const titleId = uid('far-back');
+  const confirmBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: `Log ${date.slice(0, 4)}` });
+  confirmBtn.addEventListener('click', () => {
+    confirmedFarBack.add(date);
+    onConfirm();
+  });
+  return h(
+    'div',
+    { class: 'far-back', role: 'group', 'aria-labelledby': titleId, 'data-far-back': '' },
+    h('p', { class: 'notice-title', id: titleId, text: `Log a day in ${date.slice(0, 4)}?` }),
+    h('p', {
+      class: 'notice-text',
+      text: `${when}${logged.length ? ', long before anything else you’ve logged' : ''}. Check the year: nothing can be logged here until you confirm it’s the day you meant.`,
+    }),
+    h('div', { class: 'notice-actions' }, h('a', { class: 'btn btn-primary', href: '#/', text: 'Back to today' }), confirmBtn)
+  );
 }
