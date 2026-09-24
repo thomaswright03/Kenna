@@ -18,7 +18,7 @@ test('no screen has accessibility problems axe can find, in either theme', async
   }
 });
 
-test('the backup save panel, the photo viewer and the "Log a day in …?" question have no problems axe can find', async ({ page, appURL, data }) => {
+test('the backup save panel, the meal table, the photo viewer and the "Log a day in …?" question have no problems axe can find', async ({ page, appURL, data }) => {
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }, 180) });
   const check = async (label) => {
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
@@ -35,6 +35,10 @@ test('the backup save panel, the photo viewer and the "Log a day in …?" questi
   await page.goto(`${appURL}/#/day/2001-01-01`);
   await expect(page.locator('[data-far-back]')).toBeVisible();
   await check('far back');
+  await page.goto(`${appURL}/#/compare`);
+  await page.locator('.compare-meals summary').click();
+  await expect(page.locator('.meal-table')).toBeVisible();
+  await check('compare meals');
   await page.goto(`${appURL}/#/photos`);
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
   await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
