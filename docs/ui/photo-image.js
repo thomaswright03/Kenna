@@ -57,6 +57,9 @@ async function scaleToJpeg(img, maxDim, quality) {
   return blob;
 }
 
+// Said when a file isn't a photo, with what to pick instead.
+const NOT_A_PHOTO = "That file isn't a photo we can show. Pick a photo from your library: JPEG, PNG, HEIC or WebP.";
+
 /**
  * Downscales and re-encodes so a multi-megabyte phone photo doesn't eat
  * storage. A real photo format this browser can't draw or re-encode (e.g.
@@ -71,13 +74,13 @@ export async function preparePhoto(file, maxDim) {
   const decoded = await decodeImage(file);
   if (!decoded) {
     if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: false };
-    throw new core.InputError("That file isn't a photo we can show.");
+    throw new core.InputError(NOT_A_PHOTO);
   }
   const blob = await scaleToJpeg(decoded.img, maxDim, 0.85);
   decoded.release();
   if (blob) return { blob, viewable: true };
   if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: true };
-  throw new core.InputError("That file isn't a photo we can show.");
+  throw new core.InputError(NOT_A_PHOTO);
 }
 
 // What the Photos grid shows for a photo this browser can't draw.

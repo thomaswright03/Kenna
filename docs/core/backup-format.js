@@ -35,6 +35,9 @@ function photoKey(p) {
   return String(p.createdAt);
 }
 
+// What to pick instead, said after every "isn't a Kenna backup".
+const PICK_BACKUP = 'Pick the file Export Backup saved: its name starts with kenna-backup and ends in .json (look in Files or iCloud Drive).';
+
 /**
  * Checks everything in a backup except its photos: that it's a Kenna
  * backup this version can read, and every day in it. A day that can't be
@@ -48,16 +51,16 @@ function photoKey(p) {
  */
 function checkBackupDays(payload, skipped, latestDay) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return { ok: false, error: "This file isn't a Kenna backup." };
+    return { ok: false, error: `This file isn't a Kenna backup. ${PICK_BACKUP}` };
   }
   if (payload.app !== undefined && payload.app !== 'kenna') {
-    return { ok: false, error: "This file isn't a Kenna backup." };
+    return { ok: false, error: `This file isn't a Kenna backup. ${PICK_BACKUP}` };
   }
   if (typeof payload.version === 'number' && payload.version > BACKUP_VERSION) {
     return { ok: false, error: 'This backup was made by a newer version of Kenna. Update the app, then import it again.' };
   }
   if (!payload.entries || typeof payload.entries !== 'object' || Array.isArray(payload.entries)) {
-    return { ok: false, error: "This file isn't a Kenna backup: it has no days in it." };
+    return { ok: false, error: `This file isn't a Kenna backup: it has no days in it. ${PICK_BACKUP}` };
   }
   /** @type {Record<string, Entry>} */
   const entries = {};
@@ -111,7 +114,7 @@ function backupRefusal(skipped, usable) {
   return skipped.length > 0 && usable === 0 ? backupProblemsMessage(skipped) : null;
 }
 
-const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
+const UNREADABLE_BACKUP = `This file isn't a Kenna backup: it isn't readable backup data. ${PICK_BACKUP}`;
 
 /** @param {Entry} a @param {Entry} b */
 function sameEntry(a, b) {

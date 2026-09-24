@@ -126,3 +126,16 @@ test('a backup with photos and no days is described as such, before and after', 
   await expect(page.getByText('Restored 1 photo.', { exact: true })).toBeVisible();
   expect((await data.entry(TODAY)).meals.breakfast).toBe(500);
 });
+
+test('a file that is not a backup is refused, with which file to pick instead', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  const file = testInfo.outputPath('notes.txt');
+  fs.writeFileSync(file, 'Shopping: eggs, milk');
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  await expect(page.getByText("This file isn't a Kenna backup: it isn't readable backup data.")).toContainText(
+    'Pick the file Export Backup saved: its name starts with kenna-backup and ends in .json (look in Files or iCloud Drive).'
+  );
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(400);
+});

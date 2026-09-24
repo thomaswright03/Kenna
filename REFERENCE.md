@@ -316,7 +316,9 @@ reminder once that card is hidden or doesn't apply.
   outside the rules above, a date that doesn't exist), the question lists
   them and the button reads **Restore the rest**; the result lists them
   again. A file with nothing that can be restored isn't imported, and the
-  message says what's wrong. Days in the file replace the same days on the
+  message says what's wrong; a file that isn't a Kenna backup at all is
+  refused with which file to pick instead (the one Export Backup saved,
+  named `kenna-backup-` and the date, ending in `.json`). Days in the file replace the same days on the
   device (other days are kept); a day already on the device exactly as in
   the file is left alone, and the result counts it as already here rather
   than restored; the days about to be replaced are saved

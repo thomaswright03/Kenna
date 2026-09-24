@@ -93,7 +93,7 @@ test('a written backup reads back in slices with every day and photo intact', as
 test('checking a backup reports problems without importing anything', async () => {
   const unreadable = await checkBackup(new Blob(['{"entries": {"2026-09-01": {"meals": {}}}, "photos": [']));
   assert.equal(unreadable.ok, false);
-  assert.match(unreadable.error, /isn't readable backup data/);
+  assert.match(unreadable.error, /isn't readable backup data\. Pick the file Export Backup saved: its name starts with kenna-backup and ends in \.json/);
 
   const badPhoto = await checkBackup(
     new Blob([JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'nope', type: 'image/jpeg', data: 'AA==' }, 7] })])
@@ -121,6 +121,9 @@ test('checking a backup reports problems without importing anything', async () =
 
   const notKenna = await checkBackup(new Blob([JSON.stringify({ app: 'other', entries: {} })]));
   assert.equal(notKenna.ok, false);
+  assert.match(notKenna.error, /^This file isn't a Kenna backup\. Pick the file Export Backup saved/);
+  const noDays = await checkBackup(new Blob([JSON.stringify({ app: 'kenna', photos: [] })]));
+  assert.match(noDays.error, /it has no days in it\. Pick the file Export Backup saved/);
 
   const v1 = await checkBackup(new Blob([JSON.stringify({ exportedAt: 'x', entries: { '2025-05-01': { date: '2025-05-01', weight: 150, meals: {} } } }, null, 2)]));
   assert.equal(v1.ok, true);

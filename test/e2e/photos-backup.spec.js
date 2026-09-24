@@ -130,7 +130,7 @@ test('Cancel leaves the picked photo out', async ({ page, appURL }) => {
 test('files that are not photos are refused', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/photos`);
   await page.locator('input[type=file]').setInputFiles({ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('hello, this is text') });
-  await expect(page.getByText("That file isn't a photo we can show.")).toBeVisible();
+  await expect(page.getByText("That file isn't a photo we can show.")).toContainText('Pick a photo from your library: JPEG, PNG, HEIC or WebP.');
   await expect(page.locator('.photo-thumb')).toHaveCount(0);
 });
 
