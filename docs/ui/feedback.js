@@ -117,7 +117,10 @@ const openDialogs = new Set();
 /**
  * A native modal <dialog>: traps focus, closes on Escape, on a tap on the
  * backdrop and via its buttons, and gives focus back to what opened it.
- * @param {{ labelId: string, content: HTMLElement, className?: string, initialFocus?: HTMLElement, onClose?: (value: unknown) => void }} options
+ * `onDismiss` runs first on Escape or a backdrop tap; when it returns true
+ * it has dealt with it (stepped back from a question asked inside the
+ * dialog) and the dialog stays open.
+ * @param {{ labelId: string, content: HTMLElement, className?: string, initialFocus?: HTMLElement, onClose?: (value: unknown) => void, onDismiss?: () => boolean }} options
  * @returns {(value?: unknown) => void} closes the dialog
  */
 export function openDialog(options) {
@@ -136,12 +139,15 @@ export function openDialog(options) {
     if (options.onClose) options.onClose(value);
     if (returnFocus instanceof HTMLElement && document.contains(returnFocus)) returnFocus.focus();
   };
+  const dismiss = () => {
+    if (!(options.onDismiss && options.onDismiss())) close(undefined);
+  };
   dialog.addEventListener('cancel', (e) => {
     e.preventDefault();
-    close(undefined);
+    dismiss();
   });
   dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) close(undefined);
+    if (e.target === dialog) dismiss();
   });
   openDialogs.add(close);
   dialog.showModal();

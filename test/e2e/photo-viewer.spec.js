@@ -117,3 +117,21 @@ test("a photo this browser can't draw says so, in the viewer and in Compare phot
   await expect(compare.locator('img')).toHaveCount(1);
   expect(await compare.locator('img').evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
 });
+
+test('while the viewer asks whether to delete, the arrow keys and swipes stay on that photo', async ({ page, appURL }) => {
+  const { default: AxeBuilder } = require('@axe-core/playwright');
+  await addPhotos(page, appURL, ['2026-09-01', '2026-09-10']);
+  await page.getByRole('button', { name: 'Progress photo, Tue, Sep 1' }).click();
+  const viewer = page.getByRole('dialog');
+  await viewer.getByRole('button', { name: 'Delete…' }).click();
+  await expect(viewer.getByRole('group', { name: 'Delete this photo from Tue, Sep 1?' })).toBeVisible();
+  await expect(viewer.getByRole('button', { name: 'Next photo' })).toBeHidden();
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer).toHaveAccessibleName('Progress photo, Tue, Sep 1');
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(results.violations.map((v) => v.id)).toEqual([]);
+  await viewer.getByRole('button', { name: 'Delete photo' }).click();
+  await expect(viewer).toBeHidden();
+  await expect(page.locator('.photo-thumb')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Progress photo, Thu, Sep 10' })).toBeVisible();
+});

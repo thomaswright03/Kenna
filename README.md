@@ -62,7 +62,8 @@ data never leaves your device.
   the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
   in the viewer) shows two photos side by side, older on the left, with
   each one's date and that day's weight and how far apart they are.
-  Deleting a photo asks for confirmation first. A photo in a format the
+  Deleting a photo asks first, inside the viewer (the photo stays in view;
+  **Cancel** or Escape goes back to it), so only one dialog is ever open. A photo in a format the
   browser can't draw (HEIC anywhere but Safari, for example after
   restoring a backup on a laptop) is still kept and backed up as it is;
   adding one says it can't be previewed in this browser, and the grid, the

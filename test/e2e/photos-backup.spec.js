@@ -29,19 +29,31 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await expect(viewer).toBeHidden();
   await expect(thumb).toBeFocused();
 
+  // Delete asks inside the viewer: one dialog open, the photo still in
+  // view, and Cancel goes back to it.
   await thumb.click();
   await viewer.getByRole('button', { name: 'Delete…' }).click();
-  const confirm = page.getByRole('dialog', { name: 'Delete this photo from Thu, Sep 24?' });
-  await expect(confirm).toContainText("can't be undone");
-  await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
-  await confirm.getByRole('button', { name: 'Cancel' }).click();
-  await expect(confirm).toBeHidden();
+  const question = viewer.getByRole('group', { name: 'Delete this photo from Thu, Sep 24?' });
+  await expect(question).toContainText("can't be undone");
+  expect(await page.evaluate(() => document.querySelectorAll('dialog[open]').length)).toBe(1);
+  await expect(viewer.getByRole('img', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
+  await expect(viewer.getByRole('button', { name: 'Close' })).toBeHidden();
+  await expect(question.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await question.getByRole('button', { name: 'Cancel' }).click();
+  await expect(question).toHaveCount(0);
+  await expect(viewer.getByRole('button', { name: 'Delete…' })).toBeFocused();
+  // Escape while asking answers no, and leaves the viewer open.
+  await viewer.getByRole('button', { name: 'Delete…' }).click();
+  await page.keyboard.press('Escape');
+  await expect(question).toHaveCount(0);
+  await expect(viewer).toBeVisible();
   await viewer.getByRole('button', { name: 'Close' }).click();
   await expect(thumb).toBeVisible();
 
   await thumb.click();
   await viewer.getByRole('button', { name: 'Delete…' }).click();
-  await page.getByRole('button', { name: 'Delete photo' }).click();
+  await viewer.getByRole('button', { name: 'Delete photo' }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
   await expect(page.getByText('No photos yet.')).toBeVisible();
 });
 

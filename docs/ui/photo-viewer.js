@@ -1,10 +1,11 @@
 // The photo viewer: one progress photo at a time, with Previous and Next
 // (buttons, a swipe, or the arrow keys) through every photo in date order.
-// From here a photo can be moved to another day, deleted, or picked for a
-// side-by-side comparison.
+// From here a photo can be moved to another day, deleted (the viewer asks
+// first, in place of its own buttons, so only one dialog is ever open), or
+// picked for a side-by-side comparison.
 
 import { core, h, uid, today, errorText } from './dom.js';
-import { toast, openDialog, confirmDialog, createStatusLine } from './feedback.js';
+import { toast, openDialog, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
 import { unviewablePhoto } from './photo-image.js';
@@ -92,9 +93,10 @@ function photoFrame() {
 }
 
 /**
- * Where the viewer is: every photo in date order, the one shown, and
- * whether one was moved to another day (the Photos screen then regroups).
- * @typedef {{ list: Photo[], index: number, moved: boolean }} ViewerState
+ * Where the viewer is: every photo in date order, the one shown, whether
+ * one was moved to another day (the Photos screen then regroups), and,
+ * while it asks "Delete this photo?", how to step back from the question.
+ * @typedef {{ list: Photo[], index: number, moved: boolean, asking: (() => void) | null }} ViewerState
  */
 
 /** The viewer's controls. @param {boolean} several there's more than one photo */
@@ -114,17 +116,13 @@ function viewerControls(several) {
     deleteBtn: h('button', { type: 'button', class: 'btn btn-danger-outline', text: 'Delete…' }),
   };
   c.title.id = c.labelId;
-  const content = h(
-    'div',
-    { class: 'viewer' },
-    c.title,
-    c.position,
-    c.frame.el,
-    several ? h('div', { class: 'viewer-nav' }, c.prevBtn, c.nextBtn) : null,
-    h('div', { class: 'field' }, h('label', { for: c.dayInput.id, text: 'Day this photo was taken' }), c.dayInput, c.dayStatus.el),
-    h('div', { class: 'viewer-bar' }, c.deleteBtn, several ? c.compareBtn : null, c.closeBtn)
-  );
-  return { ...c, content };
+  const nav = several ? h('div', { class: 'viewer-nav' }, c.prevBtn, c.nextBtn) : null;
+  const dayField = h('div', { class: 'field' }, h('label', { for: c.dayInput.id, text: 'Day this photo was taken' }), c.dayInput, c.dayStatus.el);
+  const bar = h('div', { class: 'viewer-bar' }, c.deleteBtn, several ? c.compareBtn : null, c.closeBtn);
+  const content = h('div', { class: 'viewer' }, c.title, c.position, c.frame.el, nav, dayField, bar);
+  // Hidden while the viewer asks whether to delete the photo.
+  const controls = [nav, dayField, bar].filter((el) => el !== null);
+  return { ...c, content, bar, controls };
 }
 
 /** @typedef {ReturnType<typeof viewerControls>} ViewerControls */
@@ -177,28 +175,57 @@ async function moveToPickedDay(v, c) {
 }
 
 /**
- * Deletes the shown photo, once confirmed.
+ * Asks, inside the viewer, before deleting the shown photo: the photo stays
+ * in view and the viewer's controls give way to the question. Cancel (or
+ * Escape) goes back to the photo; Delete photo deletes it and closes.
  * @param {ViewerState} v
+ * @param {ViewerControls} c
  * @param {() => void} close
  */
-async function deleteShown(v, close) {
+function askToDelete(v, c, close) {
   const photo = v.list[v.index];
-  const ok = await confirmDialog({
-    title: `Delete this photo from ${core.formatDate(photo.date, today())}?`,
-    message: "It will be removed from Kenna for good. This can't be undone.",
-    confirmLabel: 'Delete photo',
-    danger: true,
-  });
-  if (!ok) return;
-  try {
-    await store.deletePhoto(photo.id);
+  const titleId = uid('delete-photo');
+  const question = `Delete this photo from ${core.formatDate(photo.date, today())}?`;
+  const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
+  const deleteBtn = h('button', { type: 'button', class: 'btn btn-danger', text: 'Delete photo' });
+  const status = createStatusLine();
+  const box = h(
+    'div',
+    { class: 'viewer-confirm', role: 'group', 'aria-labelledby': titleId, 'data-delete-question': '' },
+    h('p', { class: 'viewer-confirm-title', id: titleId, text: question }),
+    h('p', { class: 'dialog-text', text: "It will be removed from Kenna for good. This can't be undone." }),
+    h('div', { class: 'dialog-actions' }, cancelBtn, deleteBtn),
+    status.el
+  );
+  const stepBack = () => {
+    v.asking = null;
+    box.remove();
+    for (const el of c.controls) el.hidden = false;
+    c.deleteBtn.focus();
+  };
+  v.asking = stepBack;
+  for (const el of c.controls) el.hidden = true;
+  c.bar.after(box);
+  cancelBtn.focus();
+  announce(question);
+  cancelBtn.addEventListener('click', stepBack);
+  deleteBtn.addEventListener('click', async () => {
+    cancelBtn.disabled = true;
+    deleteBtn.disabled = true;
+    try {
+      await store.deletePhoto(photo.id);
+    } catch (err) {
+      cancelBtn.disabled = false;
+      deleteBtn.disabled = false;
+      status.set('error', `Photo not deleted. ${errorText(err)}`);
+      return;
+    }
     v.moved = false;
+    v.asking = null;
     close();
     toast('Photo deleted');
     render();
-  } catch (err) {
-    toast(`Photo not deleted. ${errorText(err)}`, { tone: 'error' });
-  }
+  });
 }
 
 /**
@@ -210,20 +237,19 @@ async function deleteShown(v, close) {
 export function openPhotoViewer(photos, first, options) {
   const list = inDateOrder(photos);
   /** @type {ViewerState} */
-  const v = { list, index: Math.max(0, list.indexOf(first)), moved: false };
+  const v = { list, index: Math.max(0, list.indexOf(first)), moved: false, asking: null };
   const c = viewerControls(list.length > 1);
   /** @param {number} step */
   const go = (step) => {
-    if (v.index + step < 0 || v.index + step >= v.list.length) return;
+    if (v.asking || v.index + step < 0 || v.index + step >= v.list.length) return;
     v.index += step;
     showCurrent(v, c);
   };
   // The arrow keys step through the photos, except while typing a day or
-  // while a question (Delete this photo?) is open over the viewer.
+  // while the viewer asks whether to delete the photo.
   /** @param {KeyboardEvent} e */
   const onKey = (e) => {
-    if (e.target === c.dayInput || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
-    if (document.querySelectorAll('dialog[open]').length > 1) return;
+    if (e.target === c.dayInput || v.asking || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
     e.preventDefault();
     go(e.key === 'ArrowLeft' ? -1 : 1);
   };
@@ -233,6 +259,12 @@ export function openPhotoViewer(photos, first, options) {
     content: c.content,
     className: 'dialog-viewer',
     initialFocus: c.closeBtn,
+    // Escape or a tap outside while asking "Delete this photo?" answers no.
+    onDismiss: () => {
+      if (!v.asking) return false;
+      v.asking();
+      return true;
+    },
     onClose: () => {
       document.removeEventListener('keydown', onKey);
       c.frame.release();
@@ -253,5 +285,5 @@ export function openPhotoViewer(photos, first, options) {
     options.onCompare(picked, moved);
   });
   c.dayInput.addEventListener('change', () => moveToPickedDay(v, c));
-  c.deleteBtn.addEventListener('click', () => deleteShown(v, close));
+  c.deleteBtn.addEventListener('click', () => askToDelete(v, c, close));
 }
