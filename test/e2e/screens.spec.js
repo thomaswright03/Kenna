@@ -30,9 +30,11 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
 
   await page.goto(appURL);
   await expect(page.locator('.chart-svg.series-calories .dot:not(.dot-hover)')).toHaveCount(2);
-  // Today's total is still in progress, so it's joined by the dotted "so far" line.
-  await expect(page.locator('.chart-svg.series-calories .line-partial')).toHaveCount(1);
-  await expect(page.locator('.chart-svg.series-calories .line')).toHaveCount(0);
+  // Today's total is still in progress: a lone hollow dot marked "so far",
+  // never joined to the finished days.
+  await expect(page.locator('.chart-svg.series-calories .dot-partial')).toHaveCount(1);
+  await expect(page.locator('.chart-svg.series-calories .partial-label')).toHaveText('so far');
+  await expect(page.locator('.chart-svg.series-calories .line, .chart-svg.series-calories .line-gap')).toHaveCount(0);
   await expect(page.locator('.chart-svg.series-weight .dot:not(.dot-hover)')).toHaveCount(3);
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 });
@@ -252,7 +254,6 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(page.locator('.chart-latest.series-calories')).toContainText('400 cal');
   await expect(page.locator('.chart-latest.series-calories')).toContainText('Today so far');
   await expect(page.locator('.chart-svg.series-calories .dot-partial')).toHaveCount(1);
-  await expect(page.locator('.chart-svg.series-calories .line-partial')).toHaveCount(1);
   await expect(page.locator('.chart-svg.series-weight .dot-partial')).toHaveCount(0);
 });
 
@@ -423,4 +424,62 @@ test('the chosen theme and chart range stand out in dark mode', async ({ page, a
   await page.goto(appURL);
   const range = await page.locator('.segment[aria-pressed="true"]').first().evaluate(look);
   expect(range.shadow).toContain('inset');
+});
+
+test('over years of data, All plots weekly averages that stay readable', async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 0; i < 3 * 365; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { lunch: 1800 + (i % 7) * 50 }, 200 - i / 30 + (i % 3) * 0.4);
+  }
+  await data.seed(entries);
+  await page.goto(appURL);
+  await page.getByRole('button', { name: 'All' }).first().click();
+  for (const series of ['calories', 'weight']) {
+    const chart = page.locator(`.chart-svg.series-${series}`);
+    const summary = await chart.getAttribute('aria-label');
+    const weeks = Number(/all time, weekly averages: (\d+) weeks with data/.exec(summary)[1]);
+    expect(weeks).toBeGreaterThan(150);
+    expect(weeks).toBeLessThanOrEqual(160);
+    const points = await chart.locator('polyline.line').evaluateAll((lines) => lines.reduce((n, l) => n + l.getAttribute('points').trim().split(/\s+/).length, 0));
+    expect(points).toBe(weeks);
+  }
+  await expect(page.locator('.chart-sub').nth(0)).toHaveText('Weekly average of daily intake, not counting today');
+  await expect(page.locator('.chart-sub').nth(1)).toHaveText('Weekly average weight');
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('Week of Sep 20');
+  await page.locator('.chart-svg.series-calories').focus();
+  await page.keyboard.press('End');
+  // Sun Sep 20 to Wed Sep 23: today's calories aren't counted until the day is over.
+  await expect(page.locator('.chart-tooltip.visible')).toContainText('Week of Sep 20, 2026 · average of 4 days');
+
+  // Back to 90 days: every day again.
+  await page.getByRole('button', { name: '90 days' }).first().click();
+  await expect(page.locator('.chart-sub').nth(1)).toHaveText('Weight each day');
+});
+
+test("today's calories so far are a lone marker, never a line diving from yesterday", async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 1; i <= 30; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { breakfast: 500, lunch: 700, dinner: 800 });
+  }
+  entries[TODAY] = day(TODAY, { breakfast: 420 });
+  await data.seed(entries);
+  await page.goto(appURL);
+  const chart = page.locator('.chart-svg.series-calories');
+  const marker = chart.locator('.dot-partial');
+  await expect(marker).toHaveCount(1);
+  await expect(chart.locator('.partial-label')).toHaveText('so far');
+  const todayX = Number(await marker.getAttribute('cx'));
+  const reached = await chart.locator('polyline, line.line-gap').evaluateAll(
+    (els, x) =>
+      els.some((el) =>
+        el.tagName === 'polyline'
+          ? el.getAttribute('points').split(/\s+/).some((p) => Math.abs(Number(p.split(',')[0]) - x) < 0.5)
+          : Math.abs(Number(el.getAttribute('x2')) - x) < 0.5
+      ),
+    todayX
+  );
+  expect(reached).toBe(false);
+  await expect(page.locator('.chart-latest.series-calories')).toContainText('Today so far');
 });

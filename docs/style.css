@@ -449,8 +449,26 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 
 .meal-row:last-child { border-bottom: none; }
 
+/* The whole row, apart from its Undo and Remove buttons, opens Log Meal. */
+.meal-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  min-width: 0;
+  min-height: 52px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--r-sm);
+}
+
+@media (hover: hover) {
+  .meal-link:hover .meal-go { text-decoration: underline; }
+}
+
 .meal-info { display: flex; flex-direction: column; min-width: 0; }
-.meal-name { font-size: var(--fs-sm); font-weight: 600; color: var(--accent-text); }
+.meal-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .meal-value { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
 .meal-empty { font-size: var(--fs-sm); color: var(--muted); }
 
@@ -673,7 +691,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .chart-svg .line-gap { stroke: var(--series); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: 0.6; }
 .chart-svg .dot { fill: var(--series); stroke: var(--card); stroke-width: 2; }
 .chart-svg .dot-partial { fill: var(--card); stroke: var(--series); stroke-width: 2; }
-.chart-svg .line-partial { stroke: var(--series); stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round; opacity: 0.8; }
+.chart-svg .partial-label { fill: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
 .chart-svg .crosshair { stroke: var(--muted); stroke-width: 1; }
 
 .chart-tooltip {

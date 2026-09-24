@@ -17,6 +17,11 @@ module.exports = [
     languageOptions: { sourceType: 'module' },
   },
   {
+    // Screens are built from named pieces small enough to read on their own.
+    files: ['docs/app.js', 'docs/ui/**/*.js'],
+    rules: { 'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }] },
+  },
+  {
     files: ['docs/sw.js'],
     languageOptions: { globals: { ...globals.serviceworker } },
   },

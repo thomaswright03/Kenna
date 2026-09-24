@@ -143,7 +143,7 @@ test('Log Meal is the one main way in, and each saved meal keeps a tick', async 
   const logMeal = page.getByRole('link', { name: 'Log Meal' });
   const firstRow = page.locator('.meal-row').first();
   expect((await logMeal.boundingBox()).y).toBeLessThan((await firstRow.boundingBox()).y);
-  await expect(page.getByRole('link', { name: 'Add Breakfast' })).toHaveClass(/btn-quiet/);
+  await expect(page.getByRole('link', { name: 'Add Breakfast' }).locator('.meal-go')).toHaveClass(/btn-quiet/);
 
   await logMeal.click();
   await page.getByLabel('Breakfast calories').fill('400');
@@ -278,4 +278,43 @@ test('a day long before anything logged asks first, so a mistyped year is not sa
   await page.goto(`${appURL}/#/day/2026-08-15`);
   await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
   await expect(page.locator('[data-far-back]')).toHaveCount(0);
+});
+
+test('tapping a meal’s name opens Log Meal at that meal', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await page.goto(appURL);
+  await expect(page.locator('.meal-row[data-meal="lunch"] .meal-name')).toHaveCSS('color', await page.locator('.total-label').evaluate(() => getComputedStyle(document.body).color));
+  await page.locator('.meal-row[data-meal="lunch"] .meal-name').click();
+  await expect(page.getByRole('heading', { name: 'Log Meal' })).toBeVisible();
+  await expect(page.locator('.meal-pill[data-meal="lunch"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Lunch calories')).toBeVisible();
+
+  // A logged meal's value opens it too; its Remove button doesn't.
+  await page.goBack();
+  await page.locator('.meal-row[data-meal="breakfast"] .meal-value').click();
+  await expect(page.getByLabel('Breakfast calories')).toHaveValue('400');
+  await page.goBack();
+  await page.getByRole('button', { name: 'Remove Breakfast' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.meal-row[data-meal="breakfast"]')).toContainText('Removed (was 400 cal)');
+});
+
+test('clearing the weight can be undone', async ({ page, appURL, data }) => {
+  await page.goto(appURL);
+  const weight = page.getByLabel('Weight (lbs)');
+  await weight.fill('165.4');
+  await weight.blur();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await weight.fill('');
+  await weight.blur();
+  await expect(page.getByText('Weight cleared')).toBeVisible();
+  const cleared = await data.entry(TODAY);
+  expect(cleared ? cleared.weight : null).toBe(null);
+  // Undo stays until it's used; it doesn't fade like "Saved".
+  await page.clock.runFor(10000);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(weight).toHaveValue('165.4');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(165.4);
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0);
 });

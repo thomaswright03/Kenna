@@ -1,14 +1,11 @@
-// Calories and Weight line charts with a shared 30 days / 90 days / All
-// range picker.
+// The card with the Calories and Weight line charts and their shared
+// 30 days / 90 days / All range picker. Each chart is drawn by
+// chart-draw.js.
 
-import { core, h, svg, prefs, today } from './dom.js';
+import { core, h, prefs, today } from './dom.js';
+import { drawChart } from './chart-draw.js';
 
-/**
- * @typedef {{ date: string, value: number }} Point
- * @typedef {{ field: 'calories' | 'weight', title: string, unit: 'cal' | 'lbs', sub: string, partialDay?: string | null, averaged?: boolean }} SeriesInfo
- *   partialDay: a day whose value is still growing (today's calories), drawn as "so far"
-
- */
+/** @typedef {import('./chart-draw.js').SeriesInfo} SeriesInfo */
 
 const RANGES = [
   { key: '30', label: '30 days', days: 30 },
@@ -53,9 +50,14 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
     },
     { field: 'weight', title: 'Weight', unit: 'lbs', sub: smoothing ? '7-day average weight' : 'Weight each day', averaged: smoothing },
   ];
+  // A daily chart plots each day (today's calories as "so far"), a trend
+  // chart the 7-day average. Weekly and monthly averages, for a long range,
+  // are of the finished days: today's calories aren't counted until the
+  // day is over.
   const series = infos.map((s) => {
-    const points = smoothing ? core.trendSeries(rows, s.field, now, 7) : core.seriesFromRows(rows, s.field);
-    return { ...s, points, host: h('div', { class: 'chart' }) };
+    const settled = core.seriesFromRows(rows, s.field).filter((p) => (s.field === 'calories' ? p.date < now : p.date <= now));
+    const points = smoothing ? core.rollingAverage(settled, 7) : core.seriesFromRows(rows, s.field);
+    return { ...s, data: { points, settled }, host: h('div', { class: 'chart' }) };
   });
 
   const buttons = RANGES.map((r) =>
@@ -76,7 +78,7 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
 
   function draw() {
     const range = RANGES.find((r) => r.key === rangeKey) || RANGES[0];
-    for (const s of series) drawChart(s.host, s.points, { ...s, rangeDays: range.days });
+    for (const s of series) drawChart(s.host, s.data, { ...s, rangeDays: range.days });
   }
 
   const root = h(
@@ -100,215 +102,4 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
       draw();
     },
   };
-}
-
-/**
- * Line chart with a real time axis: each point sits at its calendar date, so
- * days without data show as gaps (dashed where the line bridges them). It
- * always ends at today, so the latest data is what's on screen.
- * @param {HTMLElement} host
- * @param {Point[]} points
- * @param {SeriesInfo & { rangeDays: number | null }} opts
- */
-function drawChart(host, points, opts) {
-  const now = today();
-  const endDay = core.dayNumber(now);
-  const firstDay = points.length ? core.dayNumber(points[0].date) : endDay;
-  const startDay = opts.rangeDays ? endDay - opts.rangeDays + 1 : Math.min(firstDay, endDay - 6);
-  const visible = points.filter((p) => {
-    const d = core.dayNumber(p.date);
-    return d >= startDay && d <= endDay;
-  });
-  /** @param {number} v */
-  const fmt = (v) => (opts.unit === 'lbs' ? core.formatWeight(v, opts.averaged ? 1 : 2) : core.formatCalories(v));
-  /** @param {Point} p */
-  const isPartial = (p) => !!opts.partialDay && p.date === opts.partialDay;
-  /** @param {Point} p */
-  const whenText = (p) => (isPartial(p) ? 'Today so far' : core.formatRelativeDate(p.date, now));
-
-  const latest = visible[visible.length - 1];
-  const head = h(
-    'div',
-    { class: 'chart-head' },
-    h('div', null, h('h3', { class: 'chart-title', text: opts.title }), h('p', { class: 'chart-sub', text: opts.sub })),
-    latest
-      ? h(
-          'div',
-          { class: `chart-latest series-${opts.field}` },
-          h('span', { text: fmt(latest.value) }),
-          h('span', { class: 'chart-latest-date', text: whenText(latest) })
-        )
-      : null
-  );
-  host.replaceChildren(head);
-
-  if (visible.length === 0) {
-    host.append(
-      h('p', {
-        class: 'empty-hint',
-        text: points.length === 0 ? 'Nothing logged yet.' : `Nothing logged in the last ${opts.rangeDays} days. Choose All to see older data.`,
-      })
-    );
-    return;
-  }
-
-  const width = Math.max(260, host.clientWidth || 320);
-  const height = 220;
-  const values = visible.map((p) => p.value);
-  // Calories can't go below zero, so neither does their axis.
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  const minSpan = core.axisMinSpan(opts.unit, hi);
-  const { ticks, decimals } = opts.unit === 'lbs' ? core.niceTicks(lo, hi, 5, 0.1, undefined, minSpan) : core.niceTicks(lo, hi, 5, 10, 0, minSpan);
-  const tickText = ticks.map((t) => core.formatNumber(t, decimals));
-  const leftPad = 12 + Math.max(...tickText.map((t) => t.length)) * 7.5;
-  const rightPad = 12;
-  const topPad = 12;
-  const bottomPad = 28;
-  const plotW = width - leftPad - rightPad;
-  const plotH = height - topPad - bottomPad;
-  const yMin = ticks[0];
-  const yMax = ticks[ticks.length - 1];
-  const span = Math.max(1, endDay - startDay);
-  /** @param {number} day */
-  const x = (day) => leftPad + ((day - startDay) / span) * plotW;
-  /** @param {number} v */
-  const y = (v) => topPad + plotH - ((v - yMin) / (yMax - yMin || 1)) * plotH;
-
-  const summary = `${opts.title} chart, ${opts.rangeDays ? `last ${opts.rangeDays} days` : 'all time'}: ${visible.length} day${
-    visible.length === 1 ? '' : 's'
-  } with data, latest ${fmt(latest.value)} ${isPartial(latest) ? 'so far today' : `on ${core.formatDate(latest.date, now)}`}. Use the arrow keys to read each point.`;
-  const chart = svg('svg', {
-    class: `chart-svg series-${opts.field}`,
-    width,
-    height,
-    viewBox: `0 0 ${width} ${height}`,
-    role: 'img',
-    tabindex: '0',
-    'aria-label': summary,
-  });
-
-  ticks.forEach((t, i) => {
-    chart.append(svg('line', { class: 'gridline', x1: leftPad, x2: width - rightPad, y1: y(t), y2: y(t) }));
-    chart.append(svg('text', { class: 'axis-label', x: leftPad - 6, y: y(t) + 4, 'text-anchor': 'end' }, tickText[i]));
-  });
-
-  // Dates that carry their year are longer, so a narrow chart shows fewer.
-  const crossesYear = core.dateFromDayNumber(startDay).slice(0, 4) !== now.slice(0, 4);
-  const labels = core.dateAxisLabels(startDay, endDay, crossesYear && plotW < 330 ? 3 : 4);
-  labels.forEach((label, k) => {
-    const anchor = k === 0 ? 'start' : k === labels.length - 1 ? 'end' : 'middle';
-    chart.append(svg('text', { class: 'axis-label', x: x(label.day), y: height - 8, 'text-anchor': anchor }, label.text));
-  });
-
-  // Solid line between consecutive days; dashed across skipped days.
-  /** @type {string[]} */
-  let solid = [];
-  const flush = () => {
-    if (solid.length > 1) chart.append(svg('polyline', { class: 'line', points: solid.join(' ') }));
-    solid = [];
-  };
-  // A day still in progress is joined by a dotted line and drawn hollow.
-  visible.forEach((p, i) => {
-    const day = core.dayNumber(p.date);
-    const pt = `${x(day)},${y(p.value)}`;
-    if (i > 0) {
-      const prev = visible[i - 1];
-      const prevDay = core.dayNumber(prev.date);
-      if (isPartial(p)) {
-        flush();
-        chart.append(svg('line', { class: 'line-partial', x1: x(prevDay), y1: y(prev.value), x2: x(day), y2: y(p.value) }));
-        return;
-      }
-      if (day - prevDay > 1) {
-        flush();
-        chart.append(svg('line', { class: 'line-gap', x1: x(prevDay), y1: y(prev.value), x2: x(day), y2: y(p.value) }));
-      }
-    }
-    solid.push(pt);
-  });
-  flush();
-
-  const showAllDots = visible.length <= 45;
-  visible.forEach((p, i) => {
-    if (showAllDots || i === visible.length - 1) {
-      chart.append(
-        svg('circle', {
-          class: isPartial(p) ? 'dot dot-partial' : 'dot',
-          cx: x(core.dayNumber(p.date)),
-          cy: y(p.value),
-          r: i === visible.length - 1 ? 4.5 : 3.5,
-        })
-      );
-    }
-  });
-
-  const crosshair = svg('line', { class: 'crosshair', y1: topPad, y2: topPad + plotH, visibility: 'hidden' });
-  const hoverDot = svg('circle', { class: 'dot dot-hover', r: 6, visibility: 'hidden' });
-  chart.append(crosshair, hoverDot);
-
-  const tooltip = h('div', { class: 'chart-tooltip', 'aria-live': 'polite' });
-  const plotWrap = h('div', { class: 'chart-plot' }, chart, tooltip);
-  host.append(plotWrap);
-
-  let current = -1;
-  /** @param {number} i */
-  function show(i) {
-    current = Math.max(0, Math.min(visible.length - 1, i));
-    const p = visible[current];
-    const cx = x(core.dayNumber(p.date));
-    const cy = y(p.value);
-    crosshair.setAttribute('x1', String(cx));
-    crosshair.setAttribute('x2', String(cx));
-    crosshair.setAttribute('visibility', 'visible');
-    hoverDot.setAttribute('cx', String(cx));
-    hoverDot.setAttribute('cy', String(cy));
-    hoverDot.setAttribute('visibility', 'visible');
-    tooltip.replaceChildren(h('div', { class: 'tt-value', text: fmt(p.value) }), h('div', { class: 'tt-date', text: isPartial(p) ? 'Today so far' : core.formatDate(p.date, now) }));
-    tooltip.style.left = `${Math.min(Math.max(cx, 60), width - 60)}px`;
-    tooltip.style.top = `${cy}px`;
-    tooltip.classList.add('visible');
-  }
-  function hide() {
-    current = -1;
-    crosshair.setAttribute('visibility', 'hidden');
-    hoverDot.setAttribute('visibility', 'hidden');
-    tooltip.classList.remove('visible');
-  }
-  /** @param {number} clientX */
-  function nearest(clientX) {
-    const rect = chart.getBoundingClientRect();
-    const px = ((clientX - rect.left) / rect.width) * width;
-    let best = 0;
-    let bestDist = Infinity;
-    visible.forEach((p, i) => {
-      const d = Math.abs(x(core.dayNumber(p.date)) - px);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    });
-    return best;
-  }
-  chart.addEventListener('pointermove', (e) => show(nearest(/** @type {PointerEvent} */ (e).clientX)));
-  chart.addEventListener('pointerdown', (e) => show(nearest(/** @type {PointerEvent} */ (e).clientX)));
-  chart.addEventListener('pointerleave', (e) => {
-    if (/** @type {PointerEvent} */ (e).pointerType === 'mouse') hide();
-  });
-  chart.addEventListener('keydown', (event) => {
-    const e = /** @type {KeyboardEvent} */ (event);
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      show(current === -1 ? visible.length - 1 : current + (e.key === 'ArrowLeft' ? -1 : 1));
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      show(0);
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      show(visible.length - 1);
-    } else if (e.key === 'Escape') {
-      hide();
-    }
-  });
-  chart.addEventListener('blur', hide);
 }
