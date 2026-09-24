@@ -98,7 +98,10 @@ test('dates and numbers are formatted for people', () => {
   assert.equal(core.formatRelativeDate('2026-09-23', '2026-09-24'), 'Yesterday');
   assert.equal(core.formatRelativeDate('2026-09-21', '2026-09-24'), 'Mon, Sep 21');
   assert.equal(core.formatCalories(1000), '1,000 cal');
-  assert.equal(core.formatWeight(180.44), '180.4 lbs');
+  assert.equal(core.formatWeight(180.44), '180.44 lbs');
+  assert.equal(core.formatWeight(180.4), '180.4 lbs');
+  assert.equal(core.formatWeight(180), '180 lbs');
+  assert.equal(core.formatWeight(180.44, 1), '180.4 lbs', 'averages are shown to one decimal');
   assert.equal(core.formatWeight(180), '180 lbs');
 });
 
@@ -133,6 +136,9 @@ test('each rejected number is told what is actually wrong with it', () => {
   assert.equal(weightError('165,2'), 'Use a period for the decimal point, like 165.2.');
   assert.deepEqual(core.validateWeight('1,000'), { ok: true, value: 1000 });
   assert.deepEqual(core.validateWeight('165.25'), { ok: true, value: 165.25 });
+  assert.deepEqual(core.validateWeight('165.'), { ok: true, value: 165 }, 'a trailing decimal point is read as the whole number');
+  assert.deepEqual(core.validateWeight('1,000.'), { ok: true, value: 1000 });
+  assert.match(weightError('165..'), /digits and a decimal point/);
   assert.match(weightError('1e2'), /digits and a decimal point/);
   assert.match(weightError('abc'), /digits and a decimal point/);
   assert.equal(weightError('49'), 'Enter a weight between 50 and 1,000 lbs.');
