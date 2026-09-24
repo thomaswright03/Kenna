@@ -331,6 +331,8 @@ test('Compare explains once that there is nothing to compare with yet', async ({
 test('a single day gets a proportionate axis, and the latest value never wraps', async ({ page, appURL, data }) => {
   await data.seed({ [TODAY]: day(TODAY, { lunch: 1300 }, 180) });
   await page.goto(appURL);
+  await expect(page.locator('.chart-svg.series-calories .axis-label').first()).toBeVisible();
+  await expect(page.locator('.chart-svg.series-weight .axis-label').first()).toBeVisible();
   const numbers = async (series) =>
     (await page.locator(`.chart-svg.series-${series} .axis-label`).allTextContents()).filter((t) => /^[\d,.]+$/.test(t)).map((t) => Number(t.replace(/,/g, '')));
   const cal = await numbers('calories');
