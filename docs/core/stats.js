@@ -137,10 +137,23 @@ function computeMonthAverages(days, today) {
   };
 }
 
-// The 7-day trend line on Compare. Today's calories are left out: the day
-// isn't over, so its running total (breakfast only, at 10 AM) would drag
-// the average down every morning. Weight is one reading a day and keeps
-// today; days after today never count.
+// The days whose value is final, which every average in a chart is taken
+// from (the 7-day trend on Compare, and the weekly and monthly averages of
+// a long range). Today's calories are left out: the day isn't over, so its
+// running total (breakfast only, at 10 AM) would drag the average down
+// every morning. Weight is one reading a day and keeps today; days after
+// today never count.
+/**
+ * @param {{ date: string, calories: number | null, weight: number | null }[]} rows
+ * @param {'calories' | 'weight'} field
+ * @param {string} today
+ * @returns {{ date: string, value: number }[]}
+ */
+function settledSeries(rows, field, today) {
+  return seriesFromRows(rows, field).filter((p) => (field === 'calories' ? p.date < today : p.date <= today));
+}
+
+// The 7-day trend line on Compare: the rolling average of the settled days.
 /**
  * @param {{ date: string, calories: number | null, weight: number | null }[]} rows
  * @param {'calories' | 'weight'} field
@@ -149,8 +162,7 @@ function computeMonthAverages(days, today) {
  * @returns {{ date: string, value: number, count: number }[]}
  */
 function trendSeries(rows, field, today, windowDays) {
-  const daily = seriesFromRows(rows, field).filter((p) => (field === 'calories' ? p.date < today : p.date <= today));
-  return rollingAverage(daily, windowDays || 7);
+  return rollingAverage(settledSeries(rows, field, today), windowDays || 7);
 }
 
 module.exports = {
@@ -159,6 +171,7 @@ module.exports = {
   buildDailyRows,
   seriesFromRows,
   rollingAverage,
+  settledSeries,
   trendSeries,
   computeMonthAverages,
 };

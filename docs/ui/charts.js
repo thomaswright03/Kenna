@@ -55,8 +55,8 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
   // are of the finished days: today's calories aren't counted until the
   // day is over.
   const series = infos.map((s) => {
-    const settled = core.seriesFromRows(rows, s.field).filter((p) => (s.field === 'calories' ? p.date < now : p.date <= now));
-    const points = smoothing ? core.rollingAverage(settled, 7) : core.seriesFromRows(rows, s.field);
+    const settled = core.settledSeries(rows, s.field, now);
+    const points = smoothing ? core.trendSeries(rows, s.field, now) : core.seriesFromRows(rows, s.field);
     return { ...s, data: { points, settled }, host: h('div', { class: 'chart' }) };
   });
 

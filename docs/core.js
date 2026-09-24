@@ -78,6 +78,7 @@ module.exports = Object.freeze({
   buildDailyRows: stats.buildDailyRows,
   seriesFromRows: stats.seriesFromRows,
   rollingAverage: stats.rollingAverage,
+  settledSeries: stats.settledSeries,
   trendSeries: stats.trendSeries,
   computeMonthAverages: stats.computeMonthAverages,
   validateCalories: input.validateCalories,

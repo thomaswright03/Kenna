@@ -346,6 +346,21 @@ test("the 7-day calorie trend leaves out today's unfinished day; weight keeps it
   assert.equal(weight.length, 8);
 });
 
+test('the settled days that chart averages are taken from leave out today’s calories and every later day', () => {
+  const rows = core.buildDailyRows({
+    '2026-09-23': { date: '2026-09-23', weight: 180, meals: { lunch: 700 } },
+    '2026-09-24': { date: '2026-09-24', weight: 179.8, meals: { breakfast: 400 } },
+    '2026-09-25': { date: '2026-09-25', weight: 179, meals: { lunch: 900 } },
+  });
+  assert.deepEqual(core.settledSeries(rows, 'calories', '2026-09-24'), [{ date: '2026-09-23', value: 700 }]);
+  assert.deepEqual(core.settledSeries(rows, 'weight', '2026-09-24'), [
+    { date: '2026-09-23', value: 180 },
+    { date: '2026-09-24', value: 179.8 },
+  ]);
+  // The trend is the rolling average of exactly those days.
+  assert.deepEqual(core.trendSeries(rows, 'weight', '2026-09-24'), core.rollingAverage(core.settledSeries(rows, 'weight', '2026-09-24'), 7));
+});
+
 test('image sniffing recognises photos and rejects other files', () => {
   const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const heic = Uint8Array.from([0, 0, 0, 24, ...Buffer.from('ftypheic')]);
