@@ -52,7 +52,13 @@ How the numbers work:
   places. Anything else isn't saved and shows a message naming what's wrong
   (a decimal, a minus sign, a stray letter, a decimal comma, too many decimal
   places, or out of range). A weight ending in a decimal point ("165.") is
-  read as the whole number.
+  read as the whole number. The same rules, with the same messages, apply
+  to a value sent to the server's API or found in a backup file: nothing
+  is rounded to fit, and a backup holding such a value isn't imported (the
+  message names the day and meal). Meals saved by the first version as
+  lists of foods still import as their total. The first version saved
+  weights exactly as typed; a weight with more than two decimals from then
+  is shown, and written into backups, rounded to two.
 - A day after today can't be logged, whether picked, typed into the address
   bar or sent to the server's API (the server allows one day ahead of its
   own clock, for a phone in a time zone ahead of it). The same goes for filing a photo, on

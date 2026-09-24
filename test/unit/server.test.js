@@ -84,6 +84,36 @@ test('impossible dates and out-of-range values are rejected with readable JSON e
   assert.deepEqual(json, []);
 });
 
+test('the API applies the same number rules as the app, with the same messages, and never rounds', async (t) => {
+  const { call } = await startServer(t);
+  const weight = await call('PATCH', '/api/entries/2026-09-24', { weight: 165.123 });
+  assert.equal(weight.status, 400);
+  assert.equal(weight.json.error, 'Weight not saved. Use at most two decimal places, like 165.25.');
+  const lunch = await call('PATCH', '/api/entries/2026-09-24', { meals: { lunch: 450.5 } });
+  assert.equal(lunch.status, 400);
+  assert.equal(lunch.json.error, 'Lunch not saved. Enter calories as a whole number, like 450, without decimals.');
+  const text = await call('PATCH', '/api/entries/2026-09-24', { meals: { lunch: '450' } });
+  assert.equal(text.status, 400);
+
+  await call('PATCH', '/api/entries/2026-09-20', { meals: { lunch: 500 } });
+  const imported = await call('POST', '/api/import', {
+    entries: {
+      '2026-09-20': { date: '2026-09-20', weight: null, meals: { lunch: 600 } },
+      '2026-09-21': { date: '2026-09-21', weight: null, meals: { lunch: 450.7 } },
+    },
+  });
+  assert.equal(imported.status, 400);
+  assert.equal(imported.json.error, 'Nothing was imported. Lunch on Mon, Sep 21 (450.7): Enter calories as a whole number, like 450, without decimals.');
+  const heavy = await call('POST', '/api/import', { entries: { '2026-09-21': { weight: 150.123, meals: {} } } });
+  assert.equal(heavy.status, 400);
+  assert.match(heavy.json.error, /two decimal places/);
+  const { json } = await call('GET', '/api/entries');
+  assert.deepEqual(
+    json.map((e) => [e.date, e.meals.lunch]),
+    [['2026-09-20', 500]]
+  );
+});
+
 test('malformed request bodies get a JSON error with no stack trace', async (t) => {
   const { call } = await startServer(t);
   const res = await call('PATCH', '/api/entries/2026-09-24', '', 'not json');

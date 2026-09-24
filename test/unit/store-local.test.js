@@ -130,3 +130,11 @@ test('days that have not happened yet are refused', async () => {
   await assert.rejects(store.updateEntry('2999-01-01', { weight: 180 }), /You can't log a day that hasn't happened yet/);
   assert.deepEqual(await store.loadEntries(), {});
 });
+
+test('the phone storage refuses the same values the typed input and the server refuse', async () => {
+  const storage = fakeStorage();
+  const { store } = makeStore(storage);
+  await assert.rejects(store.updateEntry('2026-09-20', { weight: 165.123 }), /two decimal places/);
+  await assert.rejects(store.updateEntry('2026-09-20', { meals: { lunch: 450.5 } }), /whole number/);
+  assert.equal(storage.getItem(ENTRIES_KEY), null, 'nothing was written');
+});

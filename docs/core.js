@@ -466,18 +466,62 @@
     return { ok: true, value };
   }
 
-  /** @param {unknown} v */
-  function isCaloriesInRange(v) {
-    return typeof v === 'number' && Number.isFinite(v) && v >= LIMITS.caloriesMin && v <= LIMITS.caloriesMax;
+  // A number that arrives as data rather than typed (the server's API, a
+  // backup file) follows exactly the rules for typed input, with the same
+  // messages: whole calories from 0 to 10,000, and a weight from 50 to
+  // 1,000 lbs with at most two decimals. Nothing is rounded to fit.
+  /** @param {unknown} v @returns {Validation} */
+  function validateCaloriesValue(v) {
+    if (v === null || v === undefined) return { ok: true, value: null };
+    if (typeof v !== 'number' || !Number.isFinite(v)) return { ok: false, error: 'Enter calories using digits only, like 450.' };
+    return validateCalories(String(v));
   }
 
-  /** @param {unknown} v */
-  function isWeightInRange(v) {
-    return typeof v === 'number' && Number.isFinite(v) && v >= LIMITS.weightMin && v <= LIMITS.weightMax;
+  /** @param {unknown} v @returns {Validation} */
+  function validateWeightValue(v) {
+    if (v === null || v === undefined) return { ok: true, value: null };
+    if (typeof v !== 'number' || !Number.isFinite(v)) return { ok: false, error: 'Enter your weight using digits and a decimal point only, like 165.2.' };
+    return validateWeight(String(v));
   }
 
-  // Checks one incoming entry (from an API call or a backup file) strictly.
-  // Returns { ok, entry } or { ok: false, error } naming the problem.
+  // Checks a change to one day ({ weight?, meals?: { key: calories } }),
+  // as the server's API receives it and as the phone's storage applies it.
+  /**
+   * @param {any} body
+   * @returns {{ ok: true, patch: EntryPatch } | { ok: false, error: string }}
+   */
+  function validatePatch(body) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'Send the fields to change as a JSON object.' };
+    for (const key of Object.keys(body)) {
+      if (key !== 'weight' && key !== 'meals') return { ok: false, error: `Unknown field "${key}".` };
+    }
+    /** @type {EntryPatch} */
+    const patch = {};
+    if (Object.prototype.hasOwnProperty.call(body, 'weight')) {
+      const checked = validateWeightValue(body.weight);
+      if (!checked.ok) return { ok: false, error: `Weight not saved. ${checked.error}` };
+      patch.weight = checked.value;
+    }
+    if (body.meals !== undefined) {
+      if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) return { ok: false, error: 'Meals must be an object.' };
+      /** @type {Record<string, number | null>} */
+      const meals = {};
+      for (const key of Object.keys(body.meals)) {
+        const step = MEAL_STEPS.find((m) => m.key === key);
+        if (!step) return { ok: false, error: `Unknown meal "${key}".` };
+        const checked = validateCaloriesValue(body.meals[key]);
+        if (!checked.ok) return { ok: false, error: `${step.label} not saved. ${checked.error}` };
+        meals[key] = checked.value;
+      }
+      patch.meals = meals;
+    }
+    return { ok: true, patch };
+  }
+
+  // Checks one incoming entry (from a backup file) strictly, by the same
+  // rules as typed input. Returns { ok, entry } or { ok: false, error }
+  // naming the day, the meal and the problem. Meals stored by the first
+  // version as lists of foods are read as their total, as always.
   /**
    * @param {string} date
    * @param {any} raw
@@ -499,27 +543,25 @@
     for (const step of MEAL_STEPS) {
       const v = raw.meals[step.key];
       if (v === null || v === undefined) continue;
-      let value;
       if (Array.isArray(v)) {
         const valid = v.every((f) => f && typeof f === 'object' && Number.isFinite(Number(f.calories)));
         if (!valid) return { ok: false, error: `${step.label} on ${when} isn't in the expected format.` };
-        value = normalizeMealValue(v);
-      } else if (typeof v === 'number') {
-        value = Math.round(v);
-      } else {
-        return { ok: false, error: `${step.label} on ${when} isn't a number.` };
+        const total = normalizeMealValue(v);
+        const checked = validateCaloriesValue(total);
+        if (!checked.ok) return { ok: false, error: `${step.label} on ${when} (${String(total)} cal): ${checked.error}` };
+        meals[step.key] = checked.value;
+        continue;
       }
-      if (value !== null && !isCaloriesInRange(value)) {
-        return { ok: false, error: `${step.label} on ${when} is ${String(v)} calories, which is out of range.` };
-      }
-      meals[step.key] = value;
+      if (typeof v !== 'number') return { ok: false, error: `${step.label} on ${when} isn't a number.` };
+      const checked = validateCaloriesValue(v);
+      if (!checked.ok) return { ok: false, error: `${step.label} on ${when} (${String(v).slice(0, 20)}): ${checked.error}` };
+      meals[step.key] = checked.value;
     }
     let weight = null;
     if (raw.weight !== null && raw.weight !== undefined) {
-      if (!isWeightInRange(raw.weight)) {
-        return { ok: false, error: `The weight on ${when} (${String(raw.weight).slice(0, 20)}) is out of range.` };
-      }
-      weight = raw.weight;
+      const checked = validateWeightValue(raw.weight);
+      if (!checked.ok) return { ok: false, error: `The weight on ${when} (${String(raw.weight).slice(0, 20)}): ${checked.error}` };
+      weight = checked.value;
     }
     return { ok: true, entry: { date, weight, meals } };
   }
@@ -533,6 +575,16 @@
 
   const BACKUP_VERSION = 2;
   const MAX_BACKUP_ISSUES_SHOWN = 1;
+
+  // A day as a backup file holds it. The first version of Kenna stored a
+  // weight exactly as typed, so a few old days may have more than the two
+  // decimals the app shows and accepts; those are written as shown (165.33
+  // for 165.333), so every backup this version makes can be imported again.
+  /** @param {Entry} entry @returns {Entry} */
+  function entryForBackup(entry) {
+    const weight = entry.weight === null ? null : Math.round(entry.weight * 100) / 100;
+    return { date: entry.date, weight, meals: { ...entry.meals } };
+  }
 
   // A photo's identity across devices and backups is the time it was first
   // added, which never changes (its day can be changed later), so a backup
@@ -833,8 +885,11 @@
     trendSeries,
     validateCalories,
     validateWeight,
-    validateIncomingEntry,
+    validateCaloriesValue,
+    validatePatch,
+    validateWeightValue,
     photoKey,
+    entryForBackup,
     backupReminderDue,
     checkBackupDays,
     checkBackupPhoto,

@@ -123,6 +123,23 @@ test('a malformed backup is rejected and changes nothing', async ({ page, appURL
   await expect(page.locator('.history-item')).toContainText('700 cal');
 });
 
+test('a backup with a number the app would refuse is not imported, and the message names the day and meal', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }) });
+  const file = testInfo.outputPath('decimal.json');
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-20': day('2026-09-20', { dinner: 900 }), '2026-09-21': day('2026-09-21', { lunch: 450.7 }) } })
+  );
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  await expect(page.getByRole('alert')).toHaveText(
+    'Nothing was imported. Lunch on Mon, Sep 21 (450.7): Enter calories as a whole number, like 450, without decimals.'
+  );
+  expect((await data.entry('2026-09-20')).meals.dinner).toBe(700);
+  const missing = await data.entry('2026-09-21');
+  expect(missing ? missing.meals.lunch : null).toBe(null);
+});
+
 test('photos in a backup dated after today are left out, and the import says so', async ({ page, appURL }, testInfo) => {
   const file = testInfo.outputPath('future.json');
   const photo = (date, createdAt) => ({ date, createdAt, type: 'image/png', data: PNG.toString('base64') });

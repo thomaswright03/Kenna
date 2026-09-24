@@ -202,8 +202,10 @@
     async function updateEntry(date, patch) {
       if (!core.isValidDateStr(date)) throw new Error('Not saved: pick a valid date first.');
       if (core.isFutureDate(date)) throw new Error(`Not saved. ${core.FUTURE_DAY}`);
+      const checked = core.validatePatch(patch);
+      if (!checked.ok) throw new Error(checked.error);
       const raw = readRaw();
-      const next = core.applyPatch(date, raw[date], patch);
+      const next = core.applyPatch(date, raw[date], checked.patch);
       if (core.isEntryEmpty(next)) delete raw[date];
       else raw[date] = next;
       writeRaw(raw);

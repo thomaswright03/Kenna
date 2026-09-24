@@ -118,37 +118,12 @@ function requireNotFuture(date, message) {
   if (core.isFutureDate(date, latestDay())) throw new ApiError(400, message);
 }
 
-/** @param {any} body the request's unvalidated JSON */
+// The same rules, and the same messages, as typing into the app.
+/** @param {unknown} body the request's unvalidated JSON */
 function validatePatch(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400, 'Send the fields to change as a JSON object.');
-  /** @type {import('./docs/core.js').EntryPatch} */
-  const patch = {};
-  for (const key of Object.keys(body)) {
-    if (key !== 'weight' && key !== 'meals') throw new ApiError(400, `Unknown field "${key}".`);
-  }
-  if (Object.prototype.hasOwnProperty.call(body, 'weight')) {
-    const w = body.weight;
-    if (w !== null && !(typeof w === 'number' && w >= core.LIMITS.weightMin && w <= core.LIMITS.weightMax)) {
-      throw new ApiError(400, `Weight must be between ${core.LIMITS.weightMin} and ${core.LIMITS.weightMax} lbs.`);
-    }
-    patch.weight = w;
-  }
-  if (body.meals !== undefined) {
-    if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) throw new ApiError(400, 'Meals must be an object.');
-    /** @type {Record<string, number | null>} */
-    const meals = {};
-    patch.meals = meals;
-    for (const key of Object.keys(body.meals)) {
-      const step = core.MEAL_STEPS.find((m) => m.key === key);
-      if (!step) throw new ApiError(400, `Unknown meal "${key}".`);
-      const v = body.meals[key];
-      if (v !== null && !(Number.isInteger(v) && v >= core.LIMITS.caloriesMin && v <= core.LIMITS.caloriesMax)) {
-        throw new ApiError(400, `${step.label} must be a whole number of calories from 0 to ${core.LIMITS.caloriesMax}.`);
-      }
-      meals[key] = v;
-    }
-  }
-  return patch;
+  const checked = core.validatePatch(body);
+  if (!checked.ok) throw new ApiError(400, checked.error);
+  return checked.patch;
 }
 
 /** @param {import('./docs/core.js').Entry} entry */

@@ -43,7 +43,7 @@ export async function exportBackup(onProgress) {
   const entries = await store.loadEntries();
   /** @type {Record<string, import('../core.js').Entry>} */
   const days = {};
-  for (const e of visibleEntries(entries)) days[e.date] = e;
+  for (const e of visibleEntries(entries)) days[e.date] = core.entryForBackup(e);
   const photos = await store.listPhotos();
   const writer = window.KennaBackupFile.createBackupWriter(days, new Date().toISOString());
   for (let i = 0; i < photos.length; i += 1) {

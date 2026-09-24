@@ -145,6 +145,46 @@ test('each rejected number is told what is actually wrong with it', () => {
   assert.equal(weightError('-165'), 'Enter a weight between 50 and 1,000 lbs.');
 });
 
+test('numbers from the API or a backup follow the typed-input rules, with the same messages, and are never rounded', () => {
+  assert.deepEqual(core.validateCaloriesValue(450), { ok: true, value: 450 });
+  assert.deepEqual(core.validateCaloriesValue(null), { ok: true, value: null });
+  assert.equal(core.validateCaloriesValue(450.7).error, core.validateCalories('450.7').error);
+  assert.match(core.validateCaloriesValue(450.5).error, /whole number/);
+  assert.match(core.validateCaloriesValue(-5).error, /can't be negative/);
+  assert.match(core.validateCaloriesValue(10001).error, /over 10,000/);
+  assert.equal(core.validateCaloriesValue('450').ok, false, 'text is not a number');
+  assert.equal(core.validateCaloriesValue(NaN).ok, false);
+  assert.deepEqual(core.validateWeightValue(165.25), { ok: true, value: 165.25 });
+  assert.equal(core.validateWeightValue(165.123).error, 'Use at most two decimal places, like 165.25.');
+  assert.equal(core.validateWeightValue(49).error, 'Enter a weight between 50 and 1,000 lbs.');
+  assert.equal(core.validateWeightValue(Infinity).ok, false);
+
+  assert.deepEqual(core.validatePatch({ weight: 180.5, meals: { lunch: 600 } }), { ok: true, patch: { weight: 180.5, meals: { lunch: 600 } } });
+  assert.equal(core.validatePatch({ weight: 165.123 }).error, 'Weight not saved. Use at most two decimal places, like 165.25.');
+  assert.equal(core.validatePatch({ meals: { lunch: 450.5 } }).error, 'Lunch not saved. Enter calories as a whole number, like 450, without decimals.');
+  assert.match(core.validatePatch({ meals: { brunch: 1 } }).error, /Unknown meal/);
+  assert.match(core.validatePatch({ height: 1 }).error, /Unknown field/);
+
+  const decimalCalories = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
+  assert.equal(decimalCalories.ok, false);
+  assert.equal(decimalCalories.error, 'Nothing was imported. Lunch on Thu, Sep 24 (450.7): Enter calories as a whole number, like 450, without decimals.');
+  const longWeight = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-24': { weight: 150.123, meals: {} } } }));
+  assert.equal(longWeight.error, 'Nothing was imported. The weight on Thu, Sep 24 (150.123): Use at most two decimal places, like 165.25.');
+  // Lists of foods from the first version still import as their total.
+  const foods = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
+  assert.equal(foods.ok, true);
+  assert.equal(foods.entries['2026-09-24'].meals.lunch, 151);
+});
+
+test('a backup writes old weights with more than two decimals as the app shows them, so it can be imported again', () => {
+  const old = { date: '2026-09-20', weight: 165.333, meals: core.emptyMeals() };
+  const written = core.entryForBackup(old);
+  assert.equal(written.weight, 165.33);
+  assert.equal(old.weight, 165.333, 'the stored day is not changed');
+  assert.equal(core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { [old.date]: written } })).ok, true);
+  assert.equal(core.entryForBackup({ ...old, weight: null }).weight, null);
+});
+
 test('patches change only the given fields, and empty days are detectable', () => {
   const base = entry('2026-09-24', { breakfast: 400 }, 180);
   const next = core.applyPatch('2026-09-24', base, { meals: { lunch: 650 } });
@@ -177,7 +217,7 @@ test('backup parsing rejects malformed files with a specific message', () => {
   assert.equal(core.parseBackup('not json').ok, false);
   assert.equal(core.parseBackup('[]').ok, false);
   assert.equal(core.parseBackup(JSON.stringify({ app: 'other', entries: {} })).ok, false);
-  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .* out of range/);
+  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .*can't be negative/);
   assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { weight: 5, meals: {} } } })).error, /weight/);
   assert.match(core.parseBackup(JSON.stringify({ version: 99, entries: {} })).error, /newer version/);
   assert.match(
