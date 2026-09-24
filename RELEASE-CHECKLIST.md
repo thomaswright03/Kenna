@@ -46,7 +46,8 @@ here touches your real days or photos.
 Add a row here, in the same pull request as the change, each time the
 list is gone through: the date, the iPhone model and iOS version, the
 commit tested, which part (before merging or after deploy) and the
-result. Name any step that failed and what was done about it.
+result of each step: "all passed", or the number of each step that
+failed and what was done about it.
 
 | Date | iPhone, iOS | Commit | Part | Result |
 |---|---|---|---|---|

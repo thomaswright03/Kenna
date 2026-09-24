@@ -332,7 +332,8 @@ browser tests run every scenario against both versions in Chromium with an
 iPhone-sized screen (projects `phone-app` and `server-app`), and the phone
 app again in WebKit, the engine behind Safari and iPhone Home Screen apps
 (project `phone-app-webkit`). Locally the WebKit project is included when
-WebKit is installed; on CI it always runs.
+WebKit is installed, and a run without it says so at the start; on CI it
+always runs.
 
 GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
 request, as two checks: **Tests / test** (lint, type check, unit tests,

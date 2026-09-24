@@ -21,6 +21,11 @@ function webkitInstalled() {
   }
 }
 const withWebKit = !!process.env.CI || webkitInstalled();
+// Said once, by the main process (workers load this file too), so a local
+// run that skips WebKit doesn't look like a full run.
+if (!withWebKit && !process.env.TEST_WORKER_INDEX) {
+  console.warn('WebKit is not installed, so the phone-app-webkit tests are skipped. Install it with: npx playwright install webkit');
+}
 
 module.exports = defineConfig({
   testDir: 'test/e2e',
