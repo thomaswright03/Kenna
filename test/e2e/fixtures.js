@@ -99,18 +99,22 @@ const test = base.test.extend({
     await coverage.save(testInfo);
   },
 
-  // Reads and writes the stored days in the page's localStorage.
+  // Reads and writes the stored days in the page's localStorage: every day
+  // is under kenna:entries (see docs/store/entries.js).
   data: async ({ appURL, page }, use) => {
+    const all = () => page.evaluate(() => JSON.parse(localStorage.getItem('kenna:entries') || '{}'));
     await use({
       async seed(entries) {
         await page.goto(appURL);
-        await page.evaluate((e) => localStorage.setItem('kenna:entries', JSON.stringify(e)), entries);
+        await page.evaluate((e) => {
+          localStorage.removeItem('kenna:entries:recent');
+          localStorage.removeItem('kenna:entries:recent:backup');
+          localStorage.setItem('kenna:entries', JSON.stringify(e));
+        }, entries);
       },
+      all,
       async entry(date) {
-        return page.evaluate((d) => {
-          const all = JSON.parse(localStorage.getItem('kenna:entries') || '{}');
-          return all[d] || null;
-        }, date);
+        return (await all())[date] || null;
       },
     });
   },

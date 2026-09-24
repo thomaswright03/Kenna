@@ -1,24 +1,58 @@
 // Each screen has its own address, so Back moves between screens inside the
 // app and a refresh stays put:
 //   #/                 today          #/day/2026-09-21        a past day
-//   #/log[/meal]       log today      #/day/2026-09-21/log    log a past day
+//   #/log[/meal]       log today      #/day/2026-09-21/log[/meal]  log a past day
 //   #/history  #/compare  #/photos  #/settings
+// Any other address, or one with a part added that means nothing, leads
+// nowhere: Today (or the day it names) is shown, with a message saying so.
 
 import { core, today } from './dom.js';
 import { toast, clearToastsOnNavigation } from './feedback.js';
 
 /**
  * @typedef {'today' | 'log' | 'history' | 'compare' | 'photos' | 'settings'} ScreenName
- * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean, noSuchDate?: boolean }} Route
- *   future: the address named a day after today; noSuchDate: it named a date that doesn't exist (Feb 30)
+ * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean, notShown?: string }} Route
+ *   future: the address named a day after today; notShown: why the address
+ *   it came from led nowhere (a date that doesn't exist, or no date at all)
  */
 
 const NO_SUCH_DATE = "That date doesn't exist, so Today is shown.";
+const OUT_OF_RANGE = 'Kenna opens days from 1900 to 2999, so Today is shown.';
+const NOWHERE = "That address doesn't lead anywhere, so Today is shown.";
+
+/**
+ * Why a day's address isn't a day: a date that doesn't exist (Feb 30), a
+ * year Kenna doesn't keep, or something that isn't a date at all.
+ * @param {string} text
+ */
+function notADay(text) {
+  const parts = /^(\d{4})-\d{2}-\d{2}$/.exec(text);
+  if (!parts) return NOWHERE;
+  const year = Number(parts[1]);
+  return year < 1900 || year > 2999 ? OUT_OF_RANGE : NO_SUCH_DATE;
+}
 
 /** @type {ScreenName[]} */
 const SCREENS = ['history', 'compare', 'photos', 'settings'];
 
 /**
+ * An address with a day in it that leads nowhere as a whole (a mistyped
+ * word after the day, or a day where a meal belongs, as in
+ * #/log/2026-09-20): that day is shown, and the message says so. It is
+ * never swapped for today, which would log that day's meals against today.
+ * @param {string} date a valid date
+ * @returns {Route}
+ */
+function strayDay(date) {
+  const now = today();
+  if (core.isFutureDate(date, now)) return { screen: 'today', date: null, future: true };
+  const shown = date === now ? 'Today' : core.formatDate(date, now);
+  return { screen: 'today', date, notShown: `That address doesn't lead anywhere, so ${shown} is shown.` };
+}
+
+/**
+ * Every part of an address must mean something: one that doesn't
+ * (#/history/foo, #/log/brunch) leads nowhere, and says so.
  * @param {string} hash
  * @returns {Route}
  */
@@ -27,19 +61,27 @@ function parseRoute(hash) {
     .replace(/^#\/?/, '')
     .split('/')
     .filter(Boolean);
-  /** @param {string | undefined} k */
-  const mealKey = (k) => (k && core.MEAL_KEYS.includes(k) ? k : null);
+  /** @type {Route} */
+  const nowhere = { screen: 'today', date: null, notShown: NOWHERE };
+  /** A meal's address after "log": nothing (the first meal not logged) or one meal. @param {string[]} rest */
+  const logMeal = (rest) => (rest.length === 0 ? null : rest.length === 1 && core.MEAL_KEYS.includes(rest[0]) ? rest[0] : undefined);
   if (parts.length === 0) return { screen: 'today', date: null };
-  if (parts[0] === 'log') return { screen: 'log', date: null, meal: mealKey(parts[1]) };
-  if (parts[0] === 'day' && core.isValidDateStr(parts[1])) {
-    if (core.isFutureDate(parts[1], today())) return { screen: 'today', date: null, future: true };
-    if (parts[2] === 'log') return { screen: 'log', date: parts[1], meal: mealKey(parts[3]) };
-    return { screen: 'today', date: parts[1] };
+  if (parts[0] === 'log') {
+    const meal = logMeal(parts.slice(1));
+    if (meal !== undefined) return { screen: 'log', date: null, meal };
+    return core.isValidDateStr(parts[1]) ? strayDay(parts[1]) : nowhere;
   }
-  if (parts[0] === 'day' && parts.length > 1) return { screen: 'today', date: null, noSuchDate: true };
+  if (parts[0] === 'day' && core.isValidDateStr(parts[1])) {
+    const date = parts[1];
+    if (core.isFutureDate(date, today())) return { screen: 'today', date: null, future: true };
+    if (parts.length === 2) return { screen: 'today', date };
+    const meal = parts[2] === 'log' ? logMeal(parts.slice(3)) : undefined;
+    return meal === undefined ? strayDay(date) : { screen: 'log', date, meal };
+  }
+  if (parts[0] === 'day' && parts.length > 1) return { screen: 'today', date: null, notShown: notADay(parts[1]) };
   const screen = SCREENS.find((s) => s === parts[0]);
-  if (screen) return { screen, date: null };
-  return { screen: 'today', date: null };
+  if (screen && parts.length === 1) return { screen, date: null };
+  return nowhere;
 }
 
 /** @param {string | null} date */
@@ -76,7 +118,7 @@ function settleAddress(r) {
     window.history.replaceState(window.history.state, '', canonical);
   }
   if (r.future) toast(core.FUTURE_DAY);
-  else if (r.noSuchDate) toast(NO_SUCH_DATE);
+  else if (r.notShown) toast(r.notShown);
 }
 
 /** The screen being shown. */

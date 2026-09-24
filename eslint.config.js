@@ -2,7 +2,8 @@ const js = require('@eslint/js');
 const globals = require('globals');
 
 module.exports = [
-  { ignores: ['node_modules/', 'test-results/', 'playwright-report/', 'docs/build/'] },
+  // test/unit/published/ holds the published version's built scripts, as served.
+  { ignores: ['node_modules/', 'test-results/', 'playwright-report/', 'docs/build/', 'test/unit/published/'] },
   js.configs.recommended,
   {
     files: ['docs/**/*.js'],
@@ -17,8 +18,9 @@ module.exports = [
     languageOptions: { sourceType: 'module' },
   },
   {
-    // Screens are built from named pieces small enough to read on their own.
-    files: ['docs/app.js', 'docs/ui/**/*.js'],
+    // The app is built from named pieces small enough to read on their own:
+    // its screens, its rules, its storage and its backup files alike.
+    files: ['docs/**/*.js'],
     rules: { 'max-lines-per-function': ['error', { max: 80, skipBlankLines: true, skipComments: true }] },
   },
   {

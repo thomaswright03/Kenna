@@ -74,6 +74,11 @@ test('a written backup reads back in slices with every day and photo intact', as
   assert.deepEqual(checked.entries, entries);
   assert.equal(checked.dayCount, 1);
   assert.equal(checked.photoCount, 8);
+  assert.deepEqual(
+    checked.photoStamps,
+    photos.map((p) => ({ date: p.date, createdAt: p.createdAt })),
+    'each photo is described without keeping its image'
+  );
   const seen = [];
   await forEachBackupPhoto(blob, async (photo, n) => {
     seen.push([n, photo]);
@@ -93,7 +98,7 @@ test('a written backup reads back in slices with every day and photo intact', as
 test('checking a backup reports problems without importing anything', async () => {
   const unreadable = await checkBackup(new Blob(['{"entries": {"2026-09-01": {"meals": {}}}, "photos": [']));
   assert.equal(unreadable.ok, false);
-  assert.match(unreadable.error, /isn't readable backup data/);
+  assert.match(unreadable.error, /isn't readable backup data\. Pick the file Export Backup saved: its name starts with kenna-backup and ends in \.json/);
 
   const badPhoto = await checkBackup(
     new Blob([JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'nope', type: 'image/jpeg', data: 'AA==' }, 7] })])
@@ -121,8 +126,47 @@ test('checking a backup reports problems without importing anything', async () =
 
   const notKenna = await checkBackup(new Blob([JSON.stringify({ app: 'other', entries: {} })]));
   assert.equal(notKenna.ok, false);
+  assert.match(notKenna.error, /^This file isn't a Kenna backup\. Pick the file Export Backup saved/);
+  const noDays = await checkBackup(new Blob([JSON.stringify({ app: 'kenna', photos: [] })]));
+  assert.match(noDays.error, /it has no days in it\. Pick the file Export Backup saved/);
 
   const v1 = await checkBackup(new Blob([JSON.stringify({ exportedAt: 'x', entries: { '2025-05-01': { date: '2025-05-01', weight: 150, meals: {} } } }, null, 2)]));
   assert.equal(v1.ok, true);
   assert.equal(v1.photoCount, 0);
+});
+
+test('reading a backup a piece at a time gives the same result as the whole-file rules the core tests state', async () => {
+  const { parseBackup } = require('./parse-backup.js');
+  const photo = (date, createdAt) => ({ date, createdAt, type: 'image/jpeg', data: 'AA==' });
+  const files = [
+    'not json',
+    { app: 'other', entries: {} },
+    { version: 99, entries: {} },
+    { entries: { '2026-01-01': 5, garbage: { weight: 'x' } } },
+    { entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } },
+    { app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } },
+    { entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } },
+    { entries: {}, photos: [photo('2026-01-01', 'x')] },
+    { entries: { '2026-09-02': { meals: { lunch: 600 } } }, photos: 'nope' },
+    { entries: { '2026-09-01': { meals: { breakfast: -5 } }, '2026-09-02': { meals: { lunch: 600 } } }, photos: [7, photo('2026-09-02', '2026-09-02T08:00:00.000Z')] },
+    { entries: { '2026-09-02': { meals: { lunch: 600 } }, '2030-01-01': { meals: { lunch: 500 } } }, photos: [photo('2026-09-02', '2026-09-02T08:00:00.000Z')] },
+  ];
+  for (const file of files) {
+    const text = typeof file === 'string' ? file : JSON.stringify(file);
+    const whole = parseBackup(text, '2026-09-24');
+    const pieces = await checkBackup(new Blob([text]), { latestDay: '2026-09-24' });
+    if (whole.ok) {
+      const { photos, ...rest } = whole;
+      const { photoStamps, ...piecesRest } = pieces;
+      assert.deepEqual(piecesRest, rest, text);
+      assert.equal(photos.length, pieces.photoCount);
+      assert.deepEqual(
+        photoStamps,
+        photos.map((p) => ({ date: p.date, createdAt: p.createdAt })),
+        text
+      );
+    } else {
+      assert.deepEqual(pieces, whole, text);
+    }
+  }
 });

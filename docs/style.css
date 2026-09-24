@@ -143,7 +143,8 @@ h2[tabindex='-1']:focus { outline: none; }
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* --toast-room: the height of a message with a button (see feedback.js). */
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--toast-room, 0px));
 }
 
 /* ------------------------------------------------------------ header + tabs */
@@ -284,15 +285,7 @@ h2[tabindex='-1']:focus { outline: none; }
 
 /* ------------------------------------------------------------ forms */
 
-.field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s3);
-  margin-bottom: var(--s4);
-}
-
 .field { min-width: 0; margin-bottom: var(--s3); }
-.field-row .field { margin-bottom: 0; }
 
 label {
   display: block;
@@ -334,7 +327,8 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 
 .field-status:empty { margin: 0; }
 .field-status.is-saved { color: var(--accent-text); }
-.field-status.is-saved::before { content: '✓'; font-weight: 700; }
+/* The check mark starts the message's first line, however long it wraps. */
+.field-status.is-saved > span:first-child::before { content: '✓'; font-weight: 700; margin-right: var(--s2); }
 .field-status.is-error { color: var(--danger); }
 .field-hint { margin: var(--s1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .field-status:not(:empty) + .field-hint { display: none; }
@@ -426,6 +420,14 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .icon-btn-danger { color: var(--danger); }
 
 .file-btn { position: relative; }
+.photo-confirm { margin-top: var(--s3); padding: var(--s3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-2); }
+.photo-confirm .section-title { margin-top: 0; }
+.photo-confirm input[type='date'] { background: var(--card); }
+.photo-confirm-body { display: flex; gap: var(--s3); align-items: flex-start; }
+.photo-confirm-body .field { flex: 1; margin-bottom: 0; }
+.photo-confirm-img { width: 96px; height: 96px; flex-shrink: 0; object-fit: cover; border-radius: var(--r-md); background: var(--card); }
+.photo-confirm-body .photo-missing { width: 96px; flex-shrink: 0; margin: 0; font-size: var(--fs-sm); }
+.photo-confirm .notice-actions .btn { margin-top: var(--s3); }
 .file-btn:focus-within,
 input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus); outline-offset: 2px; }
 
@@ -443,13 +445,77 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
   .segment:hover { color: var(--text); }
   .history-item:hover { background: var(--card-hover); }
   .photo-thumb:hover img { opacity: 0.85; }
-  .toast-action:hover { background: var(--toast-action-hover); }
+  .toast-action:hover,
+  .toast-close:hover { background: var(--toast-action-hover); }
 }
 
 .btn-primary:active:not(:disabled) { background: var(--accent-hover); }
 .btn-secondary:active:not(:disabled) { background: var(--card-hover); }
 
 /* ------------------------------------------------------------ today */
+
+/* The day's heading, with Change day beside it: a small secondary button
+   with a date input lying unseen over it, so a tap opens the picker. From
+   the keyboard the button opens a visible date box under the heading. */
+.day-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
+.day-head .card-sub { margin-bottom: var(--s3); }
+.day-switch { position: relative; flex-shrink: 0; }
+.day-switch-label {
+  display: flex;
+  font: inherit;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+input[type='date'].day-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  /* 16px or more, so iPhone doesn't zoom in when it's tapped */
+  font-size: var(--fs-md);
+}
+.day-switch-label:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.day-editor { margin: 0 0 var(--s3); }
+.day-editor-row { display: flex; align-items: center; gap: var(--s2); }
+.day-editor-row input[type='date'] { flex: 1 1 auto; min-width: 0; }
+.day-head + .field-status:not(:empty),
+.day-editor + .field-status:not(:empty) { margin: calc(-1 * var(--s2)) 0 var(--s3); }
+
+.welcome {
+  margin: 0 0 var(--s4);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+/* How old the last backup is, under the day. */
+.backup-status { padding-top: var(--s3); padding-bottom: var(--s3); }
+.backup-status-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.backup-status-title { margin: 0; font-weight: 700; }
+.backup-status-text { margin: var(--s1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.backup-status.is-overdue { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning-text); }
+.backup-status.is-overdue .backup-status-text { color: inherit; }
+.backup-status.is-done .backup-status-text[role='status'] { color: var(--accent-text); font-weight: 600; }
+.backup-status .backup-delivery { margin-top: var(--s2); }
+.btn.btn-compact { width: auto; flex-shrink: 0; min-height: var(--tap); margin: 0; padding: var(--s2) var(--s3); font-size: var(--fs-sm); white-space: nowrap; }
 
 .total-box {
   background: var(--card-2);
@@ -469,6 +535,8 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 }
 
 .total-label { color: var(--muted); font-size: var(--fs-sm); }
+.total-box.is-empty { padding: var(--s3) var(--s4); }
+.total-box.is-empty .total-label { color: var(--text); font-size: var(--fs-md); }
 
 .meal-list { list-style: none; margin: 0; padding: 0; }
 
@@ -505,6 +573,18 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .meal-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
 .meal-value { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
 .meal-empty { font-size: var(--fs-sm); color: var(--muted); }
+/* A value typed for the meal and not saved yet (see drafts.js). */
+.meal-waiting {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px var(--s2);
+  border-radius: var(--r-sm);
+  background: var(--warning-soft);
+  color: var(--warning-text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.total-waiting { margin-top: var(--s1); color: var(--warning-text); font-size: var(--fs-sm); font-weight: 600; }
 
 .meal-actions { display: flex; align-items: center; gap: var(--s3); }
 
@@ -537,12 +617,8 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .meal-pill .pill-value { font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
 .meal-pill .pill-value:empty { display: none; }
 .meal-pill.filled { border-color: var(--accent); color: var(--text); }
+.meal-pill.waiting { border-color: var(--warning-border); border-style: dashed; }
 .meal-pill.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-
-/* Back (secondary) beside Save and close, or, when both labels don't fit
-   on one line side by side, Save and close above Back, each full width. */
-.log-actions { display: flex; flex-wrap: wrap-reverse; gap: 0 var(--s3); }
-.log-actions > .btn { flex: 1 1 0; min-width: max-content; white-space: nowrap; }
 
 .running-total {
   margin: 0 0 var(--s2);
@@ -592,6 +668,8 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
 .history-date { font-weight: 600; flex: 1; }
 .history-stats { color: var(--text); font-size: var(--fs-sm); text-align: right; font-variant-numeric: tabular-nums; }
 .history-stats.is-muted { color: var(--muted); }
+.history-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.history-waiting { padding: 1px var(--s2); border-radius: var(--r-sm); background: var(--warning-soft); color: var(--warning-text); font-size: var(--fs-sm); font-weight: 600; text-align: right; }
 .chevron { color: var(--muted); font-size: var(--fs-lg); }
 
 /* ------------------------------------------------------------ compare */
@@ -817,6 +895,8 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .dialog-text { color: var(--muted); font-size: var(--fs-sm); margin: 0; }
 .dialog-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); margin-top: var(--s4); }
 .dialog-actions .btn { margin-top: 0; }
+/* A dialog that only tells something has one button, the width of the pair. */
+.dialog-actions > .btn:only-child { grid-column: 1 / -1; }
 
 .dialog-viewer {
   width: min(560px, calc(100vw - var(--s4)));
@@ -837,7 +917,20 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .dialog-compare { width: min(900px, calc(100vw - var(--s4))); }
 .compare-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .compare-photo { margin: 0; display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
-.compare-img { width: 100%; max-height: 60vh; object-fit: contain; border-radius: var(--r-md); background: var(--card-2); }
+/* Both frames are the same size, shaped like the more upright photo
+   (--compare-shape, width over height), and each photo is shown whole in
+   its frame. */
+.compare-frame {
+  position: relative;
+  aspect-ratio: var(--compare-shape, 0.75);
+  max-height: 60vh;
+  overflow: hidden;
+  border-radius: var(--r-md);
+  background: var(--card-2);
+}
+.compare-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.compare-frame > .photo-unviewable,
+.compare-frame > .photo-missing { position: absolute; inset: 0; min-height: 0; overflow: auto; }
 .compare-photo figcaption { display: flex; flex-direction: column; font-size: var(--fs-sm); }
 .compare-date { font-weight: 700; }
 .compare-weight { color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -1055,6 +1148,7 @@ body.is-touring { padding-bottom: 100vh; }
 }
 
 .toast-actionable { pointer-events: auto; }
+.toast-text { flex: 1 1 auto; }
 
 .toast-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
 
@@ -1072,6 +1166,22 @@ body.is-touring { padding-bottom: 100vh; }
   cursor: pointer;
 }
 
+.toast-close {
+  flex-shrink: 0;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  margin-left: calc(-1 * var(--s3));
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+}
+
 .progress { width: 100%; height: var(--s2); margin-top: var(--s3); accent-color: var(--accent); }
 
 /* ------------------------------------------------------------ wide screens */
@@ -1086,13 +1196,36 @@ body.is-touring { padding-bottom: 100vh; }
   .history-jump { display: none; }
   .history-side { position: sticky; top: var(--s4); }
   .months-overview-scroll { max-height: calc(100vh - 26rem); min-height: 12rem; overflow-y: auto; }
+  /* Older months below the box's edge: the edge fades, and a button under
+     it says how many. */
+  .months-overview-scroll.has-more {
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+  }
+  .months-overview-more { margin-top: var(--s2); }
   .screen-stack.two-col {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
-  .screen-stack.two-col > .notice-card { grid-column: 1 / -1; }
   .photo-grid { grid-template-columns: repeat(4, 1fr); }
+  /* Two columns leave no free space along the bottom, so messages sit
+     above the content instead, covering none of it. One that appears while
+     the top of the page is scrolled out of view floats at the bottom right
+     until the messages are gone (see feedback.js). */
+  .toasts {
+    position: static;
+    transform: none;
+    width: auto;
+    margin: 0 var(--s4) var(--s3);
+  }
+  .toasts:empty { margin: 0; }
+  .toasts.is-floating {
+    position: fixed;
+    left: auto;
+    right: var(--s4);
+    width: min(400px, calc(100vw - var(--s6)));
+  }
 }
 
 /* On a laptop the tabs join the brand and Settings in one row. */
@@ -1124,6 +1257,9 @@ body.is-touring { padding-bottom: 100vh; }
 .item-list li { margin-bottom: var(--s1); }
 .dialog-text + .dialog-text { margin-top: var(--s2); }
 .import-result > .btn { margin-top: var(--s3); }
+.backup-every { margin-top: var(--s4); padding-top: var(--s2); border-top: 1px solid var(--border); }
+.backup-every .card-sub { margin: var(--s2) 0 0; }
+.backup-every .segment { flex: 1 1 auto; padding: 0 var(--s2); }
 .import-result .card-sub { margin-top: var(--s3); margin-bottom: 0; }
 
 /* Shown in the page itself until the app's first screen is ready. */

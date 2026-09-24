@@ -128,6 +128,7 @@ const PLAIN_ERRORS = {
   QuotaExceededError: 'the device’s storage was full',
   NS_ERROR_DOM_QUOTA_REACHED: 'the device’s storage was full',
   StorageBlocked: 'the browser wouldn’t let Kenna save anything',
+  PhotoStorageUnavailable: 'the browser’s photo storage wasn’t available',
   SecurityError: 'the browser wouldn’t allow it',
   NotAllowedError: 'the browser wouldn’t allow it',
   DamagedDataRestoredFromCopy: 'saved days were damaged and put back from Kenna’s copy',

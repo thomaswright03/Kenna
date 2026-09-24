@@ -8,6 +8,33 @@ test.use({ installed: false });
 const note = (page) => page.locator('[data-install-note]');
 
 test.describe('phone version in a Safari tab', () => {
+  test('the day comes first, with a welcome on first open, and the Home Screen note waits below it, also once something is logged', async ({ page, appURL }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(appURL);
+    await expect(page.locator('[data-welcome]')).toContainText('Welcome to Kenna.');
+    await expect(page.getByLabel('Weight (lbs)')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('link', { name: 'Log Meal' })).toBeInViewport({ ratio: 1 });
+    await expect(note(page)).toBeVisible();
+    const [dayCard, noteBox] = await Promise.all([page.locator('.card', { has: page.getByLabel('Weight (lbs)') }).boundingBox(), note(page).boundingBox()]);
+    expect(noteBox.y).toBeGreaterThan(dayCard.y + dayCard.height - 1);
+
+    // With something logged it still waits below the day, which stays the
+    // first thing on screen.
+    await page.getByRole('link', { name: 'Log Meal' }).click();
+    await page.getByLabel('Breakfast calories').fill('400');
+    await page.getByRole('button', { name: 'Save and close' }).click();
+    await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.locator('[data-welcome]')).toHaveCount(0);
+    await expect(note(page)).toContainText('save a backup file here first');
+    await expect(page.getByLabel('Weight (lbs)')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('link', { name: 'Log Meal' })).toBeInViewport({ ratio: 1 });
+    const [dayAfter, noteAfter] = await Promise.all([page.locator('.card', { has: page.getByLabel('Weight (lbs)') }).boundingBox(), note(page).boundingBox()]);
+    expect(noteAfter.y).toBeGreaterThan(dayAfter.y + dayAfter.height - 1);
+    // One meal is too little to ask for a backup about.
+    await expect(page.locator('[data-backup-reminder]')).toHaveCount(0);
+  });
+
   test('Today says iPhone may delete the data and gives the Home Screen steps', async ({ page, appURL }) => {
     await page.goto(appURL);
     await expect(note(page)).toBeVisible();
@@ -112,14 +139,25 @@ test.describe('not on an iPhone', () => {
   });
 });
 
-test.describe('only one notice above the day', () => {
-  test('with days logged and no backup, the Home Screen note is the only card above the day, and the Weight box is in view', async ({ page, appURL, data }) => {
-    await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+test.describe('one notice at a time, under the day', () => {
+  test('with days logged and no backup, the Home Screen note is the only card, under the day, and the Weight box and Log Meal are in view', async ({ page, appURL, data }) => {
+    await data.seed({
+      '2026-09-21': day('2026-09-21', { lunch: 500 }),
+      '2026-09-22': day('2026-09-22', { lunch: 600 }),
+      [TODAY]: day(TODAY, { breakfast: 400 }),
+    });
     await page.goto(appURL);
     await expect(note(page)).toBeVisible();
     await expect(page.locator('[data-backup-reminder]')).toHaveCount(0);
     await expect(page.locator('.notice-card')).toHaveCount(1);
     await expect(page.getByLabel('Weight (lbs)')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('link', { name: 'Log Meal' })).toBeInViewport({ ratio: 1 });
+    const dayCard = page.locator('.card', { has: page.getByLabel('Weight (lbs)') });
+    const below = async (locator) => {
+      const [d, n] = await Promise.all([dayCard.boundingBox(), locator.boundingBox()]);
+      return n.y > d.y + d.height - 1;
+    };
+    expect(await below(note(page))).toBe(true);
 
     // Hiding the note brings the backup reminder in its place.
     await note(page).getByRole('button', { name: 'Not now' }).click();
@@ -127,6 +165,7 @@ test.describe('only one notice above the day', () => {
     await expect(page.locator('[data-backup-reminder]')).toBeVisible();
     await expect(page.locator('[data-backup-reminder]')).toBeFocused();
     await expect(page.locator('.notice-card')).toHaveCount(1);
+    expect(await below(page.locator('[data-backup-reminder]'))).toBe(true);
     await page.reload();
     await expect(page.locator('[data-backup-reminder]')).toBeVisible();
     await expect(page.locator('.notice-card')).toHaveCount(1);

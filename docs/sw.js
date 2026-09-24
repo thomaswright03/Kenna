@@ -15,7 +15,7 @@
 // which pre-caches the whole new set together, so a phone that goes offline
 // right after an update still has matching files. A test checks every
 // listed file exists.
-const CACHE_NAME = 'kenna-2eda71781e57';
+const CACHE_NAME = 'kenna-3a29532e68a6';
 
 const APP_SHELL = [
   './',
@@ -49,9 +49,40 @@ sw.addEventListener('activate', (event) => {
 });
 
 const NETWORK_WAIT_MS = 3000;
+// How long a page load that found the network slow keeps using the cache
+// for its other files. The app's files are all asked for as the page
+// opens, so by then its load is long over; later requests from the same
+// page (after the network has had time to recover) go to the network first
+// again.
+const SLOW_LOAD_MS = 60000;
+// At most this many page loads are remembered; the oldest goes first.
+const SLOW_CLIENTS_MAX = 20;
 
-/** Pages (by client id) being loaded from the cache because the network was slow. */
-const slowClients = new Set();
+/**
+ * Pages (by client id) being loaded from the cache because the network was
+ * slow, with when each found it so. Entries go once SLOW_LOAD_MS has passed.
+ * @type {Map<string, number>}
+ */
+const slowClients = new Map();
+
+/** @param {string} clientId */
+function loadingFromCache(clientId) {
+  const since = slowClients.get(clientId);
+  if (since === undefined) return false;
+  if (Date.now() - since < SLOW_LOAD_MS) return true;
+  slowClients.delete(clientId);
+  return false;
+}
+
+/** @param {string} clientId */
+function markSlow(clientId) {
+  const now = Date.now();
+  for (const [id, since] of slowClients) if (now - since >= SLOW_LOAD_MS) slowClients.delete(id);
+  slowClients.delete(clientId);
+  slowClients.set(clientId, now);
+  // A Map keeps the order entries were set in, so the first is the oldest.
+  while (slowClients.size > SLOW_CLIENTS_MAX) slowClients.delete(slowClients.keys().next().value || '');
+}
 
 /** @param {Request} request */
 const cachedCopy = (request) => caches.match(request, { ignoreSearch: true });
@@ -62,7 +93,7 @@ const cachedCopy = (request) => caches.match(request, { ignoreSearch: true });
  * @param {string} clientId
  */
 async function respond(request, fromNetwork, clientId) {
-  if (clientId && slowClients.has(clientId)) {
+  if (clientId && loadingFromCache(clientId)) {
     const hit = await cachedCopy(request);
     if (hit) return hit;
     return fromNetwork.catch(() => Response.error());
@@ -79,7 +110,7 @@ async function respond(request, fromNetwork, clientId) {
   if (first !== 'slow') return first;
   const hit = await cachedCopy(request);
   if (!hit) return fromNetwork.catch(() => Response.error());
-  if (clientId) slowClients.add(clientId);
+  if (clientId) markSlow(clientId);
   return hit;
 }
 

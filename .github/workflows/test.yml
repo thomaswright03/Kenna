@@ -51,3 +51,20 @@ jobs:
           name: playwright-report-webkit
           path: playwright-report/
           retention-days: 7
+
+  # A pull request into the published branch needs its iPhone checklist
+  # row (RELEASE-CHECKLIST.md) for exactly what it merges: see
+  # scripts/check-release-record.js.
+  release-record:
+    if: github.event_name == 'pull_request' && github.base_ref == 'claude/phone-calorie-tracker-gbxsn6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-release-record.js

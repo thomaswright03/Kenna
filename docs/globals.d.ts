@@ -1,4 +1,4 @@
-// Globals the classic scripts in docs/ put on `window` for the UI modules.
+// Globals docs/data.js puts on `window` for the UI modules.
 interface Window {
   KennaCore: typeof import('./core.js');
   KennaLocalStore: typeof import('./store-local.js');

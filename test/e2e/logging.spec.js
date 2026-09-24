@@ -1,4 +1,4 @@
-const { test, expect, TODAY, day } = require('./fixtures');
+const { test, expect, TODAY, NOW, day } = require('./fixtures');
 
 test('typing then tapping another control takes effect on the first tap', async ({ page, appURL, data }) => {
   await page.goto(appURL);
@@ -72,21 +72,69 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   expect((await data.entry(TODAY)).weight).toBe(165);
 });
 
-test('the date field cannot be emptied or set to the future', async ({ page, appURL }) => {
+test('Change day cannot be emptied or set to the future', async ({ page, appURL, data }) => {
   await page.goto(appURL);
-  const date = page.getByLabel('Day to view or edit');
+  // The date input a tap or a click lands on, which opens the phone's picker.
+  const date = page.locator('.day-switch-input');
   await date.fill('');
   await date.dispatchEvent('change');
   await expect(date).toHaveValue(TODAY);
   await page.getByLabel('Weight (lbs)').fill('181');
   await page.getByLabel('Weight (lbs)').blur();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  const keys = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('kenna:entries'))));
-  expect(keys).toEqual([TODAY]);
+  expect(Object.keys(await data.all())).toEqual([TODAY]);
   await date.fill('2026-12-01');
   await date.dispatchEvent('change');
   await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();
   await expect(date).toHaveValue(TODAY);
+});
+
+test('Change day works from the keyboard: one Tab stop, and a day opens only when confirmed', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  const change = page.getByRole('button', { name: 'Change day' });
+  await expect(change).toHaveAttribute('aria-expanded', 'false');
+  // One stop: the next Tab goes on to the Weight box.
+  await change.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Weight (lbs)')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(change).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(change).toHaveAttribute('aria-expanded', 'true');
+  const box = page.getByLabel('Day to open');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(TODAY);
+  // Changing the date, with the arrow keys or by typing, doesn't open a day.
+  await page.keyboard.press('ArrowDown');
+  await box.fill('2026-09-15');
+  await expect(box).toBeVisible();
+  await expect(box).toHaveValue('2026-09-15');
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+  // Enter does.
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Tue, Sep 15' })).toBeVisible();
+  await expect(page).toHaveURL(/#\/day\/2026-09-15$/);
+
+  // A day that hasn't happened yet is refused, and the box stays open.
+  await page.getByRole('button', { name: 'Change day' }).press('Enter');
+  await page.getByLabel('Day to open').fill('2026-10-01');
+  await page.getByLabel('Day to open').press('Enter');
+  await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();
+  await expect(page.getByLabel('Day to open')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tue, Sep 15' })).toBeVisible();
+
+  // Escape puts the box away and goes back to the button.
+  await page.getByLabel('Day to open').press('Escape');
+  await expect(page.getByLabel('Day to open')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Change day' })).toBeFocused();
+
+  // Leaving the box for elsewhere confirms a changed date.
+  await page.getByRole('button', { name: 'Change day' }).press('Enter');
+  await page.getByLabel('Day to open').fill('2026-09-20');
+  await page.getByLabel('Weight (lbs)').focus();
+  await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
 });
 
 test('saving a weight shows that it was saved', async ({ page, appURL }) => {
@@ -117,6 +165,8 @@ test('removing a meal can be undone', async ({ page, appURL, data }) => {
 });
 
 test('a confirmation message never blocks a tap on what is under it', async ({ page, appURL }) => {
+  // Short enough that Log Meal starts under the message, to be scrolled level with it.
+  await page.setViewportSize({ width: 390, height: 440 });
   await page.goto(`${appURL}/#/log/breakfast`);
   await page.getByLabel('Breakfast calories').fill('400');
   await page.getByRole('button', { name: 'Save and close' }).click();
@@ -255,7 +305,7 @@ test('a day long before anything logged asks first, so a mistyped year is not sa
 
   // The day picker lands on the same question for a mistyped year.
   await page.goto(appURL);
-  const picker = page.getByLabel('Day to view or edit');
+  const picker = page.locator('.day-switch-input');
   await picker.fill('2002-09-23');
   await picker.dispatchEvent('change');
   await expect(page.getByRole('group', { name: 'Log a day in 2002?' })).toBeVisible();
@@ -333,15 +383,15 @@ test('every way out of Log Meal saves the number in the box, and the next screen
     await page.keyboard.type(String(n));
   };
 
-  // The on-screen Back button, tapped with the number still in the box.
+  // The tab bar, tapped with the number still in the box.
   await open(222);
-  await page.getByRole('button', { name: 'Back to Today' }).tap();
+  await nav.getByRole('link', { name: 'Today' }).tap();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(saved(222)).toBeVisible();
   await expect.poll(lunch).toBe(222);
   await expect(page.locator('.total-num')).toHaveText('222');
 
-  // The tab bar.
+  // Another tab.
   await open(333);
   await nav.getByRole('link', { name: 'History' }).click();
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
@@ -376,7 +426,7 @@ test('leaving Log Meal with a number that can’t be saved keeps it, says why, a
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
   await page.goto(`${appURL}/#/log/lunch`);
   await page.getByLabel('Lunch calories').fill('22x');
-  await page.getByRole('button', { name: 'Back to Today' }).click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   const message = page.locator('.toast').filter({ hasText: 'Lunch not saved (“22x”). Enter calories using digits only, like 450.' });
   await expect(message).toBeVisible();
@@ -419,7 +469,7 @@ async function breakSaving(page) {
       Storage.prototype.setItem = setItem;
     };
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      if (key === 'kenna:entries' || key === 'kenna:entries:backup') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
       return setItem.call(this, key, value);
     };
   });
@@ -473,7 +523,7 @@ test('a number whose save fails as the page closes comes back in its box on the 
   await expect.poll(async () => (await data.entry(TODAY)).meals.dinner).toBe(640);
 });
 
-test('Back from a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {
+test('Save and close on a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { breakfast: 300 }) });
   await page.goto(`${appURL}/#/day/2026-09-20/log/breakfast`);
   const cal = page.getByLabel('Breakfast calories');
@@ -484,13 +534,10 @@ test('Back from a past day’s Log Meal returns to that day, and Escape puts bac
   await expect(cal).toHaveValue('300');
   await expect(page.getByText('Breakfast not saved yet')).toHaveCount(0);
   await expect(page.locator('.dialog[open]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Back to Sep 20' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
-  await expect(page.locator('.toast')).toHaveCount(0);
+  await expect(page.locator('.toast').filter({ hasText: 'Saved for Sun, Sep 20: 300 cal' })).toBeVisible();
   expect((await data.entry('2026-09-20')).meals.breakfast).toBe(300);
-
-  await page.goto(`${appURL}/#/day/2026-09-23/log`);
-  await expect(page.getByRole('button', { name: 'Back to Yesterday' })).toBeVisible();
 });
 
 test('the Weight box says how it saves before anything is typed', async ({ page, appURL, data }) => {
@@ -509,7 +556,8 @@ test('the Weight box says how it saves before anything is typed', async ({ page,
   expect((await data.entry(TODAY)).weight).toBe(170.2);
 });
 
-test('a meal removed just before leaving Today can be put back from the next screen', async ({ page, appURL, data }) => {
+test('a meal removed on Today can be put back from the next screen, and from its row for the rest of the visit', async ({ page, appURL, data }) => {
+  await page.clock.install({ time: NOW });
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 450, lunch: 650 }) });
   await page.goto(appURL);
   await page.getByRole('button', { name: 'Remove Breakfast' }).click();
@@ -518,10 +566,38 @@ test('a meal removed just before leaving Today can be put back from the next scr
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
   const offer = page.locator('.toast').filter({ hasText: 'Breakfast removed from today (450 cal)' });
   await expect(offer).toBeVisible();
-  // It's still offered on the screen after that.
+  // Time alone never takes it away, and the page has room to scroll clear of it.
+  await page.clock.runFor(30000);
+  await expect(offer).toBeVisible();
+  const room = () => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--toast-room')) || 0);
+  expect(await room()).toBeGreaterThan(40);
+  // Moving on does, but Today's row still offers Undo.
   await page.locator('[data-tab="compare"]').click();
   await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
-  await expect(offer).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  await page.locator('[data-tab="today"]').click();
+  await expect(page.locator('.meal-row[data-meal="breakfast"]')).toContainText('Removed (was 450 cal)');
+  await expect(page.getByRole('button', { name: 'Undo removing Breakfast' })).toBeVisible();
+  // Leaving again doesn't offer it a second time; the offer can be dismissed.
+  await page.locator('[data-tab="compare"]').click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  await page.locator('[data-tab="today"]').click();
+  await page.getByRole('button', { name: 'Remove Lunch' }).click();
+  await page.locator('[data-tab="history"]').click();
+  const lunch = page.locator('.toast').filter({ hasText: 'Lunch removed from today (650 cal)' });
+  await lunch.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(lunch).toHaveCount(0);
+  expect(await room()).toBe(0);
+  await page.locator('[data-tab="today"]').click();
+  await page.getByRole('button', { name: 'Undo removing Lunch' }).click();
+  await expect(page.locator('.total-num')).toHaveText('650');
+
+  // From another screen, the offer puts the meal back.
+  await page.getByRole('button', { name: 'Undo removing Breakfast' }).click();
+  await page.getByRole('button', { name: 'Remove Breakfast' }).click();
+  await page.locator('[data-tab="compare"]').click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
   await offer.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.toast').filter({ hasText: 'Breakfast put back for today: 450 cal' })).toBeVisible();
   expect((await data.entry(TODAY)).meals.breakfast).toBe(450);

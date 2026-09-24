@@ -6,7 +6,7 @@ import { h, prefs, byId } from './ui/dom.js';
 import { applyTheme, followSystemTheme } from './ui/theme.js';
 import { store } from './ui/store.js';
 import { startRouter } from './ui/router.js';
-import { render, registerScreens, getCurrentView, refreshCurrentScreen } from './ui/render.js';
+import { render, registerScreens, getCurrentView, refreshCurrentScreen, recheckCurrentScreen } from './ui/render.js';
 import { dayHasChanged } from './ui/day.js';
 import { loadDraftFromLastVisit, dropStoredDraft, reportUnclaimedDraft } from './ui/drafts.js';
 import { buildToday } from './ui/screen-today.js';
@@ -66,7 +66,7 @@ async function start() {
     return;
   }
   store.requestPersistence();
-  store.onExternalChange(refreshCurrentScreen);
+  store.onExternalChange(() => refreshCurrentScreen({ elsewhere: true }));
 
   // A number typed but not yet saved is saved when the page is hidden (app
   // switched away from, phone locked) or closed/reloaded, since the app may
@@ -80,6 +80,7 @@ async function start() {
       flushInput();
     } else {
       dropStoredDraft();
+      recheckCurrentScreen();
       checkForNewDay();
     }
   });

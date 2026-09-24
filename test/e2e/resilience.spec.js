@@ -1,4 +1,4 @@
-const { test, expect, TODAY } = require('./fixtures');
+const { test, expect, TODAY, day } = require('./fixtures');
 const { createStaticServer } = require('../../scripts/serve-docs.js');
 
 // The phone app's files, served normally until `stall` is set, after which
@@ -107,7 +107,7 @@ test.describe('phone version', () => {
     await page.reload();
     await expect(page.getByRole('status').filter({ hasText: 'restored it from its automatic copy' })).toBeVisible();
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
-    await expect(page.locator('.history-item')).toContainText('181 lbs');
+    await expect(page.locator('.history-item')).toContainText('181.0 lbs');
   });
 
   test('asks the browser to keep data persistently on launch', async ({ page, appURL }) => {
@@ -206,6 +206,7 @@ test.describe('phone version', () => {
     await page.goto(`${appURL}/#/photos`);
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
     await page.locator('input[type=file]').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+    await page.getByRole('button', { name: 'Save photo' }).click();
     const status = page.locator('.field-status.is-error');
     await expect(status).toContainText("Photo not saved. There's no room left for Kenna's photos on this device.");
     await expect(status).toContainText('Delete some old progress photos or free up space on the phone');
@@ -217,7 +218,7 @@ test.describe('phone version', () => {
     await page.evaluate(() => {
       const setItem = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) {
-        if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        if (key === 'kenna:entries' || key === 'kenna:entries:backup') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
         return setItem.call(this, key, value);
       };
     });
@@ -255,4 +256,35 @@ test('damaged data is kept at most twice, and Settings offers it for download or
   expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kenna:entries:corrupt')).length)).toBe(0);
   await page.reload();
   await expect(page.locator('[data-damaged-data]')).toHaveCount(0);
+});
+
+test('with ten years logged, a save keeps every day where every version reads them, and a change left by an earlier version is folded in', async ({ page, data }) => {
+  const days = {};
+  for (let i = 1; i <= 3650; i += 1) {
+    const date = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    days[date] = day(date, { breakfast: 400, lunch: 650 }, 180);
+  }
+  await data.seed(days);
+  await page.reload();
+  const history = () => page.evaluate(() => JSON.parse(localStorage.getItem('kenna:entries')));
+  await page.getByLabel('Weight (lbs)').fill('179.4');
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  const saved = await history();
+  expect(saved[TODAY].weight).toBe(179.4);
+  expect(Object.keys(saved)).toHaveLength(3651);
+  expect(await page.evaluate(() => localStorage.getItem('kenna:entries:backup') === localStorage.getItem('kenna:entries'))).toBe(true);
+
+  // A change an earlier version saved separately, made on these very days
+  // (it recorded their length; the first such versions recorded nothing else).
+  await page.evaluate((date) => {
+    const text = localStorage.getItem('kenna:entries');
+    localStorage.setItem('kenna:entries:recent', JSON.stringify({ base: text.length, days: { [date]: null } }));
+  }, '2026-09-23');
+  await page.reload();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('179.4');
+  expect(await page.evaluate(() => localStorage.getItem('kenna:entries:recent'))).toBeNull();
+  const folded = await history();
+  expect(folded['2026-09-23']).toBeUndefined();
+  expect(Object.keys(folded)).toHaveLength(3650);
 });

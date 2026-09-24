@@ -74,9 +74,9 @@ export function sayLeftSaved(s) {
 }
 
 /**
- * Keeps a value that can't be saved for when its box is shown again, and
- * says so, with a way straight back to it.
- * @param {{ field: Field, date: string, text: string, error: string }} draft
+ * Keeps a value that can't be saved (or that waits to be asked about) for
+ * when its box is shown again, and says so, with a way straight back to it.
+ * @param {import('./drafts.js').Draft} draft
  * @param {string} backHash the address of the screen with that box
  */
 export function keepLeftUnsaved(draft, backHash) {

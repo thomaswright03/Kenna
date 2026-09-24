@@ -1,8 +1,9 @@
 // Builds the two script files the page loads, from the sources in docs/:
 //
-//   docs/build/data.js  the classic scripts (core.js with its modules in
-//                       core/, store-local.js, backup-file.js), each
-//                       minified, in that order
+//   docs/build/data.js  data.js and what it requires (core.js with its
+//                       modules in core/, store-local.js with its modules
+//                       in store/, backup-file.js), as one minified script
+//                       that sets the globals the interface reads
 //   docs/build/app.js   app.js and every ui/ module it imports, as one
 //                       minified ES module
 //
@@ -29,87 +30,23 @@ const esbuild = require('esbuild');
 
 const DOCS = path.join(__dirname, '..', 'docs');
 const OUT_DIR = path.join(DOCS, 'build');
-const CLASSIC_SCRIPTS = ['core.js', 'store-local.js', 'backup-file.js'];
 // The syntax the sources are written in (see tsconfig.json), left as it is.
 const TARGET = 'es2022';
 const MINIFY = !process.argv.includes('--no-minify');
 
-/** @param {string} text */
-const lineCount = (text) => text.split('\n').length - 1;
-
 /**
- * One classic script (it sets its own global), minified.
- * @param {string} name
+ * One source file and everything it requires or imports, bundled into
+ * docs/build/<name>, with its source map.
+ * @param {string} name the source under docs/, and the built file's name
+ * @param {'iife' | 'esm'} format
  * @returns {Promise<{ code: string, map: string }>}
  */
-async function transformClassic(name) {
-  const source = fs.readFileSync(path.join(DOCS, name), 'utf8');
-  return esbuild.transform(source, {
-    minify: MINIFY,
-    target: TARGET,
-    charset: 'utf8',
-    legalComments: 'none',
-    sourcemap: 'external',
-    sourcesContent: false,
-    sourcefile: `../${name}`,
-  });
-}
-
-/**
- * core.js and the modules in core/ it's made of, as one script that sets
- * self.KennaCore (Node requires core.js as it is).
- * @returns {Promise<{ code: string, map: string }>}
- */
-async function buildCore() {
+async function bundle(name, format) {
   const result = await esbuild.build({
-    entryPoints: [path.join(DOCS, 'core', 'global.js')],
-    outfile: path.join(OUT_DIR, 'data.js'),
+    entryPoints: [path.join(DOCS, name)],
+    outfile: path.join(OUT_DIR, name),
     bundle: true,
-    format: 'iife',
-    minify: MINIFY,
-    target: TARGET,
-    charset: 'utf8',
-    legalComments: 'none',
-    sourcemap: 'external',
-    sourcesContent: false,
-    write: false,
-    logLevel: 'silent',
-  });
-  const file = (/** @type {string} */ ext) => {
-    const found = result.outputFiles.find((f) => f.path.endsWith(ext));
-    if (!found) throw new Error(`esbuild wrote no ${ext} file`);
-    return found.text;
-  };
-  return { code: file('data.js'), map: file('data.js.map') };
-}
-
-/**
- * The classic scripts, minified one by one and joined, with an index source
- * map that has one section per script.
- * @returns {Promise<{ code: string, map: string }>}
- */
-async function buildClassic() {
-  let code = '';
-  const sections = [];
-  for (const name of CLASSIC_SCRIPTS) {
-    const result = name === 'core.js' ? await buildCore() : await transformClassic(name);
-    sections.push({ offset: { line: lineCount(code), column: 0 }, map: JSON.parse(result.map) });
-    code += result.code.endsWith('\n') ? result.code : `${result.code}\n`;
-  }
-  code += '//# sourceMappingURL=data.js.map\n';
-  return { code, map: `${JSON.stringify({ version: 3, file: 'data.js', sections })}\n` };
-}
-
-/**
- * The interface: app.js and its imports, bundled.
- * @returns {Promise<{ code: string, map: string }>}
- */
-async function buildApp() {
-  const result = await esbuild.build({
-    entryPoints: [path.join(DOCS, 'app.js')],
-    outfile: path.join(OUT_DIR, 'app.js'),
-    bundle: true,
-    format: 'esm',
+    format,
     minify: MINIFY,
     target: TARGET,
     charset: 'utf8',
@@ -124,7 +61,7 @@ async function buildApp() {
     if (!found) throw new Error(`esbuild wrote no ${ext} file`);
     return found.text;
   };
-  return { code: file('app.js'), map: file('app.js.map') };
+  return { code: file(name), map: file(`${name}.map`) };
 }
 
 /**
@@ -132,10 +69,11 @@ async function buildApp() {
  * @returns {Promise<Record<string, string>>}
  */
 async function buildFiles() {
-  const [classic, app] = await Promise.all([buildClassic(), buildApp()]);
+  // data.js is a classic script: the page runs it before the interface.
+  const [data, app] = await Promise.all([bundle('data.js', 'iife'), bundle('app.js', 'esm')]);
   return {
-    'build/data.js': classic.code,
-    'build/data.js.map': classic.map,
+    'build/data.js': data.code,
+    'build/data.js.map': data.map,
     'build/app.js': app.code,
     'build/app.js.map': app.map,
   };
@@ -242,4 +180,4 @@ if (require.main === module) {
       });
 }
 
-module.exports = { buildFiles, CLASSIC_SCRIPTS, appShellFiles, cacheName, currentCacheName };
+module.exports = { buildFiles, appShellFiles, cacheName, currentCacheName };

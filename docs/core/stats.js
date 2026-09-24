@@ -4,7 +4,7 @@
 /** @typedef {import('./entries.js').Entry} Entry */
 'use strict';
 
-const { isValidDateStr, dayNumber } = require('./dates.js');
+const { isValidDateStr, dayNumber, shiftDate } = require('./dates.js');
 const { MEAL_KEYS, normalizeMealValue, normalizeWeight, totalCalories } = require('./entries.js');
 
 /** @param {number[]} vals @returns {number | null} */
@@ -30,6 +30,30 @@ function computeAllTimeAverages(entries, today) {
     result[key] = mean(list.map((e) => normalizeMealValue(e.meals && e.meals[key])).filter((v) => v !== null));
   }
   return result;
+}
+
+// Compare's recent baseline: the averages of the RECENT_DAYS days before
+// today, worked out as the all-time ones are. Over a long weight loss the
+// all-time average falls behind, so today is always well below it; the
+// recent one shows how today stands against the last few weeks.
+const RECENT_DAYS = 30;
+
+/**
+ * @param {Record<string, Entry> | Entry[]} entries
+ * @param {string} today
+ * @returns {{ averages: Record<string, number | null>, olderWeight: boolean, olderMeals: boolean }}
+ *   the averages, and whether any weight or meal was logged before those days
+ *   (without one, the recent average is the all-time average)
+ */
+function computeRecentAverages(entries, today) {
+  const from = shiftDate(today, -RECENT_DAYS);
+  const all = (Array.isArray(entries) ? entries : Object.values(entries || {})).filter((e) => e && isValidDateStr(e.date));
+  const older = all.filter((e) => e.date < from);
+  return {
+    averages: computeAllTimeAverages(all.filter((e) => e.date >= from), today),
+    olderWeight: older.some((e) => normalizeWeight(e.weight) !== null),
+    olderMeals: older.some((e) => totalCalories(e.meals) !== null),
+  };
 }
 
 // Today's calories so far, compared like with like: the meals logged
@@ -166,7 +190,9 @@ function trendSeries(rows, field, today, windowDays) {
 }
 
 module.exports = {
+  RECENT_DAYS,
   computeAllTimeAverages,
+  computeRecentAverages,
   compareSameMeals,
   buildDailyRows,
   seriesFromRows,

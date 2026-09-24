@@ -183,3 +183,37 @@ test("photo storage failures come back as Kenna's own sentences, never the brows
   // No IndexedDB at all.
   await assert.rejects(makeStore(undefined).listPhotos(), /turned off the storage Kenna keeps photos in/);
 });
+
+test('a photo deleted from the viewer can be brought back as it was until it is erased', async () => {
+  const idb = new IDBFactory();
+  const storage = new Map();
+  const shared = { storage: { getItem: (k) => (storage.has(k) ? storage.get(k) : null), setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) } };
+  const store = makeStore(idb, shared);
+  const a = await store.addPhoto({ date: '2026-09-21', createdAt: '2026-09-21T08:00:00.000Z', blob: new Blob([JPEG(1)], { type: 'image/jpeg' }) });
+  const b = await store.addPhoto({ date: '2026-09-22', createdAt: '2026-09-22T08:00:00.000Z', blob: new Blob([JPEG(2)], { type: 'image/jpeg' }) });
+
+  // Hidden: left out of every listing and count, but still there.
+  assert.equal(await store.hidePhoto(a.id), true);
+  assert.deepEqual((await store.listPhotos()).map((p) => p.id), [b.id]);
+  assert.equal(await store.countPhotos(), 1);
+  // Brought back exactly as it was: same id, day and time added.
+  await store.unhidePhoto(a.id);
+  assert.deepEqual(await store.listPhotos(), [b, a]);
+  assert.equal((await store.getPhotoBlob(a)).size, 64);
+
+  // Erasing one hidden photo leaves another hidden one alone.
+  await store.hidePhoto(a.id);
+  await store.hidePhoto(b.id);
+  await store.deleteHiddenPhotos([a.id]);
+  await assert.rejects(store.unhidePhoto(a.id), /already been deleted for good/);
+  await store.unhidePhoto(b.id);
+  assert.deepEqual((await store.listPhotos()).map((p) => p.id), [b.id]);
+
+  // A photo still hidden when the app closed is erased at the next start.
+  await store.hidePhoto(b.id);
+  const next = makeStore(idb, shared);
+  await next.init();
+  for (let i = 0; i < 100 && storage.has('kenna:photos:hidden'); i += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(await next.countPhotos(), 0);
+  assert.equal(storage.has('kenna:photos:hidden'), false);
+});

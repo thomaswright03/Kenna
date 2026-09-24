@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { buildFiles, CLASSIC_SCRIPTS, appShellFiles, cacheName, currentCacheName } = require('../../scripts/build.js');
+const { buildFiles, appShellFiles, cacheName, currentCacheName } = require('../../scripts/build.js');
 
 const docs = path.join(__dirname, '..', '..', 'docs');
 
@@ -24,23 +24,28 @@ test('the interface bundle is built from every ui module, with a source map back
   assert.doesNotMatch(built['build/app.js'], /^\s*import\s/m, 'nothing is left to fetch separately');
 });
 
-test('the data bundle holds the classic scripts in the order the page used to load them', async () => {
+test('the data bundle holds the rules, the storage and the backup files once each, with a source map back to them', async () => {
   const built = await buildFiles();
   const map = JSON.parse(built['build/data.js.map']);
-  // core.js is bundled with its modules in core/; each of the other
-  // scripts is its own section.
-  assert.deepEqual(
-    map.sections.map((s) => s.map.sources.find((src) => !src.startsWith('../core/'))),
-    CLASSIC_SCRIPTS.map((name) => `../${name}`)
-  );
-  const coreModules = fs.readdirSync(path.join(docs, 'core')).map((f) => `../core/${f}`);
-  assert.deepEqual([...map.sections[0].map.sources].sort(), ['../core.js', ...coreModules].sort());
-  const lines = built['build/data.js'].split('\n');
-  for (const section of map.sections) assert.ok(section.offset.line < lines.length);
-  // Each script still sets its global when run in a page.
+  const dir = (name) => fs.readdirSync(path.join(docs, name)).map((f) => `../${name}/${f}`);
+  const expected = ['../data.js', '../core.js', '../store-local.js', '../backup-file.js', ...dir('core'), ...dir('store')];
+  assert.deepEqual([...map.sources].sort(), expected.sort());
+  assert.match(built['build/data.js'], /\/\/# sourceMappingURL=data\.js\.map\n$/);
+  // It sets the globals the interface reads, the storage using the same
+  // rules the page gets (its errors are the page's KennaError).
   const window = {};
   new Function('self', 'window', built['build/data.js'])(window, window);
   for (const name of ['KennaCore', 'KennaLocalStore', 'KennaBackupFile']) assert.ok(name in window, `${name} is set`);
+  assert.ok(new window.KennaLocalStore.StorageWriteError('x') instanceof window.KennaCore.KennaError);
+});
+
+test('the storage and the backup files are split into modules of a readable size', () => {
+  const files = ['store-local.js', 'backup-file.js', ...fs.readdirSync(path.join(docs, 'store')).map((f) => `store/${f}`)];
+  assert.ok(files.length >= 6);
+  for (const file of files) {
+    const lines = fs.readFileSync(path.join(docs, file), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${file} has ${lines} lines`);
+  }
 });
 
 test('the rules shared by the app and the tests are split into modules of a readable size', () => {

@@ -146,8 +146,10 @@ test('a year of photos opens, backs up and restores a photo at a time', async ({
   expect(await countPhotos(fresh)).toBe(PHOTOS);
 
   await fresh.locator('input[type=file]').setInputFiles(file);
-  await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText('Nothing new to restore. 365 photos were already here.', { exact: true })).toBeVisible({ timeout: 180000 });
+  const notice = fresh.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 365 photos and no days', { timeout: 60000 });
+  await expect(notice).toContainText('Everything in it is already on this device');
+  await notice.getByRole('button', { name: 'Close' }).click();
   expect(await countPhotos(fresh)).toBe(PHOTOS);
   await ctx.close();
 

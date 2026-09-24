@@ -166,7 +166,6 @@ function dateAxisLabels(startDay, endDay, maxLabels) {
 }
 
 module.exports = {
-  CHART_PERIODS,
   chartPeriod,
   periodAverages,
   formatPeriod,

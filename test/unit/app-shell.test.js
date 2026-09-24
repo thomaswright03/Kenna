@@ -59,7 +59,7 @@ test('the page shows it is loading until the first screen is drawn', () => {
   assert.match(html, /<main id="main" class="main"><p class="boot-loading" role="status">[\s\S]*Loading Kenna…<\/p><\/main>/);
 });
 
-test("the browser's theme colours and the splash screen match the page background", () => {
+test("the browser's theme colours match the page background, and the splash screen matches the default theme", () => {
   const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8');
   const bg = (block) => css.match(new RegExp(`^${block} \\{[\\s\\S]*?--bg: (#[0-9a-f]+);`, 'm'))[1];
   const light = bg(':root');
@@ -69,8 +69,14 @@ test("the browser's theme colours and the splash screen match the page backgroun
   assert.match(html, new RegExp(`<meta name="theme-color" content="${dark}" media="\\(prefers-color-scheme: dark\\)">`));
   const theme = fs.readFileSync(path.join(docs, 'ui', 'theme.js'), 'utf8');
   assert.match(theme, new RegExp(`THEME_COLORS = \\{ light: '${light}', dark: '${dark}' \\}`));
+  // Before the page is drawn the installed app shows the manifest's colours,
+  // which can't follow the phone's theme: the light background, the theme
+  // Kenna starts in, so a light-mode launch has no dark splash or bar. Once
+  // the page loads, the theme-color tags above take over in dark mode.
   const manifest = JSON.parse(fs.readFileSync(path.join(docs, 'manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.background_color, light);
+  assert.equal(manifest.theme_color, light);
+  assert.match(fs.readFileSync(path.join(docs, 'favicon.svg'), 'utf8'), new RegExp(`<rect width="64" height="64" rx="14" fill="${dark}"/>`));
   const notFound = fs.readFileSync(path.join(docs, '404.html'), 'utf8');
   assert.ok(notFound.includes(`--bg: ${light};`) && notFound.includes(`--bg: ${dark};`), '404.html uses the same backgrounds');
 });
@@ -81,6 +87,14 @@ test('no UI source file is longer than a few hundred lines', () => {
     const lines = fs.readFileSync(path.join(docs, file), 'utf8').split('\n').length;
     assert.ok(lines <= 400, `${file} has ${lines} lines`);
   }
+});
+
+test('every font size in the stylesheet comes from the type scale', () => {
+  const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8');
+  const sizes = [...css.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(sizes.length > 20);
+  const outside = sizes.filter((v) => !/^var\(--fs-[a-z]+\)$/.test(v) && v !== 'inherit');
+  assert.deepEqual(outside, []);
 });
 
 test('the page allows pinch-zoom', () => {
@@ -163,4 +177,57 @@ test('the manifest lists plain and maskable icons separately, with maskable artw
       }
     }
   }
+});
+
+// The service worker, run in Node with a fake cache, network and clock.
+function loadServiceWorker() {
+  const vm = require('node:vm');
+  const clock = { now: 0 };
+  const listeners = {};
+  const network = { answer: () => new Promise(() => {}) };
+  const context = vm.createContext({
+    self: { location: { origin: 'https://kenna.test' }, addEventListener: (type, fn) => (listeners[type] = fn), skipWaiting() {}, clients: { claim: async () => {} } },
+    caches: { match: async () => new Response('cached'), open: async () => ({ put: async () => {}, addAll: async () => {} }), keys: async () => [] },
+    fetch: () => network.answer(),
+    // The network's time limit runs out at once; the clock moves only when told.
+    setTimeout: (fn) => setImmediate(fn),
+    Date: { now: () => clock.now },
+    URL,
+    Response,
+  });
+  vm.runInContext(fs.readFileSync(path.join(docs, 'sw.js'), 'utf8'), context);
+  /** Asks for a file as the page `clientId` would, and reads the answer. */
+  const get = async (clientId, file = 'build/app.js') => {
+    let answer;
+    listeners.fetch({ request: { method: 'GET', url: `https://kenna.test/${file}` }, clientId, resultingClientId: '', respondWith: (p) => (answer = p), waitUntil() {} });
+    return (await answer).text();
+  };
+  return { clock, network, get, slowCount: () => vm.runInContext('slowClients.size', context) };
+}
+
+test('a page load that found the network slow uses the cache for its other files, and is forgotten once its load is over', async () => {
+  const sw = loadServiceWorker();
+  assert.equal(await sw.get('page-1'), 'cached', 'the stalled network gave way to the cached copy');
+  sw.network.answer = async () => new Response('network');
+  assert.equal(await sw.get('page-1', 'style.css'), 'cached', 'the rest of that load comes from the cache, so the files match');
+  assert.equal(await sw.get('page-2'), 'network', 'another page load uses the network');
+  assert.equal(sw.slowCount(), 1);
+  sw.clock.now += 60000;
+  assert.equal(await sw.get('page-1', 'manifest.webmanifest'), 'network', 'long after its load, the page uses the network first again');
+  assert.equal(sw.slowCount(), 0);
+});
+
+test('the service worker remembers a bounded number of slow page loads', async () => {
+  const sw = loadServiceWorker();
+  for (let i = 0; i < 50; i += 1) await sw.get(`page-${i}`);
+  assert.equal(sw.slowCount(), 20);
+  // The latest are the ones kept.
+  sw.network.answer = async () => new Response('network');
+  assert.equal(await sw.get('page-49', 'style.css'), 'cached');
+  assert.equal(await sw.get('page-0', 'style.css'), 'network');
+  // Expired ones are dropped the next time one is added.
+  sw.clock.now += 60000;
+  sw.network.answer = () => new Promise(() => {});
+  await sw.get('page-new');
+  assert.equal(sw.slowCount(), 1);
 });

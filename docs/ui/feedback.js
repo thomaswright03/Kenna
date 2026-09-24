@@ -5,7 +5,8 @@ import { h, uid, byId } from './dom.js';
 
 /**
  * @typedef {{ tone?: 'info' | 'warning' | 'error', message: string }} Notice
- * @typedef {{ tone?: 'error', action?: { label: string, onClick: () => void }, duration?: number }} ToastOptions
+ * @typedef {{ tone?: 'error', action?: { label: string, onClick: () => void }, onGone?: () => void }} ToastOptions
+ *   onGone: runs when a message with a button goes without the button being used
  */
 
 /**
@@ -35,16 +36,43 @@ export function showBanner(notice) {
 /** Each toast on screen, and how to dismiss it. @type {Map<HTMLElement, () => void>} */
 const liveToasts = new Map();
 
+// A message with a button stays until it's used, so while messages float
+// over the page it gets room below its end to scroll clear of them:
+// nothing is ever stuck under one.
+function makeRoomForToasts() {
+  const toasts = byId('toasts');
+  if (!toasts.hasChildNodes()) toasts.classList.remove('is-floating');
+  const floating = window.getComputedStyle(toasts).position === 'fixed';
+  const room = floating && toasts.querySelector('.toast-actionable') ? toasts.getBoundingClientRect().height + 16 : 0;
+  document.documentElement.style.setProperty('--toast-room', `${Math.ceil(room)}px`);
+}
+
+// On a wide screen messages sit above the content (see style.css), where
+// they'd go unseen once the top of the page is scrolled out of view: then
+// they float at the bottom right until they're all gone.
+/** @param {HTMLElement} toasts */
+function placeToasts(toasts) {
+  if (!toasts.hasChildNodes() || window.getComputedStyle(toasts).position === 'fixed') return;
+  if (toasts.getBoundingClientRect().top < 0) {
+    toasts.classList.add('is-floating');
+    makeRoomForToasts();
+  }
+}
+window.addEventListener('scroll', () => placeToasts(byId('toasts')), { passive: true });
+
 /**
- * A short message at the bottom of the screen. At most one message without
- * a button shows at a time (a new one replaces it), a tap on it dismisses
- * it, and moving to another screen clears it unless `keepOnNavigate` says
- * it's about the screen being opened (Save and close's "Saved for Today"),
- * or `keepWhileNavigating` says it offers something that still applies
- * wherever the user goes (Undo for a meal removed on the screen left); that
- * one stays until it times out or is used.
+ * A short message at the bottom of the screen (above the content on a
+ * wide one). At most one message without a button shows at a time (a new
+ * one replaces it); it goes after a few seconds, or at a tap on it. A
+ * message with a button (Undo, Fix it) is never taken away by time: it
+ * stays until the button is used, it's dismissed (×), or the user moves on
+ * to another screen. Moving to another
+ * screen clears messages about the one left, except one that says
+ * `keepOnNavigate` it's about the screen being opened (Save and close's
+ * "Saved for Today", or what was saved on the way out); that one goes when
+ * the user moves on from there.
  * @param {string} message
- * @param {ToastOptions & { keepOnNavigate?: boolean, keepWhileNavigating?: boolean }} [options]
+ * @param {ToastOptions & { keepOnNavigate?: boolean }} [options]
  * @returns {() => void} dismisses the toast
  */
 export function toast(message, options) {
@@ -54,13 +82,18 @@ export function toast(message, options) {
     for (const [el, dismissOther] of liveToasts) if (!el.classList.contains('toast-actionable')) dismissOther();
   }
   const classes = ['toast', opts.tone === 'error' ? 'toast-error' : '', opts.action ? 'toast-actionable' : ''].filter(Boolean).join(' ');
-  const keep = opts.keepWhileNavigating ? 'always' : opts.keepOnNavigate ? 'true' : null;
-  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': keep });
+  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': opts.keepOnNavigate ? 'true' : null });
   el.append(h('span', { class: 'toast-text', text: message }));
-  const dismiss = () => {
+  let gone = false;
+  /** @param {boolean} [used] its button was used */
+  const dismiss = (used) => {
+    if (gone) return;
+    gone = true;
     clearTimeout(timer);
     liveToasts.delete(el);
     el.remove();
+    makeRoomForToasts();
+    if (!used && opts.onGone) opts.onGone();
   };
   const action = opts.action;
   if (action) {
@@ -70,10 +103,11 @@ export function toast(message, options) {
         class: 'toast-action',
         text: action.label,
         onClick: () => {
-          dismiss();
+          dismiss(true);
           action.onClick();
         },
-      })
+      }),
+      h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Dismiss', text: '×', onClick: () => dismiss() })
     );
   }
   toasts.append(el);
@@ -84,14 +118,19 @@ export function toast(message, options) {
     if (dismissOldest) dismissOldest();
     else oldest.remove();
   }
-  const timer = setTimeout(dismiss, opts.duration || (opts.action ? 7000 : 4000));
-  return dismiss;
+  const timer = action ? undefined : setTimeout(() => dismiss(), 4000);
+  placeToasts(toasts);
+  makeRoomForToasts();
+  return () => dismiss();
 }
 
-/** Called when another screen opens: clears messages about the one left. */
+/**
+ * Called when another screen opens: clears messages about the one left.
+ * Messages made while it opens (what was saved on the way out) come after
+ * this, so they show on the new screen.
+ */
 export function clearToastsOnNavigation() {
   for (const [el, dismiss] of liveToasts) {
-    if (el.dataset.keep === 'always') continue;
     if (el.dataset.keep === 'true') delete el.dataset.keep;
     else dismiss();
   }
@@ -161,26 +200,54 @@ export function closeAllDialogs() {
 }
 
 /**
- * @param {{ title: string, message?: string, details?: { intro: string, items: string[] } | null, confirmLabel: string, danger?: boolean }} options
+ * @typedef {{ title: string, message?: string, details?: { intro: string, items: string[] } | null }} DialogText
  *   details: a short list under the message (what a restore will leave out)
+ */
+
+/**
+ * A dialog's title, message and list, above its buttons.
+ * @param {DialogText} text
+ * @param {string} labelId
+ * @param {HTMLElement[]} buttons
+ */
+function dialogBody({ title, message, details }, labelId, buttons) {
+  return h(
+    'div',
+    { class: 'dialog-body' },
+    h('h2', { id: labelId, class: 'dialog-title', text: title }),
+    message ? h('p', { class: 'dialog-text', text: message }) : null,
+    details ? [h('p', { class: 'dialog-text', text: details.intro }), itemList(details.items)] : null,
+    h('div', { class: 'dialog-actions' }, buttons)
+  );
+}
+
+/**
+ * @param {DialogText & { confirmLabel: string, cancelLabel?: string, danger?: boolean }} options
  * @returns {Promise<boolean>}
  */
-export function confirmDialog({ title, message, details, confirmLabel, danger }) {
+export function confirmDialog(options) {
   return new Promise((resolve) => {
     const labelId = uid('dlg');
-    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
-    const okBtn = h('button', { type: 'button', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`, text: confirmLabel });
-    const content = h(
-      'div',
-      { class: 'dialog-body' },
-      h('h2', { id: labelId, class: 'dialog-title', text: title }),
-      message ? h('p', { class: 'dialog-text', text: message }) : null,
-      details ? [h('p', { class: 'dialog-text', text: details.intro }), itemList(details.items)] : null,
-      h('div', { class: 'dialog-actions' }, cancelBtn, okBtn)
-    );
+    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: options.cancelLabel || 'Cancel' });
+    const okBtn = h('button', { type: 'button', class: `btn ${options.danger ? 'btn-danger' : 'btn-primary'}`, text: options.confirmLabel });
+    const content = dialogBody(options, labelId, [cancelBtn, okBtn]);
     const close = openDialog({ labelId, content, initialFocus: cancelBtn, onClose: (v) => resolve(v === true) });
     cancelBtn.addEventListener('click', () => close(false));
     okBtn.addEventListener('click', () => close(true));
+  });
+}
+
+/**
+ * A dialog that only tells something, with one button to close it.
+ * @param {DialogText & { closeLabel?: string }} options
+ * @returns {Promise<void>} once it's closed
+ */
+export function noticeDialog(options) {
+  return new Promise((resolve) => {
+    const labelId = uid('dlg');
+    const closeBtn = h('button', { type: 'button', class: 'btn btn-primary', text: options.closeLabel || 'OK' });
+    const close = openDialog({ labelId, content: dialogBody(options, labelId, [closeBtn]), onClose: () => resolve() });
+    closeBtn.addEventListener('click', () => close());
   });
 }
 
@@ -222,8 +289,22 @@ export function createStatusLine(input) {
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
+  // What the line says now, and what its button does. The same message
+  // again keeps the line (and its button) as it is, so a tap on its button
+  // that has just set off the same message (a save failing again as the
+  // box loses focus to that tap) still lands.
+  let shown = '';
+  /** @type {StatusAction | undefined} */
+  let current;
   /** @type {StatusLine['set']} */
   function set(state, text, action) {
+    const key = `${state}\n${text || ''}\n${action ? action.label : ''}`;
+    if (key === shown && el.isConnected && state !== 'saved') {
+      current = action;
+      return;
+    }
+    shown = key;
+    current = action;
     clearTimeout(timer);
     el.className = `field-status${state ? ` is-${state}` : ''}`;
     el.replaceChildren();
@@ -240,7 +321,7 @@ export function createStatusLine(input) {
       return;
     }
     el.append(h('span', { text }));
-    if (action) el.append(h('button', { type: 'button', class: 'btn-text', text: action.label, onClick: action.onClick }));
+    if (action) el.append(h('button', { type: 'button', class: 'btn-text', text: action.label, onClick: () => current && current.onClick() }));
     if (input && state === 'saved' && !action) timer = setTimeout(() => set(null), 4000);
   }
   return { el, set };

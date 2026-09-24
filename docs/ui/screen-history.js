@@ -1,15 +1,20 @@
 // History: every logged day, newest first, grouped by month with each
 // month's averages. Recent months are shown straight away and older ones on
 // request (or by jumping to a month), so years of data stay quick to open
-// and to find your way around.
+// and to find your way around. A day with a value typed and not saved yet
+// (see drafts.js) is marked, and listed even when nothing else is logged
+// for it.
 
-import { core, h, uid, today, visibleEntries, plural } from './dom.js';
+import { core, h, uid, today, visibleEntries, plural, blankEntry } from './dom.js';
 import { store } from './store.js';
 import { dayHash } from './router.js';
 import { lastBackupText } from './backup.js';
+import { waitingDrafts, fieldLabel } from './drafts.js';
 
 /** @typedef {import('../core.js').Entry} Entry */
 /** @typedef {{ key: string, days: Entry[] }} Month */
+/** @typedef {import('./drafts.js').Draft} Draft */
+/** Values typed and not saved, by day. @typedef {Map<string, Draft[]>} Waiting */
 
 // Months are added until at least this many days are on screen.
 const FIRST_DAYS = 60;
@@ -31,12 +36,18 @@ function byMonth(days) {
 // A month's averages leave out today, as every average does.
 const monthAverages = core.computeMonthAverages;
 
-/** @param {Entry[]} days @param {string} now */
-function monthSummary(days, now) {
+// A month's weights, its average among them, are all written with the same
+// number of decimals ("180.0 lbs" above "180.6 lbs").
+/** @param {Entry[]} days */
+const monthWeights = (days) => core.weightFormatFor(days.map((e) => e.weight)).format;
+
+/** @param {Entry[]} days @param {string} now @param {(n: number) => string} lbs */
+function monthSummary(days, now, lbs) {
   const avg = monthAverages(days, now);
-  const parts = [plural(days.length, 'day')];
+  const logged = days.filter(isLogged).length;
+  const parts = [logged === 0 ? 'Nothing saved yet' : plural(logged, 'day')];
   if (avg.calories !== null) parts.push(`avg ${core.formatCalories(avg.calories)}`);
-  if (avg.weight !== null) parts.push(`avg ${core.formatAverageWeight(avg.weight)}`);
+  if (avg.weight !== null) parts.push(`avg ${lbs(avg.weight)}`);
   return parts.join(' · ');
 }
 
@@ -82,11 +93,21 @@ function returnToPlace(root, place) {
   link.focus({ preventScroll: true });
 }
 
-/** @param {Entry} e @param {string} now */
-function dayRow(e, now) {
+/** A day with something saved (a day listed only for a value waiting isn't). @param {Entry} e */
+const isLogged = (e) => !core.isEntryEmpty(e);
+
+/**
+ * What a day's row says about values typed for it and not saved.
+ * @param {Draft[]} drafts
+ */
+const waitingText = (drafts) => (drafts.length > 1 ? `${drafts.length} values not saved yet` : `${fieldLabel(drafts[0].field)} not saved yet`);
+
+/** @param {Entry} e @param {string} now @param {(n: number) => string} lbs @param {Draft[] | undefined} waiting */
+function dayRow(e, now, lbs, waiting) {
   const total = core.totalCalories(e.meals);
   const parts = [total === null ? 'No meals logged' : core.formatCalories(total)];
-  if (e.weight !== null) parts.push(core.formatWeight(e.weight));
+  if (e.weight !== null) parts.push(lbs(e.weight));
+  const stats = h('span', { class: `history-stats${total === null ? ' is-muted' : ''}`, text: parts.join(' · ') });
   return h(
     'li',
     null,
@@ -94,7 +115,7 @@ function dayRow(e, now) {
       'a',
       { class: 'history-item', href: dayHash(e.date), 'data-date': e.date },
       h('span', { class: 'history-date', text: core.formatRelativeDate(e.date, now) }),
-      h('span', { class: `history-stats${total === null ? ' is-muted' : ''}`, text: parts.join(' · ') }),
+      waiting ? h('span', { class: 'history-right' }, stats, h('span', { class: 'history-waiting', text: waitingText(waiting) })) : stats,
       h('span', { class: 'chevron', 'aria-hidden': 'true', text: '›' })
     )
   );
@@ -106,8 +127,9 @@ function dayRow(e, now) {
  * @param {Month[]} months
  * @param {string} now
  * @param {Place | null} place where History was left, to show the same months again
+ * @param {Waiting} waiting
  */
-function monthList(months, now, place) {
+function monthList(months, now, place, waiting) {
   const list = h('div', { class: 'history-months' });
   const moreBtn = h('button', { type: 'button', class: 'btn btn-secondary' });
   let shown = 0;
@@ -115,12 +137,13 @@ function monthList(months, now, place) {
   /** @param {Month} m */
   function monthSection(m) {
     const headingId = uid('month');
+    const lbs = monthWeights(m.days);
     return h(
       'section',
       { class: 'history-month', 'aria-labelledby': headingId, 'data-month': m.key },
       h('h3', { class: 'history-month-title', id: headingId, tabindex: '-1', text: core.formatMonth(m.key) }),
-      h('p', { class: 'history-month-sub', text: monthSummary(m.days, now) }),
-      h('ul', { class: 'history-list' }, m.days.map((e) => dayRow(e, now)))
+      h('p', { class: 'history-month-sub', text: monthSummary(m.days, now, lbs) }),
+      h('ul', { class: 'history-list' }, m.days.map((e) => dayRow(e, now, lbs, waiting.get(e.date))))
     );
   }
 
@@ -132,7 +155,7 @@ function monthList(months, now, place) {
       added += months[shown].days.length;
       shown += 1;
     }
-    const left = months.slice(shown).reduce((n, m) => n + m.days.length, 0);
+    const left = months.slice(shown).reduce((n, m) => n + m.days.filter(isLogged).length, 0);
     moreBtn.hidden = left === 0;
     moreBtn.textContent = left === 0 ? '' : `Show earlier months (${plural(left, 'more day')})`;
   }
@@ -176,7 +199,7 @@ function jumpField(months, jump) {
     'select',
     { id: uid('jump') },
     h('option', { value: '', text: 'Choose a month' }),
-    months.map((m, i) => h('option', { value: String(i), text: `${core.formatMonth(m.key)} (${plural(m.days.length, 'day')})` }))
+    months.map((m, i) => h('option', { value: String(i), text: `${core.formatMonth(m.key)} (${plural(m.days.filter(isLogged).length, 'day')})` }))
   );
   select.addEventListener('change', () => {
     if (select.value === '') return;
@@ -188,12 +211,15 @@ function jumpField(months, jump) {
 
 /**
  * On a wide screen, every month's averages at a glance beside the list;
- * a month's name jumps to it.
+ * a month's name jumps to it. The table scrolls inside its box so the
+ * column stays in view; when older months are below its edge, the box
+ * fades out there and a button under it says how many, and shows them.
  * @param {Month[]} months
  * @param {string} now
  * @param {(index: number) => void} jump
+ * @param {import('./render.js').ScreenContext} ctx
  */
-function monthsOverview(months, now, jump) {
+function monthsOverview(months, now, jump, ctx) {
   /** @param {number | null} v @param {(n: number) => string} format */
   const cell = (v, format) => h('td', { text: v === null ? '—' : format(v) });
   const rows = months.map((m, i) => {
@@ -203,28 +229,56 @@ function monthsOverview(months, now, jump) {
       'tr',
       { 'data-overview-month': m.key },
       h('th', { scope: 'row' }, name),
-      h('td', { text: core.formatNumber(m.days.length) }),
+      h('td', { text: core.formatNumber(m.days.filter(isLogged).length) }),
       cell(avg.calories, (n) => core.formatNumber(Math.round(n))),
       cell(avg.weight, (n) => core.formatNumber(n, 1, 1))
     );
   });
-  return h(
+  const scroll = h(
+    'div',
+    { class: 'months-overview-scroll' },
+    h(
+      'table',
+      { class: 'meal-table' },
+      h('caption', { class: 'visually-hidden', text: 'Averages for each month' }),
+      h('thead', null, h('tr', null, h('th', { scope: 'col', text: 'Month' }), h('th', { scope: 'col', text: 'Days' }), h('th', { scope: 'col', text: 'Avg cal' }), h('th', { scope: 'col', text: 'Avg lbs' }))),
+      h('tbody', null, rows)
+    )
+  );
+  const more = h('button', { type: 'button', class: 'btn-text months-overview-more', hidden: true, 'data-overview-more': '' });
+  /** The rows below the box's lower edge. */
+  const below = () => {
+    const edge = scroll.getBoundingClientRect().bottom;
+    return rows.filter((r) => r.getBoundingClientRect().bottom > edge + 1);
+  };
+  const update = () => {
+    const hidden = scroll.clientHeight > 0 ? below() : [];
+    scroll.classList.toggle('has-more', hidden.length > 0);
+    more.hidden = hidden.length === 0;
+    more.textContent = `Show ${plural(hidden.length, 'earlier month')}`;
+  };
+  more.addEventListener('click', () => {
+    const first = below()[0];
+    scroll.scrollTop = scroll.scrollHeight;
+    const link = first ? first.querySelector('button') : null;
+    if (link) link.focus({ preventScroll: true });
+    update();
+  });
+  scroll.addEventListener('scroll', update, { passive: true });
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
+    ctx.onRelease(() => observer.disconnect());
+  }
+  const root = h(
     'section',
     { class: 'card months-overview', 'aria-labelledby': 'months-overview-title' },
     h('h3', { class: 'section-title', id: 'months-overview-title', text: 'Month by month' }),
     h('p', { class: 'card-sub', text: 'Average calories (days with meals) and weight (lbs) each month, not counting today. Tap a month to go to it.' }),
-    h(
-      'div',
-      { class: 'months-overview-scroll' },
-      h(
-        'table',
-        { class: 'meal-table' },
-        h('caption', { class: 'visually-hidden', text: 'Averages for each month' }),
-        h('thead', null, h('tr', null, h('th', { scope: 'col', text: 'Month' }), h('th', { scope: 'col', text: 'Days' }), h('th', { scope: 'col', text: 'Avg cal' }), h('th', { scope: 'col', text: 'Avg lbs' }))),
-        h('tbody', null, rows)
-      )
-    )
+    scroll,
+    more
   );
+  return { root, update };
 }
 
 function backupCard() {
@@ -238,13 +292,24 @@ function backupCard() {
 }
 
 /** @type {import('./render.js').ScreenBuilder} */
-export async function buildHistory() {
+export async function buildHistory(ctx) {
   const now = today();
   // A day dated after today (only possible from an old version or a wrong
   // clock) is kept in storage and backups but not listed.
-  const entries = visibleEntries(await store.loadEntries())
-    .filter((e) => !core.isFutureDate(e.date, now))
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
+  const stored = await store.loadEntries();
+  const entries = visibleEntries(stored).filter((e) => !core.isFutureDate(e.date, now));
+  /** @type {Waiting} */
+  const waiting = new Map();
+  for (const d of waitingDrafts(stored)) {
+    if (core.isFutureDate(d.date, now)) continue;
+    const list = waiting.get(d.date);
+    if (list) list.push(d);
+    else waiting.set(d.date, [d]);
+  }
+  const listed = new Set(entries.map((e) => e.date));
+  const loggedCount = entries.length;
+  for (const date of waiting.keys()) if (!listed.has(date)) entries.push(blankEntry(date));
+  entries.sort((a, b) => (a.date < b.date ? 1 : -1));
   const card = h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'History' }));
   if (entries.length === 0) {
     card.append(h('p', { class: 'empty-hint', text: 'No days logged yet.' }), h('a', { class: 'btn btn-primary', href: '#/', text: 'Log today' }));
@@ -252,11 +317,17 @@ export async function buildHistory() {
   }
   const months = byMonth(entries);
   const place = savedPlace();
-  const { list, moreBtn, jump } = monthList(months, now, place);
-  card.append(h('p', { class: 'card-sub', text: `${plural(entries.length, 'day')} logged. Tap a day to view or edit it.` }));
+  const { list, moreBtn, jump } = monthList(months, now, place, waiting);
+  const count = loggedCount === 0 ? 'No days logged yet' : `${plural(loggedCount, 'day')} logged`;
+  card.append(h('p', { class: 'card-sub', text: `${count}. Tap a day to view or edit it.` }));
   if (months.length > 3) card.append(jumpField(months, jump));
   card.append(list, moreBtn);
-  const side = h('div', { class: 'screen-stack history-side' }, months.length > 1 ? monthsOverview(months, now, jump) : null, backupCard());
+  const overview = months.length > 1 ? monthsOverview(months, now, jump, ctx) : null;
+  const side = h('div', { class: 'screen-stack history-side' }, overview ? overview.root : null, backupCard());
   const root = h('div', { class: 'screen-stack two-col history-layout' }, card, side);
-  return { title: 'History', root, mounted: place ? () => returnToPlace(root, place) : undefined };
+  const mounted = () => {
+    if (overview) overview.update();
+    if (place) returnToPlace(root, place);
+  };
+  return { title: 'History', root, mounted };
 }

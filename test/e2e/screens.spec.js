@@ -19,13 +19,13 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
   // Lunch has never been logged before, so there's no usual lunch to compare with.
   await expect(calories.locator('.compare-answer-text')).toHaveText("1,000 cal so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.");
   await expect(calories).toContainText('average day 2,000 cal · no meals logged yesterday');
-  await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180 lbs)');
+  await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180.0 lbs)');
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 
   await page.goto(`${appURL}/#/history`);
   const yesterday = page.locator('.history-item', { hasText: 'Yesterday' });
-  await expect(yesterday).toContainText('No meals logged · 180 lbs');
-  await expect(page.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('2,000 cal · 181 lbs');
+  await expect(yesterday).toContainText('No meals logged · 180.0 lbs');
+  await expect(page.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('2,000 cal · 181.0 lbs');
   expect(await visibleText(page)).not.toMatch(/\b0 cal/);
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 
@@ -193,7 +193,7 @@ test('the calorie axis never shows a negative value', async ({ page, appURL, dat
   expect(labels.join(' ')).not.toMatch(/[-−]\d/);
 });
 
-test('a weight is shown everywhere as it was entered, to two decimals', async ({ page, appURL, data }) => {
+test('a weight entered with two decimals keeps them everywhere, and the weights beside it match', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 166) });
   await page.goto(appURL);
   await page.getByLabel('Weight (lbs)').fill('165.25');
@@ -205,24 +205,30 @@ test('a weight is shown everywhere as it was entered, to two decimals', async ({
   await expect(page.locator('.history-item', { hasText: 'Today' })).toContainText('165.25 lbs');
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
-  await expect(weight).toContainText('165.25 lbs today: 0.8 lbs below your average.');
-  // A difference is always to one decimal, whatever the weights' own.
-  await expect(weight).toContainText('average 166.0 lbs · 0.8 lbs down from yesterday (166 lbs)');
+  // Every weight in the answer, differences included, has today's two decimals.
+  await expect(weight).toContainText('165.25 lbs today: 0.75 lbs below your average.');
+  await expect(weight).toContainText('average 166.00 lbs · 0.75 lbs down from yesterday (166.00 lbs)');
 });
 
-test('every weight difference on Compare has one decimal, however the weights were entered', async ({ page, appURL, data }) => {
+test('every weight on Compare has the same decimals as the others in its answer', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 185.2), [TODAY]: day(TODAY, {}, 173.2) });
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
   await expect(weight.locator('.compare-answer-text')).toHaveText('173.2 lbs today: 12.0 lbs below your average.');
   await expect(weight).toContainText('average 185.2 lbs · 12.0 lbs down from yesterday (185.2 lbs)');
 
-  // Too small to show at one decimal, but not the same.
+  // Yesterday's 171 and an average of 171 read alike: "171.0 lbs".
+  await data.seed({ '2026-09-22': day('2026-09-22', {}, 171), '2026-09-23': day('2026-09-23', {}, 171) });
+  await page.goto(appURL);
+  await page.goto(`${appURL}/#/compare`);
+  await expect(weight).toContainText('average 171.0 lbs · yesterday 171.0 lbs');
+
+  // A small difference is written to the weights' own two decimals, never "the same".
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 180), [TODAY]: day(TODAY, {}, 180.04) });
   await page.goto(appURL);
   await page.goto(`${appURL}/#/compare`);
-  await expect(weight).toContainText('less than 0.1 lbs up from yesterday (180 lbs)');
-  await expect(weight.locator('.compare-answer-text')).toHaveText('180.04 lbs today: less than 0.1 lbs above your average.');
+  await expect(weight).toContainText('0.04 lbs up from yesterday (180.00 lbs)');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('180.04 lbs today: 0.04 lbs above your average.');
 });
 
 test('Compare answers how today stands in plain sentences, within the first screenful', async ({ page, appURL, data }) => {
@@ -236,36 +242,33 @@ test('Compare answers how today stands in plain sentences, within the first scre
   const calories = page.locator('[data-answer="calories"]');
   const weight = page.locator('[data-answer="weight"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 750 cal more than your average breakfast and lunch.');
-  await expect(weight.locator('.compare-answer-text')).toHaveText('179 lbs today: 1.5 lbs above your average.');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('179.0 lbs today: 1.5 lbs above your average.');
   await expect(weight).toContainText('average 177.5 lbs · 1.3 lbs down from yesterday (180.3 lbs)');
   for (const a of [calories.locator('.compare-answer-text'), weight.locator('.compare-answer-text')]) {
     const box = await a.boundingBox();
     expect(box.y + box.height).toBeLessThanOrEqual(844);
   }
 
-  // Bars are plain amounts from zero, each labelled with its value; today's
-  // is set apart by shade only.
+  // Two plain bars from zero, each labelled with its value: today and the
+  // baseline the sentence uses; today's is set apart by shade only.
   const rows = calories.locator('.amount-row');
-  // The average day is the same as the usual breakfast and lunch here, so
-  // it isn't shown twice.
-  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
-  // With one average there's nothing to tell apart.
-  await expect(calories.locator('[data-baseline-note]')).toHaveCount(0);
+  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/]);
   const widths = await rows.locator('.amount-bar').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
-  expect(widths[0]).toBeGreaterThan(widths[2]);
-  expect(widths[2]).toBeGreaterThan(widths[1]);
+  expect(widths[0]).toBeGreaterThan(widths[1]);
   expect(Math.abs(widths[1] / widths[0] - 2000 / 2750)).toBeLessThan(0.02);
+  // The average day and yesterday are in the detail line.
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('2,750 cal so far · average day 2,000 cal · yesterday 2,100 cal');
 
   // Each meal is one tap further down.
   const meals = page.locator('.compare-meals');
-  await expect(meals.locator('summary')).toHaveText('Each meal: today, yesterday and average (2 logged today)');
+  await expect(meals.locator('summary')).toHaveText('See each meal: today, yesterday, average');
   await expect(meals.locator('table')).toBeHidden();
   await meals.locator('summary').click();
   await expect(meals.locator('tr[data-meal="lunch"]')).toHaveText(/Lunch\s*2,300\s*1,600\s*1,550/);
   await expect(meals).toContainText('Never logged: Snack 1, Snack 2, Dinner, Snack 3.');
 });
 
-test("on Compare, a meal with no average yet gets its own bar, so today's compared bar and the usual one differ by the sentence's amount", async ({ page, appURL, data }) => {
+test("on Compare, a meal with no average yet is left out of today's bar, so it and the usual one differ by the sentence's amount", async ({ page, appURL, data }) => {
   await data.seed({
     '2026-09-22': day('2026-09-22', { breakfast: 400, lunch: 600 }),
     '2026-09-23': day('2026-09-23', { breakfast: 380, lunch: 600 }),
@@ -275,12 +278,7 @@ test("on Compare, a meal with no average yet gets its own bar, so today's compar
   const calories = page.locator('[data-answer="calories"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 40 cal more than your average breakfast and lunch.');
   const rows = calories.locator('.amount-row');
-  await expect(rows).toHaveText([
-    /^Today, these meals\s*1,030 cal$/,
-    /^Usual for these meals\s*990 cal$/,
-    /^Snack 2 \(no average yet\)\s*200 cal$/,
-    /^Yesterday\s*980 cal$/,
-  ]);
+  await expect(rows).toHaveText([/^Today, these meals\s*1,030 cal$/, /^Usual for these meals\s*990 cal$/]);
   const values = (await rows.locator('.amount-value').allTextContents()).map((v) => Number(v.replace(/[^\d]/g, '')));
   expect(values[0] - values[1]).toBe(40);
   await expect(calories).toContainText('1,230 cal so far');
@@ -291,7 +289,7 @@ test('with no meals yet today, Compare says so and gives the average day', async
   await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, {}, 180) });
   await page.goto(`${appURL}/#/compare`);
   await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('No meals logged yet today. Your average day is 1,600 cal.');
-  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('180 lbs today: the same as your average.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('180.0 lbs today: the same as your average.');
   await expect(page.locator('.amount-bars')).toHaveCount(0);
 });
 
@@ -321,12 +319,11 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
   const calories = page.locator('[data-answer="calories"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal less than your average breakfast.');
-  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/, /^Average day\s*1,900 cal$/, /^Yesterday\s*1,900 cal$/]);
-  await expect(calories.locator('.amount-row').first()).toContainText('Today so far');
-  // Two averages: which one the sentence used is said in words.
-  await expect(calories.locator('[data-baseline-note]')).toHaveText(
-    'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today. “Average day” covers whole days, so it’s a fair match only once today is finished.'
-  );
+  // The bars are today and the sentence's baseline, and nothing needs
+  // explaining; the whole average day is in the detail line.
+  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/]);
+  await expect(calories.locator('.compare-caption')).toHaveCount(0);
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('400 cal so far · average day 1,900 cal · yesterday 1,900 cal');
   await expect(page.locator('[data-answer="weight"]')).not.toContainText('So far');
 
   // The daily chart on Today shows the running total, marked as unfinished.
@@ -437,50 +434,22 @@ test('on a tablet the screens use its width, in two columns', async ({ page, app
   await expect(page.locator('.months-overview')).toBeVisible();
 });
 
-test('Log Meal’s two buttons never wrap their labels: side by side, or stacked when there isn’t room', async ({ page, appURL }) => {
-  const layout = () =>
-    page.locator('.log-actions .btn').evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        return { text: el.textContent, x: r.x, y: r.y, width: r.width, lines: range.getClientRects().length };
-      })
-    );
-  for (const width of [320, 360, 375, 390, 430]) {
+test('Log Meal has one way out on screen, Save and close, and its label never wraps', async ({ page, appURL }) => {
+  for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(`${appURL}/#/day/2026-09-20/log`);
-    await expect(page.getByRole('button', { name: 'Save and close' })).toBeVisible();
-    const [back, save] = await layout();
-    expect(back.lines, `${width}px`).toBe(1);
-    expect(save.lines, `${width}px`).toBe(1);
-    if (back.y === save.y) {
-      expect(save.x).toBeGreaterThan(back.x);
-    } else {
-      // Stacked: Save and close first, both full width.
-      expect(save.y).toBeLessThan(back.y);
-      expect(Math.abs(save.width - back.width)).toBeLessThan(1);
-    }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-  }
-  // At 375px, "Back to Today" and "Save and close" share a row whenever
-  // both labels fit side by side in this browser's font.
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto(`${appURL}/#/log`);
-  const [back, save] = await layout();
-  const fits = await page.locator('.log-actions').evaluate((row) => {
-    const natural = [...row.querySelectorAll('.btn')].map((el) => {
-      const cs = getComputedStyle(el);
+    const save = page.getByRole('button', { name: 'Save and close' });
+    await expect(save).toBeVisible();
+    // No second button that also leaves (and also saves) under another name.
+    await expect(page.locator('main .card .btn')).toHaveCount(1);
+    const lines = await save.evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
-      const extra = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((sum, k) => sum + parseFloat(cs[k]), 0);
-      return range.getBoundingClientRect().width + extra;
+      return range.getClientRects().length;
     });
-    const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-    return natural[0] + natural[1] + gap <= row.clientWidth;
-  });
-  if (fits) expect(back.y).toBe(save.y);
-  else expect(save.y).toBeLessThan(back.y);
+    expect(lines, `${width}px`).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
 
 test('the header says what the app is, and each screen has its own title', async ({ page, appURL, data }) => {
@@ -507,7 +476,7 @@ test('Compare explains once that there is nothing to compare with yet', async ({
   await page.reload();
   await expect(page.getByText('Log a few more days to see how today compares.')).toHaveCount(1);
   await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('450 cal so far today.');
-  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('181 lbs today.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('181.0 lbs today.');
   await expect(page.locator('.compare-answer-detail')).toHaveCount(0);
   await expect(page.getByText('No weight logged')).toHaveCount(0);
 });
@@ -597,6 +566,32 @@ test('on a wide screen Today and Compare use two columns', async ({ page, appURL
   expect(trends.x).toBeGreaterThan(answers.x + answers.width);
 });
 
+test('after a long loss, Compare measures today against the last 30 days as well as all time', async ({ page, appURL, data }) => {
+  const iso = (n) => new Date(Date.UTC(2026, 8, 24 - n)).toISOString().slice(0, 10);
+  const entries = {};
+  // A year of steady loss, from 220 lbs down to 180 lbs 15 days ago...
+  for (let n = 365; n >= 15; n -= 1) entries[iso(n)] = day(iso(n), {}, Math.round((180 + ((n - 15) * 40) / 350) * 10) / 10);
+  // ...then two weeks creeping back up, half a pound a day.
+  for (let n = 14; n >= 1; n -= 1) entries[iso(n)] = day(iso(n), {}, 180 + (15 - n) * 0.5);
+  // Lunch was 800 cal in June, 500 cal each of the last 30 days.
+  for (let n = 115; n > 85; n -= 1) entries[iso(n)].meals.lunch = 800;
+  for (let n = 30; n >= 1; n -= 1) entries[iso(n)].meals.lunch = 500;
+  entries[TODAY] = day(TODAY, { lunch: 600 }, 187);
+  await data.seed(entries);
+  await page.goto(`${appURL}/#/compare`);
+
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(weight.locator('.compare-answer-text')).toHaveText(/^187\.0 lbs today: [\d.]+ lbs above your 30-day average and [\d.]+ lbs below your all-time average\.$/);
+  await expect(weight.locator('.compare-answer-detail')).toContainText(/30-day average [\d.]+ lbs · all-time average [\d.]+ lbs/);
+
+  const calories = page.locator('[data-answer="calories"]');
+  // All time, lunch averages (30 × 800 + 30 × 500) / 60 = 650.
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal more than your average lunch over the last 30 days, and 50 cal less than all-time.');
+  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*600 cal$/, /^Usual, last 30 days\s*500 cal$/, /^Usual, all time\s*650 cal$/]);
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('600 cal so far · average day 500 cal (last 30 days), 650 cal (all time) · yesterday 500 cal');
+  await expect(page.locator('main .card-sub').first()).toContainText('the recent ones are of the 30 days before today');
+});
+
 test('the chosen theme and chart range stand out in dark mode', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.evaluate(() => localStorage.setItem('kenna:theme', 'dark'));
@@ -607,7 +602,7 @@ test('the chosen theme and chart range stand out in dark mode', async ({ page, a
   };
   const chosen = await page.locator('label.segment', { hasText: 'Dark' }).evaluate(look);
   const other = await page.locator('label.segment', { hasText: 'Light' }).evaluate(look);
-  const track = await page.locator('fieldset.segmented').evaluate(look);
+  const track = await page.locator('fieldset.segmented').first().evaluate(look);
   expect(chosen.bg).not.toBe(other.bg);
   expect(chosen.bg).not.toBe(track.bg);
   expect(chosen.shadow).toContain('inset');
@@ -647,6 +642,16 @@ test('over years of data, All plots weekly averages that stay readable', async (
   await expect(page.locator('.chart-sub').nth(1)).toHaveText('Weight each day');
 });
 
+test('on a past day, the Calories graph subtitle does not talk about today', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-10': day('2026-09-10', { lunch: 600 }, 180), [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await page.goto(`${appURL}/#/day/2026-09-10`);
+  await expect(page.getByRole('heading', { name: 'Thu, Sep 10' })).toBeVisible();
+  await expect(page.locator('.chart-sub').nth(0)).toHaveText('Total intake each day');
+  await page.goto(appURL);
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.chart-sub').nth(0)).toHaveText('Total intake each day; today’s is so far');
+});
+
 test("today's calories so far are a lone marker, never a line diving from yesterday", async ({ page, appURL, data }) => {
   const entries = {};
   for (let i = 1; i <= 30; i += 1) {
@@ -672,4 +677,66 @@ test("today's calories so far are a lone marker, never a line diving from yester
   );
   expect(reached).toBe(false);
   await expect(page.locator('.chart-latest.series-calories')).toContainText('Today so far');
+});
+
+test('a day with no meals says so in words, with no stand-in number, until a meal is logged', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  const total = page.locator('.total-box');
+  await expect(total).toHaveText('No meals logged yet today');
+  await expect(page.locator('.total-num')).toBeHidden();
+  await page.getByRole('link', { name: 'Log Meal' }).click();
+  await page.getByLabel('Breakfast calories').fill('0');
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  // A logged 0 is a number, shown as one.
+  await expect(page.locator('.total-num')).toHaveText('0');
+  await expect(total).toContainText('calories logged today');
+});
+
+test.describe('on a wide screen', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
+
+  test('a message sits above the day and covers no meal, button or chart', async ({ page, appURL }) => {
+    await page.goto(`${appURL}/#/log/breakfast`);
+    await page.getByLabel('Breakfast calories').fill('420');
+    await page.getByRole('button', { name: 'Save and close' }).click();
+    const message = page.locator('.toast').filter({ hasText: 'Saved for Today: 420 cal' });
+    await expect(message).toBeVisible();
+    const box = await message.boundingBox();
+    const covered = await page.evaluate((b) => {
+      const hits = [];
+      for (const el of document.querySelectorAll('main .meal-row, main button, main a, main input, main svg')) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.left < b.x + b.width && r.right > b.x && r.top < b.y + b.height && r.bottom > b.y) hits.push(el.outerHTML.slice(0, 60));
+      }
+      return hits;
+    }, box);
+    expect(covered).toEqual([]);
+    const heading = await page.getByRole('heading', { name: 'Today', exact: true }).boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(heading.y);
+  });
+
+  test('a message shown while the top of the page is out of view floats in sight', async ({ page, appURL, data }) => {
+    await page.setViewportSize({ width: 1440, height: 600 });
+    const days = {};
+    for (let d = 1; d <= 24; d += 1) {
+      const date = `2026-09-${String(d).padStart(2, '0')}`;
+      days[date] = day(date, { breakfast: 400 });
+    }
+    await data.seed(days);
+    await page.goto(`${appURL}/#/history`);
+    const sep2 = page.locator('.history-item[data-date="2026-09-02"]');
+    await sep2.scrollIntoViewIfNeeded();
+    await sep2.click();
+    await page.getByLabel('Weight (lbs)').fill('180');
+    // Back to History, which returns to where it was: far from the top.
+    await page.goBack();
+    await expect(sep2).toBeFocused();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const message = page.locator('.toast').filter({ hasText: 'Weight saved: 180 lbs' });
+    await expect(message).toBeInViewport({ ratio: 1 });
+    await message.getByRole('button', { name: 'Undo' }).click();
+    await expect(message).toHaveCount(0);
+    await expect(page.locator('#toasts')).not.toHaveClass(/is-floating/);
+  });
 });

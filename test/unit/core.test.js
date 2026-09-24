@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../../docs/core.js');
+const { parseBackup } = require('./parse-backup.js');
 
 const meals = (m) => ({ ...core.emptyMeals(), ...m });
 const entry = (date, m, weight = null) => ({ date, weight, meals: meals(m) });
@@ -183,20 +184,25 @@ test('numbers from the API or a backup follow the typed-input rules, with the sa
   assert.deepEqual(core.validatePatch({ weight: 180.5, meals: { lunch: 600 } }), { ok: true, patch: { weight: 180.5, meals: { lunch: 600 } } });
   assert.equal(core.validatePatch({ weight: 165.123 }).error, 'Weight not saved. Use at most two decimal places, like 165.25.');
   assert.equal(core.validatePatch({ meals: { lunch: 450.5 } }).error, 'Lunch not saved. Enter calories as a whole number, like 450, without decimals.');
-  assert.match(core.validatePatch({ meals: { brunch: 1 } }).error, /Unknown meal/);
-  assert.match(core.validatePatch({ height: 1 }).error, /Unknown field/);
+  // A change of another shape is never typed: it's a fault in Kenna, said plainly.
+  for (const odd of [{ meals: { brunch: 1 } }, { height: 1 }, { meals: [] }, null]) {
+    const result = core.validatePatch(odd);
+    assert.equal(result.ok, false);
+    assert.equal(result.fault, true);
+    assert.match(result.error, /^Not saved: Kenna couldn't read this change\./);
+  }
 
-  const decimalCalories = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
+  const decimalCalories = parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
   assert.equal(decimalCalories.ok, false);
   assert.equal(decimalCalories.error, 'Nothing was imported. Lunch on Thu, Sep 24 (450.7): Enter calories as a whole number, like 450, without decimals.');
   // The first version saved weights as typed; a backup from then imports
   // them rounded to two decimals, as the app shows them and exports them.
-  const longWeight = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } }));
+  const longWeight = parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } }));
   assert.equal(longWeight.ok, true);
   assert.equal(longWeight.entries['2026-09-16'].weight, 165.33);
-  assert.match(core.parseBackup({ entries: { '2026-09-16': { weight: 40.004, meals: {} } } }).error, /between 50 and 1,000/);
+  assert.match(parseBackup({ entries: { '2026-09-16': { weight: 40.004, meals: {} } } }).error, /between 50 and 1,000/);
   // Lists of foods from the first version still import as their total.
-  const foods = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
+  const foods = parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
   assert.equal(foods.ok, true);
   assert.equal(foods.entries['2026-09-24'].meals.lunch, 151);
 });
@@ -206,7 +212,7 @@ test('a backup writes old weights with more than two decimals as the app shows t
   const written = core.entryForBackup(old);
   assert.equal(written.weight, 165.33);
   assert.equal(old.weight, 165.333, 'the stored day is not changed');
-  assert.equal(core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { [old.date]: written } })).ok, true);
+  assert.equal(parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { [old.date]: written } })).ok, true);
   assert.equal(core.entryForBackup({ ...old, weight: null }).weight, null);
 });
 
@@ -234,19 +240,19 @@ test('stored entries are read tolerantly: unreadable days are skipped, not fatal
 });
 
 test('backup parsing rejects malformed files with a specific message', () => {
-  const bad = core.parseBackup(JSON.stringify({ entries: { '2026-01-01': 5, garbage: { weight: 'x' } } }));
+  const bad = parseBackup(JSON.stringify({ entries: { '2026-01-01': 5, garbage: { weight: 'x' } } }));
   assert.equal(bad.ok, false);
   assert.match(bad.error, /^Nothing was imported\./);
   assert.match(bad.error, /1 more problem/);
 
-  assert.equal(core.parseBackup('not json').ok, false);
-  assert.equal(core.parseBackup('[]').ok, false);
-  assert.equal(core.parseBackup(JSON.stringify({ app: 'other', entries: {} })).ok, false);
-  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .*can't be negative/);
-  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { weight: 5, meals: {} } } })).error, /weight/);
-  assert.match(core.parseBackup(JSON.stringify({ version: 99, entries: {} })).error, /newer version/);
+  assert.equal(parseBackup('not json').ok, false);
+  assert.equal(parseBackup('[]').ok, false);
+  assert.equal(parseBackup(JSON.stringify({ app: 'other', entries: {} })).ok, false);
+  assert.match(parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .*can't be negative/);
+  assert.match(parseBackup(JSON.stringify({ entries: { '2026-01-01': { weight: 5, meals: {} } } })).error, /weight/);
+  assert.match(parseBackup(JSON.stringify({ version: 99, entries: {} })).error, /newer version/);
   assert.match(
-    core.parseBackup(JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'x', type: 'image/jpeg', data: 'AA==' }] })).error,
+    parseBackup(JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'x', type: 'image/jpeg', data: 'AA==' }] })).error,
     /upload time/
   );
 });
@@ -257,14 +263,14 @@ test('a whole backup parses with its days and photos; version-1 files still impo
     '2026-09-24': entry('2026-09-24', {}, 179.8),
   };
   const photos = [{ date: '2026-09-23', createdAt: '2026-09-23T08:00:00.000Z', type: 'image/jpeg', data: 'AAECAw==' }];
-  const parsed = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, exportedAt: '2026-09-24T10:00:00.000Z', entries, photos }));
+  const parsed = parseBackup(JSON.stringify({ app: 'kenna', version: 2, exportedAt: '2026-09-24T10:00:00.000Z', entries, photos }));
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.entries, entries);
   assert.deepEqual(parsed.photos, photos);
   assert.equal(parsed.dayCount, 2);
   assert.equal(parsed.photoCount, 1);
 
-  const v1 = core.parseBackup(
+  const v1 = parseBackup(
     JSON.stringify({ exportedAt: 'x', entries: { '2025-05-01': { date: '2025-05-01', weight: null, meals: { lunch: [{ calories: 500, percent: 100 }] } } } })
   );
   assert.equal(v1.ok, true);
@@ -370,18 +376,97 @@ test('image sniffing recognises photos and rejects other files', () => {
   assert.equal(core.sniffImageType(text), null);
 });
 
-test('a backup reminder is due with data and no backup, or a week after the last one', () => {
+test('a backup reminder is due once a few days are logged and no backup is saved, or the chosen interval after the last one', () => {
   const now = new Date(2026, 8, 24, 10);
-  const at = (d) => new Date(2026, 8, d, 9).toISOString();
-  const due = (state) => core.backupReminderDue({ hasData: true, lastBackupAt: null, snoozedUntil: null, now, ...state });
-  assert.equal(due({ hasData: false }), null, 'nothing to back up');
-  assert.deepEqual(due({}), { never: true });
-  assert.deepEqual(due({ lastBackupAt: 'garbage' }), { never: true });
-  assert.equal(due({ lastBackupAt: at(20) }), null, '4 days is recent enough');
-  assert.deepEqual(due({ lastBackupAt: at(17) }), { never: false, days: 7 });
-  assert.deepEqual(due({ lastBackupAt: at(14) }), { never: false, days: 10 });
-  assert.equal(due({ snoozedUntil: new Date(2026, 8, 25).toISOString() }), null, 'snoozed');
-  assert.deepEqual(due({ snoozedUntil: new Date(2026, 8, 23).toISOString() }), { never: true }, 'snooze over');
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const saved = (d) => ({ at: at(d), covers: at(d, 8) });
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 3, now, ...state });
+  assert.equal(due({ loggedDays: 0 }), null, 'nothing to back up');
+  assert.equal(due({ loggedDays: 2 }), null, 'a day or two is too little to ask about');
+  assert.deepEqual(due({}), { never: true, days: null, photos: 0 });
+  assert.deepEqual(due({ backup: { at: 'garbage', covers: 'garbage' } }), { never: true, days: null, photos: 0 });
+  // Every 3 days (the default): 2 days is recent enough, 3 is due.
+  assert.equal(due({ backup: saved(22) }), null);
+  assert.deepEqual(due({ backup: saved(21) }), { never: false, days: 3, photos: 0 });
+  // Every day: yesterday's backup is due today; today's isn't.
+  assert.equal(due({ everyDays: 1, backup: saved(24) }), null);
+  assert.deepEqual(due({ everyDays: 1, backup: saved(23) }), { never: false, days: 1, photos: 0 });
+  // Every week: 6 days is recent enough, 7 is due.
+  assert.equal(due({ everyDays: 7, backup: saved(18) }), null);
+  assert.deepEqual(due({ everyDays: 7, backup: saved(17) }), { never: false, days: 7, photos: 0 });
+  assert.deepEqual(due({ everyDays: 7, backup: saved(14) }), { never: false, days: 10, photos: 0 });
+});
+
+test('a photo that is not in a saved backup brings the reminder straight away', () => {
+  const now = new Date(2026, 8, 24, 10);
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 7, now, ...state });
+  const backup = { at: at(23, 21), covers: at(23, 19) };
+  assert.equal(due({ backup }), null, 'a backup yesterday, every week');
+  assert.equal(due({ backup, photoAddedAt: [at(20), at(23, 18)] }), null, 'photos added before the file was made are in it');
+  assert.deepEqual(due({ backup, photoAddedAt: [at(20), at(23, 20)] }), { never: false, days: 1, photos: 1 }, 'added after the file was made, before it was saved');
+  assert.deepEqual(due({ backup, photoAddedAt: [at(24, 9)] }), { never: false, days: 1, photos: 1 });
+  assert.deepEqual(due({ loggedDays: 1, photoAddedAt: [at(24, 9)] }), { never: true, days: null, photos: 1 }, 'a first photo, with no backup yet, is asked about');
+  assert.deepEqual(due({ loggedDays: 1, photoAddedAt: [at(24, 9), 'not a time'] }), { never: true, days: null, photos: 2 }, 'with no backup, every photo counts');
+});
+
+test('"Not now" puts the reminder off until the next day, unless a photo is added after it', () => {
+  const now = new Date(2026, 8, 24, 10);
+  const at = (d, hour = 9) => new Date(2026, 8, d, hour).toISOString();
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, backup: null, snooze: null, photoAddedAt: [], everyDays: 3, now, ...state });
+  assert.equal(core.backupSnoozeEnd(new Date(2026, 8, 24, 10)), new Date(2026, 8, 25).toISOString());
+  assert.equal(core.backupSnoozeEnd(new Date(2026, 8, 30, 23, 59)), new Date(2026, 9, 1).toISOString(), 'across a month');
+  const snooze = { until: core.backupSnoozeEnd(new Date(2026, 8, 24, 8)), at: at(24, 8) };
+  assert.equal(due({ snooze }), null, 'put off');
+  assert.equal(due({ snooze, photoAddedAt: [at(24, 7)] }), null, 'a photo already there when Not now was tapped');
+  assert.deepEqual(due({ snooze, photoAddedAt: [at(24, 7), at(24, 9)] }), { never: true, days: null, photos: 2 }, 'a photo added since');
+  assert.deepEqual(due({ snooze: { until: at(24, 0), at: at(23, 8) } }), { never: true, days: null, photos: 0 }, 'put off until today: over');
+  // Put off by an earlier version, for 3 days from when it was tapped.
+  const old = { until: new Date(2026, 8, 26, 8).toISOString(), at: null };
+  assert.equal(due({ snooze: old, photoAddedAt: [at(23, 7)] }), null);
+  assert.deepEqual(due({ snooze: old, photoAddedAt: [at(23, 9)] }), { never: true, days: null, photos: 1 });
+});
+
+test('the reminder interval chosen in Settings is read safely', () => {
+  assert.equal(core.backupEveryDays(null), core.BACKUP_REMINDER.DEFAULT_EVERY_DAYS);
+  assert.equal(core.BACKUP_REMINDER.DEFAULT_EVERY_DAYS, 3);
+  assert.equal(core.backupEveryDays('1'), 1);
+  assert.equal(core.backupEveryDays('7'), 7);
+  assert.equal(core.backupEveryDays('5'), 3, 'not one of the choices');
+  assert.equal(core.backupEveryDays('week'), 3);
+  assert.equal(core.photosAddedSince(['2026-09-24T01:00:00Z', '2026-09-24T03:00:00Z'], '2026-09-24T02:00:00Z'), 1);
+  assert.equal(core.photosAddedSince(['2026-09-24T01:00:00Z'], null), 1);
+});
+
+test("a backup's age is counted in calendar days", () => {
+  const now = new Date(2026, 8, 24, 10);
+  assert.equal(core.backupAge(null, now), null);
+  assert.equal(core.backupAge('not a time', now), null);
+  assert.equal(core.backupAge(new Date(2026, 8, 24, 1).toISOString(), now), 0);
+  assert.equal(core.backupAge(new Date(2026, 8, 23, 23).toISOString(), now), 1, 'last night is yesterday');
+  assert.equal(core.backupAge(new Date(2026, 8, 16, 9).toISOString(), now), 8);
+  assert.equal(core.backupAge(new Date(2026, 8, 30).toISOString(), now), 0, 'a clock that was ahead is not a negative age');
+});
+
+test("the recent averages are of the 30 days before today, and say whether anything older exists", () => {
+  const entry = (date, weight, lunch) => ({ date, weight, meals: { ...core.emptyMeals(), lunch } });
+  const entries = {
+    '2026-08-24': entry('2026-08-24', 200, 900), // 31 days before: too old
+    '2026-08-25': entry('2026-08-25', 190, null), // 30 days before: counted
+    '2026-09-23': entry('2026-09-23', 180, 500),
+    '2026-09-24': entry('2026-09-24', 170, 100), // today: never counted
+  };
+  const recent = core.computeRecentAverages(entries, '2026-09-24');
+  assert.equal(core.RECENT_DAYS, 30);
+  assert.equal(recent.averages.weight, 185);
+  assert.equal(recent.averages.total, 500);
+  assert.equal(recent.averages.lunch, 500);
+  assert.equal(recent.olderWeight, true);
+  assert.equal(recent.olderMeals, true);
+  const young = core.computeRecentAverages({ '2026-09-23': entry('2026-09-23', 180, null), '2026-08-01': entry('2026-08-01', null, null) }, '2026-09-24');
+  assert.equal(young.olderWeight, false, 'an empty older day is nothing older');
+  assert.equal(young.olderMeals, false);
+  assert.deepEqual(core.computeAllTimeAverages(entries, '2026-09-24').weight, 190);
 });
 
 test('days after today never count toward averages', () => {
@@ -397,14 +482,14 @@ test('days after today never count toward averages', () => {
 });
 
 test('backup days dated after the latest allowed day are left out and counted', () => {
-  const parsed = core.parseBackup(
+  const parsed = parseBackup(
     { entries: { '2026-09-23': entry('2026-09-23', { lunch: 600 }), '2030-01-01': entry('2030-01-01', { lunch: 500 }) } },
     '2026-09-24'
   );
   assert.equal(parsed.ok, true);
   assert.deepEqual(Object.keys(parsed.entries), ['2026-09-23']);
   assert.equal(parsed.futureDays, 1);
-  assert.equal(core.parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
+  assert.equal(parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
 });
 
 test('chart dates carry their year on every label when the range crosses a year', () => {
@@ -439,7 +524,7 @@ test('photo bytes are encoded as base64 exactly as the browser would', async () 
 });
 
 test('a backup with some days outside the rules restores the rest and lists what it left out', () => {
-  const parsed = core.parseBackup({
+  const parsed = parseBackup({
     app: 'kenna',
     version: 2,
     entries: {
@@ -456,7 +541,7 @@ test('a backup with some days outside the rules restores the rest and lists what
     'The weight on Thu, Sep 3 (12): Enter a weight between 50 and 1,000 lbs.',
     'Photo 1 has no valid upload time.',
   ]);
-  assert.deepEqual(core.parseBackup({ entries: { '2026-09-02': entry('2026-09-02', { lunch: 600 }) } }).skipped, []);
+  assert.deepEqual(parseBackup({ entries: { '2026-09-02': entry('2026-09-02', { lunch: 600 }) } }).skipped, []);
 });
 
 test('a restore is described by how many stored days it replaces and adds', () => {
@@ -472,6 +557,21 @@ test('a restore is described by how many stored days it replaces and adds', () =
     '2026-09-23': entry('2026-09-23', {}, 179),
   };
   assert.deepEqual(core.compareWithStored(stored, incoming), { replaced: ['2026-09-20'], added: ['2026-09-22', '2026-09-23'], unchanged: 1 });
+});
+
+test("a backup's photos are compared with the ones here by when each was first added, before any image is read", () => {
+  const here = [{ createdAt: '2026-09-20T08:00:00.000Z' }];
+  const photo = (date, createdAt) => ({ date, createdAt });
+  // The same photo moved to another day since the backup is still the same photo.
+  const incoming = [
+    photo('2026-09-19', '2026-09-20T08:00:00.000Z'),
+    photo('2026-09-21', '2026-09-21T08:00:00.000Z'),
+    photo('2026-09-21', '2026-09-21T08:00:00.000Z'),
+    photo('2026-09-25', '2026-09-25T08:00:00.000Z'),
+  ];
+  assert.deepEqual(core.comparePhotos(incoming, here, '2026-09-24'), { added: 1, alreadyHere: 2, future: 1 });
+  assert.deepEqual(core.comparePhotos([], here, '2026-09-24'), { added: 0, alreadyHere: 0, future: 0 });
+  assert.deepEqual(core.comparePhotos(incoming.slice(0, 1), [], '2026-09-24'), { added: 1, alreadyHere: 0, future: 0 });
 });
 
 test('long chart ranges are averaged by week, and multi-year ranges by month', () => {
@@ -514,6 +614,20 @@ test('an average weight always shows its one decimal; a logged weight shows as e
   assert.equal(core.formatNumber(166, 1, 1), '166.0');
   assert.equal(core.formatNumber(166, 1), '166');
   assert.equal(core.formatNumber(1.25, 0, 2), '1', 'never more decimals than the most asked for');
+});
+
+test('weights shown together share their decimals: one, or two when any was logged with two', () => {
+  const plain = core.weightFormatFor([171, 180.6, null, undefined]);
+  assert.equal(plain.decimals, 1);
+  assert.equal(plain.format(171), '171.0 lbs');
+  assert.equal(plain.format(180.6), '180.6 lbs');
+  assert.equal(plain.format(179.5333), '179.5 lbs', 'an average among them is rounded to fit');
+  const fine = core.weightFormatFor([171, 165.25]);
+  assert.equal(fine.decimals, 2);
+  assert.equal(fine.format(171), '171.00 lbs');
+  assert.equal(fine.format(165.25), '165.25 lbs', 'never rounded away');
+  assert.equal(core.weightFormatFor([165.3 + 0.0000001]).decimals, 1, 'floating-point noise is not a second decimal');
+  assert.equal(core.weightFormatFor([]).format(1000), '1,000.0 lbs');
 });
 
 test("a month's averages leave out today, like every other average", () => {
@@ -615,4 +729,53 @@ test('a stored problem log is read back tolerantly, and copied as plain text, ne
     ].join('\n')
   );
   assert.match(core.problemReport([], { app: 'phone app', browser: 'B' }), /Nothing recorded\./);
+});
+
+test('a meal far above its own usual size is asked about; a normal one never is', () => {
+  const week = {};
+  for (let d = 17; d <= 23; d += 1) week[`2026-09-${d}`] = entry(`2026-09-${d}`, { breakfast: 440 + d, dinner: 800 }, 180);
+  const ask = (key, value, entries = week) => core.unusualValue(entries, '2026-09-24', key, value, '2026-09-24');
+  // A week of ~450 cal breakfasts: 4500 is asked about, 480 isn't.
+  const big = ask('breakfast', 4500);
+  assert.equal(big.title, 'Keep 4,500 cal for breakfast?');
+  assert.equal(big.reason, "That's far more than your usual breakfast (460 cal).");
+  assert.equal(ask('breakfast', 480), null);
+  // Above 3× the usual, and at least 1,000 above it.
+  assert.equal(ask('breakfast', 1460), null);
+  assert.ok(ask('breakfast', 1461));
+  assert.equal(ask('dinner', 2400), null);
+  assert.ok(ask('dinner', 2401));
+  // Before a meal has been logged a few times, only a very large one asks.
+  assert.equal(ask('snack1', 3000), null);
+  assert.equal(ask('snack1', 3001).reason, "That's more than 3,000 cal for one meal.");
+  assert.equal(ask('snack1', 3001, {}).title, 'Keep 3,001 cal for snack 1?');
+  // The day's own value isn't its history, and an empty box is never asked about.
+  const today = { ...week, '2026-09-24': entry('2026-09-24', { breakfast: 5000 }) };
+  assert.equal(ask('breakfast', 480, today), null);
+  assert.equal(ask('breakfast', null), null);
+});
+
+test('a weight far from the nearest other day is asked about, allowing more the further apart they are', () => {
+  const ask = (entries, date, value) => core.unusualValue(entries, date, 'weight', value, '2026-09-24');
+  const days = { '2026-09-23': entry('2026-09-23', {}, 180.4), '2026-08-24': entry('2026-08-24', {}, 190) };
+  // With yesterday at 180.4: 108.4 is asked about, 180.8 isn't.
+  const slip = ask(days, '2026-09-24', 108.4);
+  assert.equal(slip.title, 'Keep 108.4 lbs?');
+  assert.equal(slip.reason, "That's 72.0 lbs less than your weight yesterday (180.4 lbs).");
+  assert.equal(ask(days, '2026-09-24', 180.8), null);
+  assert.equal(ask(days, '2026-09-24', 185.4), null, 'up to 5 lbs a day apart');
+  assert.equal(ask(days, '2026-09-24', 185.45).reason, "That's 5.05 lbs more than your weight yesterday (180.40 lbs).");
+  // Ten days after the last weight, 9.5 lbs is allowed.
+  const later = { '2026-09-14': entry('2026-09-14', {}, 180) };
+  assert.equal(ask(later, '2026-09-24', 189.5), null);
+  assert.equal(ask(later, '2026-09-24', 189.6).reason, "That's 9.6 lbs more than your weight on Mon, Sep 14 (180.0 lbs).");
+  // Never more than a quarter of the other weight, however long ago.
+  const longAgo = { '2016-09-24': entry('2016-09-24', {}, 100) };
+  assert.equal(ask(longAgo, '2026-09-24', 125), null);
+  assert.ok(ask(longAgo, '2026-09-24', 125.5));
+  // Fixing a past day compares with the nearest day either side.
+  assert.equal(ask(days, '2026-08-25', 190.5), null);
+  assert.ok(ask(days, '2026-08-25', 150));
+  // The first weight ever logged has nothing to compare with.
+  assert.equal(ask({}, '2026-09-24', 999.99), null);
 });

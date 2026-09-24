@@ -147,6 +147,7 @@ function yearsBetween(date, today) {
 }
 
 module.exports = {
+  FAR_BACK,
   LOCALE,
   DAY_MS,
   todayStr,

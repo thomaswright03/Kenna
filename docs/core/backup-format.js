@@ -35,6 +35,9 @@ function photoKey(p) {
   return String(p.createdAt);
 }
 
+// What to pick instead, said after every "isn't a Kenna backup".
+const PICK_BACKUP = 'Pick the file Export Backup saved: its name starts with kenna-backup and ends in .json (look in Files or iCloud Drive).';
+
 /**
  * Checks everything in a backup except its photos: that it's a Kenna
  * backup this version can read, and every day in it. A day that can't be
@@ -48,16 +51,16 @@ function photoKey(p) {
  */
 function checkBackupDays(payload, skipped, latestDay) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return { ok: false, error: "This file isn't a Kenna backup." };
+    return { ok: false, error: `This file isn't a Kenna backup. ${PICK_BACKUP}` };
   }
   if (payload.app !== undefined && payload.app !== 'kenna') {
-    return { ok: false, error: "This file isn't a Kenna backup." };
+    return { ok: false, error: `This file isn't a Kenna backup. ${PICK_BACKUP}` };
   }
   if (typeof payload.version === 'number' && payload.version > BACKUP_VERSION) {
     return { ok: false, error: 'This backup was made by a newer version of Kenna. Update the app, then import it again.' };
   }
   if (!payload.entries || typeof payload.entries !== 'object' || Array.isArray(payload.entries)) {
-    return { ok: false, error: "This file isn't a Kenna backup: it has no days in it." };
+    return { ok: false, error: `This file isn't a Kenna backup: it has no days in it. ${PICK_BACKUP}` };
   }
   /** @type {Record<string, Entry>} */
   const entries = {};
@@ -111,52 +114,7 @@ function backupRefusal(skipped, usable) {
   return skipped.length > 0 && usable === 0 ? backupProblemsMessage(skipped) : null;
 }
 
-const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
-
-// Validates a whole backup held in memory at once. The app reads backup
-// files in pieces instead (backup-file.js), so a large photo library never
-// has to be in memory at once; both are built from the same checks
-// (checkBackupDays, checkBackupPhoto, backupRefusal), and the unit tests
-// state the file rules through this compact form.
-/**
- * @param {unknown} input the file's text, or its parsed JSON
- * @param {string} [latestDay] days after this are left out (see checkBackupDays)
- * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number, futureDays: number, skipped: string[] } | { ok: false, error: string }}
- */
-function parseBackup(input, latestDay) {
-  /** @type {any} */
-  let payload = input;
-  if (typeof input === 'string') {
-    try {
-      payload = JSON.parse(input);
-    } catch {
-      return { ok: false, error: UNREADABLE_BACKUP };
-    }
-  }
-  /** @type {string[]} */
-  const skipped = [];
-  const days = checkBackupDays(payload, skipped, latestDay);
-  if (!days.ok) return days;
-
-  /** @type {BackupPhoto[]} */
-  const photos = [];
-  if (payload.photos !== undefined) {
-    if (!Array.isArray(payload.photos)) {
-      skipped.push('The photos section is not in the expected format.');
-    } else {
-      payload.photos.forEach((/** @type {unknown} */ p, /** @type {number} */ i) => {
-        const result = checkBackupPhoto(p, i + 1);
-        if (result.ok) photos.push(result.photo);
-        else skipped.push(result.error);
-      });
-    }
-  }
-
-  const dayCount = Object.keys(days.entries).length;
-  const refused = backupRefusal(skipped, dayCount + photos.length);
-  if (refused) return { ok: false, error: refused };
-  return { ok: true, entries: days.entries, photos, dayCount, photoCount: photos.length, futureDays: days.futureDays, skipped };
-}
+const UNREADABLE_BACKUP = `This file isn't a Kenna backup: it isn't readable backup data. ${PICK_BACKUP}`;
 
 /** @param {Entry} a @param {Entry} b */
 function sameEntry(a, b) {
@@ -186,22 +144,127 @@ function compareWithStored(stored, incoming) {
   return { replaced, added, unchanged };
 }
 
-// When the Today screen reminds the user to save a backup file.
-const BACKUP_REMINDER = { REMIND_AFTER_DAYS: 7, SNOOZE_DAYS: 3 };
+/**
+ * What restoring a backup's photos would do, from their details alone
+ * (no image is read): how many would be added, how many are already here
+ * (matched as the importer matches them, by photoKey, which also counts a
+ * photo the file holds twice once), and how many are dated after
+ * `latestDay` and would be left out.
+ * @param {{ date: string, createdAt: string }[]} incoming
+ * @param {{ createdAt: string }[]} here the photos on this device
+ * @param {string} latestDay
+ * @returns {{ added: number, alreadyHere: number, future: number }}
+ */
+function comparePhotos(incoming, here, latestDay) {
+  const seen = new Set(here.map(photoKey));
+  let added = 0;
+  let alreadyHere = 0;
+  let future = 0;
+  for (const p of incoming) {
+    const key = photoKey(p);
+    if (isFutureDate(p.date, latestDay)) future += 1;
+    else if (seen.has(key)) alreadyHere += 1;
+    else {
+      seen.add(key);
+      added += 1;
+    }
+  }
+  return { added, alreadyHere, future };
+}
+
+// When Kenna asks the user to save a backup file. Once a few days are
+// logged (a first meal is too little to ask about), it asks while no backup
+// has been saved, and again every EVERY_DAYS days after the last one: every
+// day, every 3 days (unless changed) or every week, as chosen in Settings.
+// A photo added since the last saved backup is asked about straight away,
+// however few days are logged, because a photo can't be logged again.
+// "Not now" puts the question off until the next day; a photo added after
+// that still brings it back.
+const BACKUP_REMINDER = Object.freeze({
+  REMIND_FROM_DAYS: 3,
+  EVERY_DAYS_CHOICES: Object.freeze([1, 3, 7]),
+  DEFAULT_EVERY_DAYS: 3,
+  // How long "Not now" put the question off before it lasted until the
+  // next day; a put-off time saved then is read with it.
+  OLD_SNOOZE_DAYS: 3,
+});
 
 /**
- * Whether a backup reminder is due, and what it should say. `lastBackupAt`
- * and `snoozedUntil` are ISO times or null.
- * @param {{ hasData: boolean, lastBackupAt: string | null, snoozedUntil: string | null, now: Date }} state
- * @returns {{ never: true } | { never: false, days: number } | null}
+ * The reminder interval chosen in Settings (a stored string), or the
+ * default when none, or something else, is stored.
+ * @param {unknown} stored
+ * @returns {number}
  */
-function backupReminderDue({ hasData, lastBackupAt, snoozedUntil, now }) {
-  if (!hasData) return null;
-  if (snoozedUntil && Date.parse(snoozedUntil) > now.getTime()) return null;
+function backupEveryDays(stored) {
+  const n = Number(stored);
+  return BACKUP_REMINDER.EVERY_DAYS_CHOICES.includes(n) ? n : BACKUP_REMINDER.DEFAULT_EVERY_DAYS;
+}
+
+/**
+ * How many of the photos were added after `since` (an ISO time), so aren't
+ * in a backup made then; every photo when there's no such time.
+ * @param {string[]} addedAt each photo's createdAt
+ * @param {string | null} since
+ */
+function photosAddedSince(addedAt, since) {
+  const from = since ? Date.parse(since) : NaN;
+  if (Number.isNaN(from)) return addedAt.length;
+  return addedAt.filter((t) => Date.parse(t) > from).length;
+}
+
+/**
+ * The end of the day `now` is in, as an ISO time: until when "Not now" puts
+ * the reminder off.
+ * @param {Date} now
+ */
+function backupSnoozeEnd(now) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+}
+
+/**
+ * @typedef {object} BackupReminderState
+ * @property {number} loggedDays days with anything logged (a weight, a meal or a photo)
+ * @property {{ at: string, covers: string } | null} backup the last saved backup: when it was
+ *   saved, and when it was made (what it holds is everything up to then); null for none
+ * @property {{ until: string, at: string | null } | null} snooze "Not now": until when, and when it was tapped
+ * @property {string[]} photoAddedAt each photo's createdAt
+ * @property {number} everyDays the interval chosen in Settings
+ * @property {Date} now
+ */
+
+/**
+ * Whether a backup reminder is due, and what it should say: whether a
+ * backup was ever saved, how many days ago the last one was, and how many
+ * photos aren't in it. Null when not due.
+ * @param {BackupReminderState} state
+ * @returns {{ never: boolean, days: number | null, photos: number } | null}
+ */
+function backupReminderDue({ loggedDays, backup, snooze, photoAddedAt, everyDays, now }) {
+  const covers = backup ? backup.covers : null;
+  const photos = photosAddedSince(photoAddedAt, covers);
+  if (snooze && Date.parse(snooze.until) > now.getTime()) {
+    const tapped = snooze.at || new Date(Date.parse(snooze.until) - BACKUP_REMINDER.OLD_SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const later = covers && Date.parse(covers) > Date.parse(tapped) ? covers : tapped;
+    if (photosAddedSince(photoAddedAt, later) === 0) return null;
+  }
+  const days = backupAge(backup ? backup.at : null, now);
+  const never = days === null;
+  if (photos > 0) return { never, days, photos };
+  if (loggedDays < BACKUP_REMINDER.REMIND_FROM_DAYS) return null;
+  if (never || days >= everyDays) return { never, days, photos };
+  return null;
+}
+
+/**
+ * How many calendar days ago a backup was saved (0 today), or null for
+ * none (or an unreadable time).
+ * @param {string | null} lastBackupAt ISO time
+ * @param {Date} now
+ */
+function backupAge(lastBackupAt, now) {
   const last = lastBackupAt ? new Date(lastBackupAt) : null;
-  if (!last || Number.isNaN(last.getTime())) return { never: true };
-  const days = daysBetween(localDateStr(last), localDateStr(now));
-  return days >= BACKUP_REMINDER.REMIND_AFTER_DAYS ? { never: false, days } : null;
+  if (!last || Number.isNaN(last.getTime())) return null;
+  return Math.max(0, daysBetween(localDateStr(last), localDateStr(now)));
 }
 
 module.exports = {
@@ -210,11 +273,14 @@ module.exports = {
   photoKey,
   checkBackupDays,
   checkBackupPhoto,
-  backupProblemsMessage,
   backupRefusal,
   UNREADABLE_BACKUP,
-  parseBackup,
   compareWithStored,
+  comparePhotos,
   BACKUP_REMINDER,
+  backupEveryDays,
+  photosAddedSince,
+  backupSnoozeEnd,
   backupReminderDue,
+  backupAge,
 };

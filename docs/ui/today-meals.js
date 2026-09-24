@@ -1,22 +1,38 @@
 // The day's calories on the Today screen: the total, and one row per meal.
-// A tap on a row opens Log Meal at that meal; a meal removed here keeps an
-// Undo button in its row while the screen is open, and if the screen is
-// left soon after, the next screen offers Undo for a few seconds more.
+// A tap on a row opens Log Meal at that meal. A meal removed here keeps an
+// Undo button in its row for the rest of the visit (until it's put back or
+// logged again), and the next screen opened offers Undo too, until it's
+// used, dismissed or the user moves on from that screen. A value typed for
+// a meal but not saved (it waits to be confirmed, or isn't a number) shows
+// in its row, and a tap on the row opens it in Log Meal to settle.
 
-import { core, h, MEAL_STEPS, mealLabel, today, notSavedReason } from './dom.js';
+import { core, h, MEAL_STEPS, mealLabel, today, notSavedReason, plural } from './dom.js';
 import { failureText } from './problems.js';
 import { toast, announce } from './feedback.js';
 import { store } from './store.js';
 import { logHash } from './router.js';
 import { refreshCurrentScreen } from './render.js';
 import { saveDateFor } from './day.js';
+import { waitingDrafts, draftNumber } from './drafts.js';
 
-/** @typedef {{ value: number, date: string, at: number }} Removed a meal removed on this screen: what it was, its day and when */
+/** @typedef {{ value: number, date: string, offered: boolean }} Removed a meal removed on Today: what it was, its day, and whether leaving Today has offered it back yet */
 
-// A meal removed this recently when Today is left is offered back on the
-// next screen, for as long as that message shows.
-const UNDO_AFTER_LEAVING_MS = 60 * 1000;
-const UNDO_TOAST_MS = 10 * 1000;
+/**
+ * Meals removed on Today this visit and not put back, by day and meal, so
+ * Undo is still in the row when Today is opened again.
+ * @type {Map<string, Map<string, Removed>>}
+ */
+const removedByDay = new Map();
+
+/** @param {string} date */
+function removedOn(date) {
+  let removed = removedByDay.get(date);
+  if (!removed) {
+    removed = new Map();
+    removedByDay.set(date, removed);
+  }
+  return removed;
+}
 
 /** "today", "yesterday" or "Tue, Sep 22" @param {string} date */
 function dayWords(date) {
@@ -42,8 +58,40 @@ async function putBackElsewhere(key, r) {
     toast(`${mealLabel(key)} not put back. ${notSavedReason(failureText('Put back a meal', err))}`, { tone: 'error' });
     return;
   }
+  removedOn(r.date).delete(key);
   toast(`${mealLabel(key)} put back for ${dayWords(r.date)}: ${core.formatCalories(r.value)}`);
   refreshCurrentScreen();
+}
+
+/** @typedef {Map<string, import('./drafts.js').Draft>} WaitingMeals values typed for a day's meals and not saved, by meal */
+
+/**
+ * The day's calorie total. A day with no meals shows just the sentence: no
+ * number, which would read as a placeholder (a dash) or as a day of 0
+ * calories. Values typed and waiting aren't in the total, and it says so.
+ * @param {import('./today-weight.js').DayView} view
+ * @param {boolean} isToday
+ */
+function dayTotal(view, isToday) {
+  const totalNum = h('div', { class: 'total-num' });
+  const totalLabel = h('div', { class: 'total-label' });
+  const totalWaiting = h('div', { class: 'total-waiting', hidden: true });
+  const el = h('div', { class: 'total-box' }, totalNum, totalLabel, totalWaiting);
+  /** @param {WaitingMeals} waiting */
+  function refresh(waiting) {
+    const total = core.totalCalories(view.entry.meals);
+    const when = isToday ? 'today' : core.formatDate(view.date, today());
+    el.classList.toggle('is-empty', total === null);
+    totalNum.hidden = total === null;
+    totalNum.textContent = total === null ? '' : core.formatNumber(total);
+    totalLabel.textContent = total === null ? `No meals logged ${isToday ? 'yet today' : `for ${when}`}` : `calories logged ${isToday ? 'today' : `on ${when}`}`;
+    const numbers = [...waiting.values()].map(draftNumber);
+    totalWaiting.hidden = waiting.size === 0;
+    if (waiting.size === 0) totalWaiting.textContent = '';
+    else if (numbers.every((n) => n !== null)) totalWaiting.textContent = `+ ${core.formatCalories(numbers.reduce((a, n) => a + (n || 0), 0))} not saved yet`;
+    else totalWaiting.textContent = `+ ${plural(waiting.size, 'meal')} not saved yet`;
+  }
+  return { el, refresh };
 }
 
 /**
@@ -52,18 +100,16 @@ async function putBackElsewhere(key, r) {
  * @returns {{ total: HTMLElement, list: HTMLElement, refresh: () => void, offerUndoAfterLeaving: () => void }}
  */
 export function buildMealList(view, where) {
-  const totalNum = h('div', { class: 'total-num' });
-  const totalLabel = h('div', { class: 'total-label' });
+  const total = dayTotal(view, where.isToday);
   const list = h('ul', { class: 'meal-list', 'aria-label': 'Meals' });
-  /** Meals removed on this screen, not put back. @type {Map<string, Removed>} */
-  const removed = new Map();
+  /** Meals removed from the day shown, not put back. */
+  const removed = () => removedOn(view.date);
 
-  function refreshTotal() {
-    const total = core.totalCalories(view.entry.meals);
-    totalNum.textContent = total === null ? '—' : core.formatNumber(total);
-    const when = where.isToday ? 'today' : core.formatDate(view.date, today());
-    totalLabel.textContent =
-      total === null ? `No meals logged ${where.isToday ? 'yet today' : `for ${when}`}` : `calories logged ${where.isToday ? 'today' : `on ${when}`}`;
+  /** @returns {WaitingMeals} */
+  function waitingMeals() {
+    const byMeal = new Map();
+    for (const d of waitingDrafts({ [view.date]: view.entry }, view.date, { shown: true })) if (d.field !== 'weight') byMeal.set(d.field, d);
+    return byMeal;
   }
 
   /** @param {string} key @param {string} selector */
@@ -82,7 +128,7 @@ export function buildMealList(view, where) {
       toast(failureText('Remove a meal', err), { tone: 'error' });
       return;
     }
-    if (typeof previous === 'number') removed.set(key, { value: previous, date, at: Date.now() });
+    if (typeof previous === 'number') removedOn(date).set(key, { value: previous, date, offered: false });
     refresh();
     focusInRow(key, '[data-undo]');
     announce(`${mealLabel(key)} removed. Undo is next to it.`);
@@ -90,7 +136,7 @@ export function buildMealList(view, where) {
 
   /** @param {string} key @param {HTMLButtonElement} button */
   async function undoRemove(key, button) {
-    const r = removed.get(key);
+    const r = removed().get(key);
     if (r === undefined || button.disabled) return;
     const previous = r.value;
     button.disabled = true;
@@ -101,18 +147,18 @@ export function buildMealList(view, where) {
       toast(failureText('Put back a meal', err), { tone: 'error' });
       return;
     }
-    removed.delete(key);
+    removed().delete(key);
     refresh();
     focusInRow(key, 'a');
     announce(`${mealLabel(key)} restored: ${core.formatCalories(previous)}.`);
   }
 
-  /** @param {{ key: string, label: string }} step */
-  function row(step) {
+  /** @param {{ key: string, label: string }} step @param {import('./drafts.js').Draft | undefined} waiting */
+  function row(step, waiting) {
     const value = view.entry.meals[step.key];
-    if (value !== null) removed.delete(step.key);
-    const r = removed.get(step.key);
-    return mealRow(step, value, r ? r.value : undefined, {
+    if (value !== null) removed().delete(step.key);
+    const r = removed().get(step.key);
+    return mealRow(step, value, r ? r.value : undefined, waiting, {
       href: logHash(where.routeDate, step.key),
       onRemove: () => removeMeal(step.key),
       onUndo: (button) => undoRemove(step.key, button),
@@ -120,47 +166,70 @@ export function buildMealList(view, where) {
   }
 
   function refresh() {
-    list.replaceChildren(...MEAL_STEPS.map(row));
-    refreshTotal();
+    const waiting = waitingMeals();
+    list.replaceChildren(...MEAL_STEPS.map((step) => row(step, waiting.get(step.key))));
+    total.refresh(waiting);
   }
   refresh();
 
-  // Today is being left: a meal removed moments ago can still be put back
-  // from the next screen, which might be where the tap was headed anyway.
+  // Today is being left: a meal removed since it was last left can be put
+  // back from the next screen too, which might be where the tap was headed.
   function offerUndoAfterLeaving() {
-    for (const [key, r] of removed) {
-      if (Date.now() - r.at > UNDO_AFTER_LEAVING_MS) continue;
+    for (const [key, r] of removed()) {
+      if (r.offered) continue;
+      r.offered = true;
       toast(`${mealLabel(key)} removed from ${dayWords(r.date)} (${core.formatCalories(r.value)})`, {
         action: { label: 'Undo', onClick: () => putBackElsewhere(key, r) },
-        keepWhileNavigating: true,
-        duration: UNDO_TOAST_MS,
       });
     }
-    removed.clear();
   }
 
-  return { total: h('div', { class: 'total-box' }, totalNum, totalLabel), list, refresh, offerUndoAfterLeaving };
+  return { total: total.el, list, refresh, offerUndoAfterLeaving };
+}
+
+/**
+ * What a row says about a value typed for its meal and not saved, and what
+ * a tap on the row does with it.
+ * @param {import('./drafts.js').Draft} d
+ */
+function waitingWords(d) {
+  const n = draftNumber(d);
+  return n !== null && d.ask
+    ? { what: `${core.formatCalories(n)} not saved yet`, go: 'Confirm' }
+    : { what: `“${d.text.trim().slice(0, 20)}” not saved yet`, go: 'Fix' };
 }
 
 /**
  * One meal's row. The whole row, name and value included, opens Log Meal
  * at this meal; a logged meal has a Remove button, and a meal just removed
- * an Undo button.
+ * an Undo button. A value typed and not saved shows under the name, and
+ * the row then opens it to be confirmed or fixed.
  * @param {{ key: string, label: string }} step
  * @param {number | null} value
  * @param {number | undefined} removedValue what it was, when removed on this screen
+ * @param {import('./drafts.js').Draft | undefined} waiting
  * @param {{ href: string, onRemove: () => void, onUndo: (button: HTMLButtonElement) => void }} actions
  */
-function mealRow(step, value, removedValue, actions) {
+function mealRow(step, value, removedValue, waiting, actions) {
   const logged = value !== null;
   const shown = logged
     ? h('span', { class: 'meal-value', text: core.formatCalories(value) })
-    : h('span', { class: 'meal-empty', text: removedValue !== undefined ? `Removed (was ${core.formatCalories(removedValue)})` : 'Not logged' });
+    : waiting
+      ? null
+      : h('span', { class: 'meal-empty', text: removedValue !== undefined ? `Removed (was ${core.formatCalories(removedValue)})` : 'Not logged' });
+  const words = waiting ? waitingWords(waiting) : null;
+  const waitingLine = words ? h('span', { class: 'meal-waiting', text: words.what }) : null;
+  const go = words ? words.go : logged ? 'Edit' : 'Add';
+  const label = words
+    ? `${go} ${step.label}${logged ? `, ${core.formatCalories(value)} saved` : ''}, ${words.what}`
+    : logged
+      ? `Edit ${step.label}, ${core.formatCalories(value)}`
+      : `Add ${step.label}`;
   const link = h(
     'a',
-    { class: 'meal-link', href: actions.href, 'aria-label': logged ? `Edit ${step.label}, ${core.formatCalories(value)}` : `Add ${step.label}` },
-    h('span', { class: 'meal-info' }, h('span', { class: 'meal-name', text: step.label }), shown),
-    h('span', { class: `meal-go btn-text${logged ? '' : ' btn-quiet'}`, 'aria-hidden': 'true', text: logged ? 'Edit' : 'Add' })
+    { class: 'meal-link', href: actions.href, 'aria-label': label },
+    h('span', { class: 'meal-info' }, h('span', { class: 'meal-name', text: step.label }), shown, waitingLine),
+    h('span', { class: `meal-go btn-text${logged || waiting ? '' : ' btn-quiet'}`, 'aria-hidden': 'true', text: go })
   );
   const buttons = h('div', { class: 'meal-actions' });
   if (removedValue !== undefined) {
@@ -174,5 +243,5 @@ function mealRow(step, value, removedValue, actions) {
     remove.addEventListener('click', actions.onRemove);
     buttons.append(remove);
   }
-  return h('li', { class: 'meal-row', 'data-meal': step.key }, link, buttons.childElementCount ? buttons : null);
+  return h('li', { class: `meal-row${waiting ? ' is-waiting' : ''}`, 'data-meal': step.key }, link, buttons.childElementCount ? buttons : null);
 }

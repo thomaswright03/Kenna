@@ -13,10 +13,14 @@ import { failureText, recordProblem } from './problems.js';
  * @property {HTMLElement} root
  * @property {string} title names the screen in the browser tab and history
  * @property {() => void} [mounted] runs once the view is on the page
- * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
+ * @property {(how?: RefreshHow) => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab, or an Undo on another screen's message)
  * @property {() => void} [release] frees resources such as object URLs
  * @property {() => void} [flush] saves typed input now (the page is being hidden or closed)
  * @property {() => Promise<void> | void} [leave] another screen, or another day, is being opened: saves typed input on the way out; the next screen loads its data once this has finished
+ */
+
+/**
+ * @typedef {{ elsewhere?: boolean }} RefreshHow elsewhere: the change was made in another window or tab
  */
 
 /**
@@ -57,10 +61,20 @@ export const getCurrentView = () => currentView;
  * Shows data changed elsewhere (another tab, or an Undo offered on another
  * screen) on the screen that's open: in place where the screen can, or by
  * drawing History or Compare again.
+ * @param {RefreshHow} [how]
  */
-export function refreshCurrentScreen() {
-  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage().catch((err) => recordProblem('Show changes made elsewhere', err));
+export function refreshCurrentScreen(how) {
+  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage(how).catch((err) => recordProblem('Show changes made elsewhere', err));
   else if (route.screen === 'history' || route.screen === 'compare') render();
+}
+
+/**
+ * The page is back in view: a screen with boxes reads its day again, in
+ * case a change made meanwhile in another window went unnoticed (a
+ * background page can be paused and miss it).
+ */
+export function recheckCurrentScreen() {
+  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage({ elsewhere: true }).catch((err) => recordProblem('Show changes made elsewhere', err));
 }
 
 /** @param {{ focus?: boolean }} [options] */

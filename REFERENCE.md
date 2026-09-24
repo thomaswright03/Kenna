@@ -19,14 +19,23 @@ run, test and release it.
   under the box says, and also when you leave Today with a weight still in
   the box: the next screen then says "Weight saved: 181.2 lbs", with
   **Undo**. Emptying the weight box clears the day's weight, with **Undo** under the
-  box to put it back. Pick another day in **Day to view or edit**, or tap a day in
-  History, to view or fix a past day; **Back to today** returns to the current day.
+  box to put it back. Tap **Change day** beside the day's heading and pick
+  a date, or tap a day in History, to view or fix a past day; **Back to
+  today** returns to the current day. From a keyboard, **Change day** is
+  one Tab stop that opens a **Day to open** box under the heading: the
+  date can be typed or changed with the arrow keys, and the day opens only
+  on Enter, **Open day** or leaving the box (Escape or **Cancel** puts it
+  away). Before anything is logged, a short
+  welcome under the heading says what Kenna is. A day with no meals says
+  "No meals logged yet today" in place of a total. Once anything is
+  logged, a line under the day says how old the last saved backup is
+  ("Last backup: 3 days ago", or "No backup saved yet"), with **Back up
+  now**.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
   value saves as soon as you leave the box or tap another meal, and also
-  however you leave the screen with a number still in the box: **Back to
-  Today** (or **Back to Yesterday**, **Back to Sep 20** for a past day),
-  the tab bar, the phone's Back gesture, switching to another app, locking
+  however you leave the screen with a number still in the box: **Save and
+  close** (the screen's one button), the tab bar, the phone's Back gesture, switching to another app, locking
   the phone or closing the page. Leaving within the app, the next screen
   says what was saved ("Lunch saved: 450 cal"), with **Undo** to put back
   what was there before (unless it has been changed again since). A
@@ -39,10 +48,15 @@ run, test and release it.
   a ✓ and its calories. On the Today screen **Log Meal** is the main way
   in; tapping a meal's row (its name, calories or **Add**/**Edit**) opens
   Log Meal at that meal. A meal removed on the Today screen
-  keeps an **Undo** button in its row while you're on that screen; leave
-  it within a minute and the next screen offers **Undo** for ten seconds
-  more, even if you move on again (a meal logged again since is left as
-  it is).
+  keeps an **Undo** button in its row for the rest of the visit (until
+  it's put back or logged again), and the next screen you open offers
+  **Undo** too (a meal logged again since is left as it is). A message
+  with **Undo** (or **Fix it**) is never taken away by time: it stays
+  until you use it, dismiss it (×) or move on to another screen. Messages
+  show along the bottom of a phone's screen; on a wide screen (two
+  columns) they sit above the content, so they cover none of it, and one
+  shown while the top of the page is scrolled out of view floats at the
+  bottom right instead.
 - **History** lists every logged day with its total calories and weight,
   grouped by month under headings with each month's average calories
   (days with meals) and weight, neither counting today. The most recent
@@ -54,18 +68,16 @@ run, test and release it.
   calories so far against your average for the same meals ("So far today:
   100 cal less than your average breakfast and lunch") and today's weight
   against your average weight and yesterday ("0.6 lbs below your
-  average"), with the numbers behind each. Plain bars show today's
-  calories so far, your usual for those meals, the average day (when it's
-  different) and yesterday side by side, from zero. When a meal logged
-  today has never been logged before (so it has no average), today's bar
-  covers only the meals the sentence compares ("Today, these meals") and
-  that meal has its own bar ("Snack 2 (no average yet)"), so the gap
-  between today's bar and "Usual for these meals" is always the sentence's
-  number. When both averages
-  show, a line under the bars says the sentence used "Usual for these
-  meals", and that "Average day" is a whole day's, so a fair match only
-  once today is finished. Each meal's today, yesterday and
-  average are one tap further down (**Each meal…**). Below that are
+  average"), with the numbers behind each. Once there's more than 30 days
+  of history, each sentence gives the last 30 days' average as well as the
+  all-time one (see [How the numbers work](#how-the-numbers-work)). Two plain bars from zero show
+  today's calories so far and your usual for those same meals, so the gap
+  between them is always the sentence's number. When a meal logged today
+  has never been logged before (so it has no average), today's bar covers
+  only the meals the sentence compares ("Today, these meals"), and the
+  line under the sentence names the meal left out. That line also gives
+  the whole average day and yesterday. Each meal's today, yesterday and
+  average are one tap further down (**See each meal**). Below that are
   7-day rolling averages of calories and weight. The 7-day calorie average
   leaves today out until the day is over (on the Today screen's Calories
   chart today's running total is a lone hollow marker labelled "so far",
@@ -73,21 +85,36 @@ run, test and release it.
 - **Photos** stores progress pictures, filed under the day they were taken
   (with none yet, it says what they're for and offers **Add your first
   photo**):
-  pick the day before adding one (it starts at today, and future days aren't
-  allowed), and change it later from the photo viewer. The viewer steps
+  **Add Photo** picks the photo first; then, beside a preview, **Which day
+  was this photo taken?** asks for its day (it starts at today, and future
+  days aren't allowed: a day to come, or an empty box, stays as typed with
+  the reason under it, and **Save photo** saves nothing until the day is
+  fixed) and **Save photo** saves it (**Cancel** leaves it out). The day can be changed later from the photo viewer. Kenna keeps a
+  smaller copy of each photo (at most 1,600 pixels on its longest side,
+  re-saved as JPEG where the browser can), and the Photos screen says so:
+  the original stays in the phone's photo library. The viewer steps
   through the photos oldest first with **Previous** and **Next**, a swipe or
   the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
   in the viewer) shows two photos side by side, older on the left, with
-  each one's date and that day's weight and how far apart they are.
+  each one's date and that day's weight (or "No weight logged") and how
+  far apart they are. Both sit in frames of the same size, shaped like
+  the more upright of the two, and each is shown whole, so a portrait and
+  a landscape photo line up without either being cropped.
   Deleting a photo asks first, inside the viewer (the photo stays in view;
-  **Cancel** or Escape goes back to it), so only one dialog is ever open. A photo in a format the
+  **Cancel** or Escape goes back to it), so only one dialog is ever open.
+  Once it's deleted, **Undo** in the message that follows brings it back
+  as it was, on the same day and with the same time added (so a backup
+  that has it still finds it already here). Until then it's only hidden;
+  it's erased for good when that message goes (dismissed, or you move on
+  to another screen), or the next time Kenna starts. A photo in a format the
   browser can't draw (HEIC anywhere but Safari, for example after
   restoring a backup on a laptop) is still kept and backed up as it is;
   adding one says it can't be previewed in this browser, and the grid, the
   viewer and the comparison say "Can't preview in this browser" in its
   place.
 - **Settings** (top right, the gear with the word Settings) has the light/dark theme (or follow the system),
-  backup export and import, where your data is stored, and the **Problem
+  backup export and import, how often Kenna asks for a backup (**Backup
+  reminders**), where your data is stored, and the **Problem
   log** (see [Where your data lives](#where-your-data-lives-and-backups)),
   and **What's new → Take the tour**: a guided tour of what the latest
   update added. It moves through the screens, lights up each new feature
@@ -105,7 +132,10 @@ Compare, History and Settings use two columns: the day's entry or the
 answers on the left, charts and the rest on the right; from about 900
 pixels the tabs also move up beside the Kenna name and Settings. History's right column lists every
 month's average calories and weight (**Month by month**, in place of Go
-to month); tapping a month goes to it.
+to month); tapping a month goes to it. The table scrolls inside its box so
+the column stays beside the list; when older months are below the box's
+edge, the edge fades and a button under it says how many (**Show 5 earlier
+months**) and scrolls to them.
 
 ## How the numbers work
 
@@ -115,16 +145,16 @@ to month); tapping a month goes to it.
 | Weight | 50 to 1,000 lbs, at most two decimal places |
 | Days that can be logged | today and earlier |
 | Averages | leave out today; calories count only days with meals |
-| Averages shown | to one decimal for weight (166.0 lbs), whole calories |
-| Weight differences | always one decimal (12.0 lbs down, 0.4 lbs up) |
+| Weights shown together | one decimal (171.0 lbs), or two when one of them was logged with two |
+| Calorie averages | whole calories |
 | Units and language | pounds, US English only |
 
 - A day counts toward calorie statistics (averages, the "yesterday"
   comparison, charts) only if at least one meal was logged. A day with only a
   weight shows "No meals logged", never "0 cal", and is a gap in the calorie
   chart. Weight statistics use every day that has a weight.
-- Every average leaves out today: the all-time averages on Compare (so it
-  shows "today vs a typical day") and each month's averages in History,
+- Every average leaves out today: the all-time and 30-day averages on
+  Compare (so it shows "today vs a typical day") and each month's averages in History,
   for calories and weight alike, so a month reads the same wherever it's
   shown. (The 7-day weight trend line includes today's weigh-in; the
   7-day calorie line doesn't, see Compare in [Screens](#screens).)
@@ -134,6 +164,16 @@ to month); tapping a month goes to it.
   today that was never logged before has no average; it's left out of the
   comparison and named under it. The average whole day is still shown
   beside it.
+- Once anything was logged more than 30 days before today, Compare measures
+  today against two baselines: the 30 days before today and all time
+  ("4.8 lbs above your 30-day average and 12.4 lbs below your all-time
+  average"; "100 cal more than your average lunch over the last 30 days,
+  and 50 cal less than all-time"), with a bar for each. Over a long weight
+  loss the all-time average falls further behind every week, so on its own
+  it would always say today is well below it; the 30-day one shows a recent
+  slide. Until then the two are the same, and Compare says "your average".
+  The calorie sentence uses the 30-day baseline only when today's meals
+  were all logged in those 30 days.
 - A meal's average uses only the days that meal was logged.
 - Calories must be whole numbers from 0 to 10,000 per meal ("1,200" is read
   as 1200); weight must be between 50 and 1,000 lbs, with at most two decimal
@@ -146,12 +186,41 @@ to month); tapping a month goes to it.
   lists of foods still import as their total. The first version saved
   weights exactly as typed; a weight with more than two decimals from then
   is shown, written into backups and read from backups rounded to two.
+- A value inside those limits but far from your own history, most likely a
+  typo, is asked about before it's saved ("Keep 4,500 cal for breakfast?",
+  **Keep it** or **Change it**); nothing is saved until you choose, and
+  the number stays in its box. A meal is asked about when it's more than
+  3 times its usual size (the median of its last 30 logs) and more than
+  1,000 cal above it, or, before it has been logged 3 times, when it's
+  over 3,000 cal. A weight is asked about when it's more than 5 lbs from
+  the nearest other day's weight, allowing half a pound more for each
+  further day between them (but never more than a quarter of that
+  weight). Pressing Enter, **Save and close** or picking another meal asks
+  straight away; leaving the box asks once the tap that left it is done.
+  Leaving the screen, or putting the app away, can't wait for an answer,
+  so the number is kept, not saved, and asked about the next time its box
+  is shown. After **Change it**, **Keep it** under the box still saves it.
+  Until a kept meal is confirmed or changed, Today shows it in that meal's
+  row ("4,000 cal not saved yet", with **Confirm**; a number that isn't
+  valid shows as typed, with **Fix**), the day's total adds "+ 4,000 cal
+  not saved yet", Log Meal marks that meal's button **Not saved**, and
+  History marks the day ("Breakfast not saved yet"). Tapping the row, or
+  the meal's button, brings the number back into its box and asks again.
+  A number kept this way isn't counted in totals, averages or charts until
+  it's saved.
 - A day after today can't be logged, whether picked or typed into the
   address bar. The same goes for filing a photo. A backup's days and photos dated
   after today are left out on import, and the import says how many. An
-  address that doesn't lead anywhere opens Today and is replaced by Today's
-  address; one with a date that doesn't exist (Feb 30) does the same and
-  says "That date doesn't exist, so Today is shown."
+  address that doesn't lead anywhere opens Today, is replaced by Today's
+  address and says why: "That date doesn't exist, so Today is shown." for
+  a date that doesn't exist (Feb 30), "Kenna opens days from 1900 to 2999,
+  so Today is shown." for a year outside those, and "That address doesn't
+  lead anywhere, so Today is shown." for anything else, including a known
+  address with a part added that means nothing (`#/history/foo`,
+  `#/log/brunch`). An address that names a valid day in the wrong place
+  (`#/log/2026-09-20` for `#/day/2026-09-20/log`) opens that day instead,
+  never today's Log Meal: "That address doesn't lead anywhere, so Sun,
+  Sep 20 is shown."
 - A day more than a year ago that is also more than a month before the
   first day you logged is probably a mistyped year (2002 for 2026), so
   opening it, by the day picker or by address, asks "Log a day in 2002?"
@@ -171,11 +240,13 @@ to month); tapping a month goes to it.
   calorie axis never goes below 0. The value axis always covers at least
   2 lbs, or 200 cal (a fifth of the value, when that's more), so a single
   day or a tiny change doesn't look like a dramatic one.
-- A weight is shown as it was entered, to up to two decimals (165.25);
-  averages, and every difference between weights (from an average or
-  from yesterday), always show one decimal (166.0 lbs, 1.0 lbs above your
-  average, 12.0 lbs down from yesterday). A difference too small to show
-  at one decimal (0.04 lbs) reads "less than 0.1 lbs", never "the same".
+- Weights shown together (one answer on Compare, one month in History,
+  two photos compared) all have the same number of decimals, their
+  averages and the differences between them included: one ("average 171.0
+  lbs · yesterday 171.0 lbs", "1.0 lbs above your average"), or two when
+  any weight among them was logged with two ("165.25 lbs today: 0.75 lbs
+  below your average"), so a weight is never rounded away. A weight on
+  its own (the Weight box, the chart's latest value) shows as entered.
 - Weight is in pounds (lbs) and dates and numbers are written the US English
   way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. Pounds and
   US English only are a deliberate limit of scope: there is no kilogram
@@ -197,11 +268,37 @@ and the newer files, once they arrive, are used from the next launch.
 Days are stored in the browser's `localStorage` and photos in its IndexedDB,
 on that device only. On first launch the app asks the browser to keep this
 data even when the device runs low on space (Settings shows the answer
-where the browser supports asking). Every save also keeps one previous copy of your days, and if
-the stored data is ever found damaged the app restores that copy and tells you.
+where the browser supports asking). Every day is kept under the key
+`kenna:entries`, as every version of Kenna has stored it, and every save
+writes the whole history there (ten years of days is well under a
+megabyte) along with an automatic copy under `kenna:entries:backup`. If
+the stored data is ever found damaged the app restores that copy and
+tells you. An earlier version saved changed days separately, under
+`kenna:entries:recent`; any such changes still on the phone are folded
+into `kenna:entries` the first time Kenna reads the days. They were marked
+with the length and a fingerprint of the `kenna:entries` they were made
+on, so changes left over days that another version of the app has changed
+since (after a rollback) are set aside as damaged data rather than applied
+over newer days.
 The damaged data itself is kept aside (the two most recent damaged copies,
 never more), and Settings then shows a card to **Download damaged data**
 as a file or **Delete damaged data**.
+
+Kenna open in two windows or tabs of the same browser (two Safari tabs,
+two windows on a laptop, or Chrome and the app installed from it on
+Android) shares the same days; on iPhone the Home Screen app keeps its
+own, separate storage. A change saved in one
+shows in the other at once, and again whenever that one comes back into
+view. The Weight box and the Log Meal box take the new value if nothing
+different was typed in them ("Breakfast changed to 450 cal in another
+window"), so switching away from them, closing them or picking another
+meal saves nothing. If a different number was typed there, it is never
+saved over the new value without asking: the line under the box says
+"Not saved yet. Breakfast was changed to 450 cal in another window.",
+with **Use 450 cal**; saving it (leaving the box, Enter, another meal,
+**Save and close**) first asks **Keep 450 cal** or **Save 500 cal**; and
+switching away, closing the window or opening another screen keeps the
+typed number unsaved, to be asked about the next time that box is shown.
 
 If the browser refuses a save (storage full, or photo storage that won't
 open), the app says what failed, that what's already saved is safe, and
@@ -230,20 +327,40 @@ On iPhone and iPad, Safari may delete a website's data when it hasn't
 been used for about a week, unless the site is on the Home Screen. So when
 Kenna runs in a Safari tab there (not opened from the Home Screen), Today
 shows a card saying so, with the steps one tap away (**How to add it**:
-Share → Add to Home Screen → open Kenna from that icon). If anything is
-logged it also says to save a backup first, because the Home Screen app
-starts with its own, empty storage. **Not now** hides the card for a
+Share → Add to Home Screen → open Kenna from that icon). The card sits
+under the day, so every visit starts with the day itself (its heading,
+the Weight box and Log Meal); once anything is logged it also says to
+save a backup first, because the Home Screen app starts with its own,
+empty storage. **Not now** hides the card for a
 week; it never appears when Kenna is opened from the Home Screen, and
 Settings explains the same risk.
 
 That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
-logged, the Today screen reminds you when no backup has been saved from this
-device yet, or when the last one is more than a week old; **Back up now**
-makes one straight away, and **Not now** hides the reminder for three days.
-Today shows at most one of these cards above the day, so the Weight box
-stays in view: the Home Screen card first (it already says to back up),
-then the backup reminder once that card is hidden or doesn't apply.
+logged, a line under the day on Today always says how old the last saved
+backup is, with **Back up now**, which makes the file and leads straight to
+saving it. A card under the day asks for a backup:
+
+- once three days have something logged (a weight, a meal or a photo), when
+  none has been saved from this device yet, or when the last one is as old
+  as the interval chosen in **Settings → Backup reminders**: **Daily**,
+  **Every 3 days** (unless changed) or **Weekly**. Settings says in words
+  what the choice means;
+- as soon as a progress photo is added that isn't in a saved backup (it was
+  added after the last saved backup file was made), however few days are
+  logged, because a photo can't be taken again. The card then also shows on
+  the Photos screen, straight after the photo is added, and says how many
+  photos aren't in a backup.
+
+**Back up now** makes one straight away; **Not now** puts the question off
+until the next day, unless another photo is added meanwhile, which brings it
+back. While it's put off, the line under the day keeps showing the backup's
+age, marked as overdue. (While the card shows, it says the age itself, so the
+line waits until the card is gone.) A question put off by an earlier version,
+for three days, stays put off for those three days. Today shows at most one of
+these cards at a time, always under the day, so the Weight box and Log Meal
+come first: the Home Screen card first (it already says to back up), then the
+backup reminder once that card is hidden or doesn't apply.
 
 - **Settings → Export Backup** makes one `.json` file containing every day
   (weight and each meal's calories) and every progress photo with the date
@@ -256,17 +373,22 @@ then the backup reminder once that card is hidden or doesn't apply.
 - A backup only counts as saved, for the reminder and for the "Last backup
   file saved" line in Settings and History, once a share has completed or
   you've tapped **I've saved it**; cancelling the share sheet or ignoring a
-  download leaves the reminder in place. (Versions before this recorded
+  download leaves the reminder in place. Kenna also notes when that file was
+  made, to tell which photos are in it. (Versions before this recorded
   the time a download started; that time is still used by the reminder, and
   Settings says it wasn't confirmed.)
 - **Settings → Import Backup** checks the whole file first, then asks
   before changing anything: how many days and photos the file has, how
-  many of your days it will replace with the file's version, and how many
-  it adds. If some days or photos in the file can't be restored (a value
+  many of your days it will replace with the file's version, how many
+  days and photos it adds, and how many are already here. A file that
+  would change nothing (everything in it is already on the device, such
+  as the same file imported again) says so, with only **Close**. If some days or photos in the file can't be restored (a value
   outside the rules above, a date that doesn't exist), the question lists
   them and the button reads **Restore the rest**; the result lists them
   again. A file with nothing that can be restored isn't imported, and the
-  message says what's wrong. Days in the file replace the same days on the
+  message says what's wrong; a file that isn't a Kenna backup at all is
+  refused with which file to pick instead (the one Export Backup saved,
+  named `kenna-backup-` and the date, ending in `.json`). Days in the file replace the same days on the
   device (other days are kept); a day already on the device exactly as in
   the file is left alone, and the result counts it as already here rather
   than restored; the days about to be replaced are saved
@@ -301,9 +423,10 @@ same file again adds only the photos that are still missing.
 ## Development details
 
 The JavaScript is type-checked with TypeScript from JSDoc comments. `npm
-run typecheck` runs it; `docs/globals.d.ts` declares what the classic
-scripts put on `window`. ESLint (`npm run lint`) also keeps every function
-in `docs/app.js` and `docs/ui/` to 80 lines of code or fewer.
+run typecheck` runs it; `docs/globals.d.ts` declares what `docs/data.js`
+puts on `window`. ESLint (`npm run lint`) also keeps every function in
+`docs/` (the screens, the rules, the storage and the backup files) to 80
+lines of code or fewer.
 
 The page loads `docs/build/data.js` and `docs/build/app.js` rather than the
 thirty-odd source files, so a first visit on a slow connection waits for a
@@ -336,10 +459,15 @@ the unit tests alone.
 
 GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
 request, as two checks: **Tests / test** (lint, type check, unit tests,
-Chromium) and **Tests / webkit**. GitHub only blocks merging a failing
-change once branch protection is on: in **Settings → Branches**, add a rule
-for the published branch (see [Where the app is published](#where-the-app-is-published)), tick *Require status checks to pass
-before merging*, and select both checks.
+Chromium) and **Tests / webkit**. A ruleset on the published branch
+(see [Where the app is published](#where-the-app-is-published)) requires
+both to pass before a pull request can be merged; the README's "Who
+looks after it" says what else it enforces and where to confirm it. On a
+pull request into the published branch a third job, **Tests /
+release-record**, runs `scripts/check-release-record.js`: it passes only
+when RELEASE-CHECKLIST.md's Record table has a "Before merging" row naming
+a commit on the branch after which nothing but the checklist changed, with
+every step's result given by number.
 
 ### Where the app is published
 

@@ -10,6 +10,7 @@ const photoFile = (name = 'me.png') => ({ name, mimeType: 'image/png', buffer: P
 
 async function addPhoto(page) {
   await page.locator('input[type=file]').setInputFiles(photoFile());
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
 }
 
@@ -34,7 +35,7 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await thumb.click();
   await viewer.getByRole('button', { name: 'Delete…' }).click();
   const question = viewer.getByRole('group', { name: 'Delete this photo from Thu, Sep 24?' });
-  await expect(question).toContainText("can't be undone");
+  await expect(question).toContainText('Undo brings it back straight afterwards.');
   expect(await page.evaluate(() => document.querySelectorAll('dialog[open]').length)).toBe(1);
   await expect(viewer.getByRole('img', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
   await expect(viewer.getByRole('button', { name: 'Close' })).toBeHidden();
@@ -57,6 +58,56 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
 });
 
+test('a deleted photo can be brought back with Undo, as it was, and is erased once that chance has passed', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  // A backup with the photo in it, for later.
+  await page.goto(`${appURL}/#/settings`);
+  const saved = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Backup' }).click();
+  const file = await (await saved).path();
+
+  const deletePhoto = async () => {
+    await page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete…' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete photo' }).click();
+    await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
+  };
+  const stored = () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const req = indexedDB.open('kenna-photos');
+          req.onsuccess = () => {
+            const get = req.result.transaction('photos').objectStore('photos').getAll();
+            get.onsuccess = () => resolve(get.result.map((r) => ({ date: r.date, createdAt: r.createdAt })));
+          };
+        })
+    );
+  await page.goto(`${appURL}/#/photos`);
+  const before = await stored();
+  await deletePhoto();
+  const offer = page.locator('.toast').filter({ hasText: 'Photo from Thu, Sep 24 deleted' });
+  await offer.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
+  expect(await stored()).toEqual(before);
+
+  // Still recognised as the same photo by a backup that has it.
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('Everything in it is already on this device');
+  await notice.getByRole('button', { name: 'Close' }).click();
+
+  // Moving on to another screen erases it.
+  await page.goto(`${appURL}/#/photos`);
+  await deletePhoto();
+  await expect(offer).toBeVisible();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(offer).toHaveCount(0);
+  await expect.poll(stored).toEqual([]);
+});
+
 test('tapping outside the photo closes the viewer', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/photos`);
   await addPhoto(page);
@@ -66,10 +117,21 @@ test('tapping outside the photo closes the viewer', async ({ page, appURL }) => 
   await expect(page.getByRole('dialog')).toBeHidden();
 });
 
+test('Cancel leaves the picked photo out', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('group', { name: 'Which day was this photo taken?' })).toHaveCount(0);
+  await expect(page.locator('label').filter({ hasText: 'Add Photo' })).toBeVisible();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('[data-photos-empty]')).toBeVisible();
+});
+
 test('files that are not photos are refused', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/photos`);
   await page.locator('input[type=file]').setInputFiles({ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('hello, this is text') });
-  await expect(page.getByText("That file isn't a photo we can show.")).toBeVisible();
+  await expect(page.getByText("That file isn't a photo we can show.")).toContainText('Pick a photo from your library: JPEG, PNG, HEIC or WebP.');
   await expect(page.locator('.photo-thumb')).toHaveCount(0);
 });
 
@@ -112,12 +174,17 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   await expect(fresh.getByRole('button', { name: 'Progress photo, Sun, Sep 20' })).toBeVisible();
   await expect(fresh.getByRole('button', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
   await fresh.goto(`${freshURL}/#/history`);
-  await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182 lbs');
+  await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182.0 lbs');
 
+  // Importing the same file again changes nothing, and says so without offering Restore.
   await fresh.goto(`${freshURL}/#/settings`);
   await fresh.locator('input[type=file]').setInputFiles(file);
-  await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText('Nothing new to restore. 2 days and 2 photos were already here.', { exact: true })).toBeVisible();
+  const notice = fresh.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 2 days and 2 photos');
+  await expect(notice).toContainText('Everything in it is already on this device');
+  await expect(notice.getByRole('button', { name: 'Restore' })).toHaveCount(0);
+  await notice.getByRole('button', { name: 'Close' }).click();
+  await expect(fresh.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
   await fresh.goto(`${freshURL}/#/photos`);
   await expect(fresh.locator('.photo-thumb')).toHaveCount(2);
   await ctx.close();
@@ -170,18 +237,43 @@ test('photos in a backup dated after today are left out, and the import says so'
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
 });
 
-test('a photo can be filed under an earlier day and moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
+test('a photo is picked first, then filed under the day it was taken, and can be moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
   await page.goto(`${appURL}/#/photos`);
-  const day = page.getByLabel('Day this photo was taken');
+  await expect(page.getByText('Kenna keeps a smaller copy of each (1,600 pixels on its longest side), so keep the original in your photo library.')).toBeVisible();
+  // No day to set before there's a photo.
+  await expect(page.getByLabel('Day this photo was taken')).toHaveCount(0);
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  const confirm = page.getByRole('group', { name: 'Which day was this photo taken?' });
+  await expect(confirm.getByRole('img', { name: 'The photo to add' })).toBeVisible();
+  const day = confirm.getByLabel('Day this photo was taken');
   await expect(day).toHaveValue(TODAY);
   await expect(day).toHaveAttribute('max', TODAY);
-  await day.fill('2026-09-30');
+  // Nothing is saved until the day is confirmed.
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+  // A day to come is refused, stays in the box with why, and Save photo
+  // doesn't save the photo under any other day.
+  await day.fill('2027-09-30');
   await day.dispatchEvent('change');
-  await expect(page.getByText("A photo can't be filed under a day that hasn't happened yet.")).toBeVisible();
-  await expect(day).toHaveValue(TODAY);
+  const future = page.getByText("A photo can't be filed under a day that hasn't happened yet.");
+  await expect(future).toBeVisible();
+  await expect(day).toHaveValue('2027-09-30');
+  await expect(day).toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: 'Save photo' }).click();
+  await expect(future).toBeVisible();
+  await expect(day).toHaveValue('2027-09-30');
+  await expect(day).toBeFocused();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
+  // An emptied box isn't taken as today either.
+  await day.fill('');
+  await page.getByRole('button', { name: 'Save photo' }).click();
+  await expect(page.getByText('Pick the day this photo was taken.')).toBeVisible();
+  await expect(page.locator('.photo-thumb')).toHaveCount(0);
 
   await day.fill('2026-09-23');
-  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await day.dispatchEvent('change');
+  await expect(future).toHaveCount(0);
+  await expect(day).not.toHaveAttribute('aria-invalid', 'true');
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added to Yesterday' })).toBeVisible();
   const yesterday = page.locator('.card', { has: page.getByRole('heading', { name: 'Yesterday' }) });
   await expect(yesterday.getByRole('button', { name: 'Progress photo, Wed, Sep 23' })).toBeVisible();
@@ -209,8 +301,9 @@ test('a photo can be filed under an earlier day and moved to another day later',
   // Importing the older backup doesn't bring the photo back as a duplicate.
   await page.goto(`${appURL}/#/settings`);
   await page.locator('input[type=file]').setInputFiles(beforeFile);
-  await page.getByRole('button', { name: 'Restore' }).click();
-  await expect(page.getByText(/1 photo was already here/)).toBeVisible();
+  const notice = page.getByRole('dialog', { name: 'Nothing to restore' });
+  await expect(notice).toContainText('It has 1 photo and no days');
+  await notice.getByRole('button', { name: 'Close' }).click();
   await page.goto(`${appURL}/#/photos`);
   await expect(page.locator('.photo-thumb')).toHaveCount(1);
 
@@ -311,6 +404,7 @@ test('the Photos grid shows small previews; the viewer shows the whole photo', a
   await page.goto(`${appURL}/#/photos`);
   const buffer = await bigPhoto(page);
   await page.locator('input[type=file]').setInputFiles({ name: 'big.jpg', mimeType: 'image/jpeg', buffer });
+  await page.getByRole('button', { name: 'Save photo' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Photo added' })).toBeVisible();
   const gridImg = page.locator('.photo-thumb img');
   await expect.poll(() => gridImg.evaluate((el) => el.naturalWidth)).toBe(360);

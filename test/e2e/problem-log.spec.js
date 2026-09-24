@@ -1,11 +1,11 @@
-const { test, expect, TODAY } = require('./fixtures');
+const { test, expect, TODAY, day } = require('./fixtures');
 
 /** Makes the next saves of days fail, as when the phone's storage is full. */
 async function breakSaving(page) {
   await page.evaluate(() => {
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      if (key === 'kenna:entries' || key === 'kenna:entries:backup') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
       return setItem.call(this, key, value);
     };
   });
@@ -25,7 +25,8 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   await page.getByLabel('Weight (lbs)').fill('181.4');
   await page.getByLabel('Weight (lbs)').press('Enter');
   await expect(page.locator('.field-status.is-error')).toBeVisible();
-  // Retrying (and leaving) and failing again is counted, not listed each time.
+  // Retrying and failing again is counted, not listed each time; leaving
+  // the box and the screen try the same save again, which isn't counted.
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.locator('.field-status.is-error')).toBeVisible();
   const entry = await data.entry(TODAY);
@@ -35,7 +36,7 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   const card = page.locator('[data-problem-log]');
   const item = card.locator('[data-problem]');
   await expect(item).toHaveCount(1);
-  await expect(item).toContainText(/Save the weight \(\d times\)/);
+  await expect(item.locator('.problem-op')).toHaveText('Save the weight (2 times)');
   await expect(item).toContainText('Today, 10:00 AM · The device’s storage was full');
   await expect(item).not.toContainText('Error');
   // Nothing typed or logged is kept in it.
@@ -51,13 +52,50 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   await expect(card).toContainText('Copied. Paste it into a message');
   const copied = await page.evaluate(() => window.copied);
   expect(copied).toContain('Kenna problem log');
-  expect(copied).toMatch(/2026-09-24T15:00:00\.000Z {2}Save the weight: KennaError ← \w+.*\(\d times in a row\)/);
+  expect(copied).toMatch(/2026-09-24T15:00:00\.000Z {2}Save the weight: KennaError ← \w+.*\(2 times in a row\)/);
   expect(copied).not.toContain('181');
 
   await card.getByRole('button', { name: 'Clear…' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Clear' }).click();
   await expect(card).toContainText('Nothing has gone wrong on this device.');
   expect(await page.evaluate(() => localStorage.getItem('kenna:problemLog'))).toBe(null);
+});
+
+test('one failed save is noted once, however many ways it is tried again on the way out', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  await breakSaving(page);
+  await page.getByLabel('Weight (lbs)').fill('181.4');
+  await page.getByLabel('Weight (lbs)').press('Enter');
+  await expect(page.locator('.field-status.is-error')).toBeVisible();
+  await page.getByRole('link', { name: 'Settings' }).click();
+  const item = page.locator('[data-problem-log] [data-problem]');
+  await expect(item).toHaveCount(1);
+  await expect(item.locator('.problem-op')).toHaveText('Save the weight');
+
+  // The same on Log Meal: Enter, then Save and close.
+  await page.goto(`${appURL}/#/log/lunch`);
+  await page.getByLabel('Lunch calories').fill('600');
+  await page.getByLabel('Lunch calories').press('Enter');
+  await expect(page.locator('.field-status.is-error')).toBeVisible();
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(item.first().locator('.problem-op')).toHaveText('Save a meal');
+});
+
+test('photos that can’t be read on Today are noted, and Today still shows the day', async ({ page, appURL, data }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'indexedDB', { get: () => undefined, configurable: true });
+  });
+  await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 600 }, 180) });
+  await page.goto(appURL);
+  await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('180');
+  await page.getByRole('link', { name: 'Settings' }).click();
+  const item = page.locator('[data-problem-log] [data-problem]');
+  // Once for each time Today was opened (seeding opened it too).
+  await expect(item).toHaveCount(1);
+  await expect(item.locator('.problem-op')).toHaveText(/^Check which days have photos/);
+  await expect(item).toContainText('The browser’s photo storage wasn’t available');
 });
 
 test('an error nothing else caught is noted with where in the code it happened', async ({ page, appURL }) => {

@@ -17,7 +17,8 @@ export function downloadBlob(blob, filename) {
 }
 
 /**
- * @typedef {{ file: Blob, filename: string, dayCount: number, photoCount: number }} BackupResult
+ * @typedef {{ file: Blob, filename: string, dayCount: number, photoCount: number, madeAt: string }} BackupResult
+ *   madeAt: when the file was started; it holds everything logged or added before then
  */
 
 /**
@@ -34,7 +35,8 @@ export async function exportBackup(onProgress) {
   const days = {};
   for (const e of visibleEntries(entries)) days[e.date] = core.entryForBackup(e);
   const photos = await store.listPhotos();
-  const writer = window.KennaBackupFile.createBackupWriter(days, new Date().toISOString());
+  const madeAt = new Date().toISOString();
+  const writer = window.KennaBackupFile.createBackupWriter(days, madeAt);
   for (let i = 0; i < photos.length; i += 1) {
     onProgress(`Adding photos: ${i + 1} of ${photos.length}…`, i, photos.length);
     const blob = await store.getPhotoBlob(photos[i]);
@@ -42,23 +44,50 @@ export async function exportBackup(onProgress) {
   }
   onProgress('Creating backup file…', photos.length, photos.length);
   const file = writer.finish();
-  return { file, filename: `kenna-backup-${today()}.json`, dayCount: Object.keys(days).length, photoCount: photos.length };
+  return { file, filename: `kenna-backup-${today()}.json`, dayCount: Object.keys(days).length, photoCount: photos.length, madeAt };
 }
 
 // When the last backup file was confirmed saved (a completed share, or the
-// user saying the downloaded file is somewhere safe). Versions before that
-// check recorded when a download was started, under LEGACY_KEY; that time
-// is still read, but never shown as confirmed.
+// user saying the downloaded file is somewhere safe), and when that file was
+// made: photos added after then aren't in it. Versions before that check
+// recorded when a download was started, under LEGACY_KEY; that time is still
+// read, but never shown as confirmed. A confirmation saved by a version
+// that didn't record when the file was made stands for both.
 const CONFIRMED_KEY = 'backupConfirmedAt';
+const MADE_KEY = 'backupMadeAt';
 const LEGACY_KEY = 'lastBackupAt';
+export const EVERY_KEY = 'backupReminderEveryDays';
 
-/** @returns {{ at: string, confirmed: boolean } | null} */
+/** @param {string | null} t */
+const validTime = (t) => !!t && !Number.isNaN(Date.parse(t));
+
+/**
+ * The last saved backup: when it was saved, whether that was confirmed, and
+ * when it was made (it holds what was there then).
+ * @returns {{ at: string, confirmed: boolean, covers: string } | null}
+ */
 export function lastBackup() {
   const confirmed = prefs.get(CONFIRMED_KEY, null);
-  if (confirmed && !Number.isNaN(Date.parse(confirmed))) return { at: confirmed, confirmed: true };
+  if (confirmed && validTime(confirmed)) {
+    const made = prefs.get(MADE_KEY, null);
+    return { at: confirmed, confirmed: true, covers: made && validTime(made) ? made : confirmed };
+  }
   const legacy = prefs.get(LEGACY_KEY, null);
-  if (legacy && !Number.isNaN(Date.parse(legacy))) return { at: legacy, confirmed: false };
+  if (legacy && validTime(legacy)) return { at: legacy, confirmed: false, covers: legacy };
   return null;
+}
+
+/** How often Kenna asks for a backup, in days, as chosen in Settings. */
+export const backupEveryDays = () => core.backupEveryDays(prefs.get(EVERY_KEY, null));
+
+/** "every day", "every 3 days", "every week" @param {number} days */
+export const everyDaysText = (days) => (days === 1 ? 'every day' : days === 7 ? 'every week' : `every ${core.formatNumber(days)} days`);
+
+/** What a saved backup's message ends with: when Kenna will ask next. */
+export function nextReminderText() {
+  const days = backupEveryDays();
+  const when = days === 1 ? 'tomorrow' : days === 7 ? 'in a week' : `in ${core.formatNumber(days)} days`;
+  return `Kenna will remind you again ${when}.`;
 }
 
 /** One line saying when the last backup was saved, for Settings and History. */
@@ -72,9 +101,12 @@ export function lastBackupText() {
     : `A backup file was made ${day}, but Kenna can't tell whether it was saved. Export a new one to be sure.`;
 }
 
-function recordBackupSaved() {
+/** @param {string} madeAt when the saved file was made */
+function recordBackupSaved(madeAt) {
   prefs.set(CONFIRMED_KEY, new Date().toISOString());
+  prefs.set(MADE_KEY, madeAt);
   prefs.remove('backupReminderSnoozedUntil');
+  prefs.remove('backupReminderSnoozedAt');
 }
 
 /** Where to keep a backup file. */
@@ -126,7 +158,7 @@ export function buildBackupDelivery(result, options) {
 
   /** @param {'shared' | 'confirmed'} how */
   function saved(how) {
-    recordBackupSaved();
+    recordBackupSaved(result.madeAt);
     options.onSaved(how);
   }
 
@@ -198,7 +230,7 @@ async function runExport(ui, onSaved) {
       onSaved: (how) => {
         onSaved();
         ui.deliverySlot.replaceChildren();
-        ui.status.set('saved', `${how === 'shared' ? 'Backup shared' : 'Backup saved'}. Kenna will remind you again in a week.`);
+        ui.status.set('saved', `${how === 'shared' ? 'Backup shared' : 'Backup saved'}. ${nextReminderText()}`);
       },
     });
     ui.deliverySlot.append(delivery.root);
@@ -209,6 +241,35 @@ async function runExport(ui, onSaved) {
     ui.setProgress(0, 0);
     ui.busy(false);
   }
+}
+
+/**
+ * How often Kenna asks for a backup: every day, every 3 days or every week.
+ * The sentence under it says what that means.
+ */
+function reminderChoice() {
+  const name = uid('backup-every');
+  const explain = h('p', { class: 'card-sub', 'data-backup-every': '' });
+  const say = () => {
+    const days = backupEveryDays();
+    explain.textContent = `Once ${core.formatNumber(core.BACKUP_REMINDER.REMIND_FROM_DAYS)} days are logged, Kenna asks you to back up ${everyDaysText(days)}, and as soon as you add a photo that isn’t in a backup yet.`;
+  };
+  say();
+  const group = h(
+    'fieldset',
+    { class: 'segmented segmented-wide' },
+    h('legend', { class: 'visually-hidden', text: 'Remind me to back up' }),
+    core.BACKUP_REMINDER.EVERY_DAYS_CHOICES.map((days) => {
+      const radio = h('input', { type: 'radio', name, value: String(days), id: `${name}-${days}`, class: 'visually-hidden', checked: days === backupEveryDays() });
+      radio.addEventListener('change', () => {
+        prefs.set(EVERY_KEY, String(days));
+        say();
+      });
+      const label = days === 1 ? 'Daily' : days === 7 ? 'Weekly' : `Every ${core.formatNumber(days)} days`;
+      return [radio, h('label', { for: radio.id, class: 'segment', text: label })];
+    })
+  );
+  return h('div', { class: 'backup-every' }, h('h3', { class: 'section-title', text: 'Backup reminders' }), group, explain);
 }
 
 export function buildBackupSection() {
@@ -261,6 +322,7 @@ export function buildBackupSection() {
     progress,
     ui.status.el,
     ui.deliverySlot,
-    ui.resultSlot
+    ui.resultSlot,
+    reminderChoice()
   );
 }

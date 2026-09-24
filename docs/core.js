@@ -2,7 +2,8 @@
 // the tests. Pure functions only (no DOM, no storage). Each concern has its
 // own module in core/; this file puts them together as one object, which
 // Node gets with require('./docs/core.js') and the page as
-// window.KennaCore (npm run build bundles core/ into build/data.js).
+// window.KennaCore (npm run build bundles it, from data.js, into
+// build/data.js).
 //
 //   core/errors.js         messages written for the person using Kenna
 //   core/dates.js          YYYY-MM-DD dates and how they're written
@@ -10,6 +11,7 @@
 //   core/entries.js        a day's entry, read from any version's storage
 //   core/stats.js          averages, like-for-like comparison, trends
 //   core/input.js          what can be logged, and the messages when not
+//   core/unusual.js        values far from your own history, asked about first
 //   core/backup-format.js  the backup file, and backup reminders
 //   core/charts.js         chart periods, averages and axes
 //   core/photos.js         image types and base64
@@ -30,6 +32,7 @@ const numbers = require('./core/numbers.js');
 const entries = require('./core/entries.js');
 const stats = require('./core/stats.js');
 const input = require('./core/input.js');
+const unusual = require('./core/unusual.js');
 const backup = require('./core/backup-format.js');
 const charts = require('./core/charts.js');
 const photos = require('./core/photos.js');
@@ -47,7 +50,6 @@ module.exports = Object.freeze({
   LIMITS: input.LIMITS,
   BACKUP_VERSION: backup.BACKUP_VERSION,
   BACKUP_REMINDER: backup.BACKUP_REMINDER,
-  IMAGE_EXTENSIONS: photos.IMAGE_EXTENSIONS,
   todayStr: dates.todayStr,
   localDateStr: dates.localDateStr,
   isValidDateStr: dates.isValidDateStr,
@@ -66,6 +68,7 @@ module.exports = Object.freeze({
   formatCalories: numbers.formatCalories,
   formatWeight: numbers.formatWeight,
   formatAverageWeight: numbers.formatAverageWeight,
+  weightFormatFor: numbers.weightFormatFor,
   emptyMeals: entries.emptyMeals,
   normalizeMealValue: entries.normalizeMealValue,
   normalizeEntry: entries.normalizeEntry,
@@ -74,7 +77,9 @@ module.exports = Object.freeze({
   totalCalories: entries.totalCalories,
   applyPatch: entries.applyPatch,
   computeDayStats: entries.computeDayStats,
+  RECENT_DAYS: stats.RECENT_DAYS,
   computeAllTimeAverages: stats.computeAllTimeAverages,
+  computeRecentAverages: stats.computeRecentAverages,
   compareSameMeals: stats.compareSameMeals,
   buildDailyRows: stats.buildDailyRows,
   seriesFromRows: stats.seriesFromRows,
@@ -87,21 +92,25 @@ module.exports = Object.freeze({
   validateCaloriesValue: input.validateCaloriesValue,
   validatePatch: input.validatePatch,
   validateWeightValue: input.validateWeightValue,
+  UNUSUAL: unusual.UNUSUAL,
+  unusualValue: unusual.unusualValue,
   photoKey: backup.photoKey,
   entryForBackup: backup.entryForBackup,
   backupReminderDue: backup.backupReminderDue,
+  backupEveryDays: backup.backupEveryDays,
+  photosAddedSince: backup.photosAddedSince,
+  backupSnoozeEnd: backup.backupSnoozeEnd,
+  backupAge: backup.backupAge,
   checkBackupDays: backup.checkBackupDays,
   checkBackupPhoto: backup.checkBackupPhoto,
-  backupProblemsMessage: backup.backupProblemsMessage,
   backupRefusal: backup.backupRefusal,
   compareWithStored: backup.compareWithStored,
+  comparePhotos: backup.comparePhotos,
   UNREADABLE_BACKUP: backup.UNREADABLE_BACKUP,
   FUTURE_DAY: input.FUTURE_DAY,
   FUTURE_PHOTO: input.FUTURE_PHOTO,
-  parseBackup: backup.parseBackup,
   niceTicks: charts.niceTicks,
   axisMinSpan: charts.axisMinSpan,
-  CHART_PERIODS: charts.CHART_PERIODS,
   chartPeriod: charts.chartPeriod,
   periodAverages: charts.periodAverages,
   formatPeriod: charts.formatPeriod,

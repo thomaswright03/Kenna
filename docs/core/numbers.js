@@ -40,9 +40,32 @@ function formatAverageWeight(value) {
   return `${formatNumber(value, 1, 1)} lbs`;
 }
 
+// Weights shown together (in one sentence, line or list) are all written
+// with the same number of decimals: one, or two when any logged weight
+// among them has two. So a weight of 171 beside an average of 171 reads
+// "171.0 lbs" twice, and 165.25 is never rounded to 165.3.
+/**
+ * @param {(number | null | undefined)[]} logged the logged weights shown together (averages don't count: they're rounded to fit)
+ * @returns {1 | 2}
+ */
+function sharedWeightDecimals(logged) {
+  return logged.some((v) => typeof v === 'number' && Math.round(v * 100) % 10 !== 0) ? 2 : 1;
+}
+
+/**
+ * A formatter for weights shown together (see sharedWeightDecimals).
+ * @param {(number | null | undefined)[]} logged
+ * @returns {{ decimals: 1 | 2, format: (value: number) => string }}
+ */
+function weightFormatFor(logged) {
+  const decimals = sharedWeightDecimals(logged);
+  return { decimals, format: (value) => `${formatNumber(value, decimals, decimals)} lbs` };
+}
+
 module.exports = {
   formatNumber,
   formatCalories,
   formatWeight,
   formatAverageWeight,
+  weightFormatFor,
 };
