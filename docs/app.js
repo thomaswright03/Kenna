@@ -37,6 +37,7 @@ function checkForNewDay() {
 }
 
 function renderBlocked() {
+  document.title = 'Storage is blocked · Kenna';
   byId('main').replaceChildren(
     h(
       'section',

@@ -54,5 +54,5 @@ export async function buildSettings() {
     }
   }
 
-  return { root: h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), storageCard) };
+  return { title: 'Settings', root: h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), storageCard) };
 }

@@ -171,3 +171,17 @@ test('every control is at least 44 by 44 pixels', async ({ page, appURL, data })
   }
   expect(small).toEqual([]);
 });
+
+test('the header says what the app is, and each screen has its own title', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }) });
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto(appURL);
+  const tagline = page.getByText('Calorie & weight tracker');
+  await expect(tagline).toBeInViewport();
+  await expect(page).toHaveTitle('Today · Kenna');
+  const titles = { '#/history': 'History · Kenna', '#/compare': 'Compare · Kenna', '#/photos': 'Photos · Kenna', '#/settings': 'Settings · Kenna', '#/log': 'Log Meal · Kenna', '#/day/2026-09-20': 'Sun, Sep 20 · Kenna', '#/day/2026-09-20/log': 'Log Meal, Sun, Sep 20 · Kenna' };
+  for (const [hash, title] of Object.entries(titles)) {
+    await page.goto(`${appURL}/${hash}`);
+    await expect(page).toHaveTitle(title);
+  }
+});

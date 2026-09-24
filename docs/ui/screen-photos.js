@@ -134,7 +134,7 @@ export async function buildPhotos(ctx) {
   const stack = h('div', { class: 'screen-stack' }, intro);
   if (photos.length === 0) {
     stack.append(h('section', { class: 'card' }, h('p', { class: 'empty-hint', text: 'No photos yet.' })));
-    return { root: stack };
+    return { title: 'Photos', root: stack };
   }
 
   /** @type {{ date: string, items: Photo[] }[]} */
@@ -163,7 +163,7 @@ export async function buildPhotos(ctx) {
     }
     stack.append(h('section', { class: 'card' }, h('h3', { class: 'section-title', text: dateLabel }), grid));
   }
-  return { root: stack };
+  return { title: 'Photos', root: stack };
 }
 
 /**

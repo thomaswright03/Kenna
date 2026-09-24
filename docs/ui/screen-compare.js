@@ -103,5 +103,5 @@ export async function buildCompare() {
     card.append(h('p', { class: 'compare-caption', text: `Never logged, so nothing to compare: ${neverLogged.map((m) => m.label).join(', ')}.` }));
   }
   const trends = buildChartsCard({ title: 'Trends', entries, smoothing: true });
-  return { root: h('div', { class: 'screen-stack' }, card, trends.root), mounted: trends.draw };
+  return { title: 'Compare', root: h('div', { class: 'screen-stack' }, card, trends.root), mounted: trends.draw };
 }

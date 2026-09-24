@@ -10,6 +10,7 @@ import { route, updateTabs } from './router.js';
  * What a screen builder returns.
  * @typedef {object} View
  * @property {HTMLElement} root
+ * @property {string} title names the screen in the browser tab and history
  * @property {() => void} [mounted] runs once the view is on the page
  * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
  * @property {() => void} [release] frees resources such as object URLs
@@ -69,6 +70,7 @@ export async function render(options) {
   view.release = () => releases.forEach((fn) => fn());
   currentView = view;
   main.replaceChildren(view.root);
+  document.title = `${view.title} · Kenna`;
   if (opts.focus) {
     const heading = main.querySelector('h2');
     if (heading) {
@@ -116,6 +118,7 @@ function startLoading(main) {
 function errorView(err) {
   const message = err instanceof Error && err.message ? err.message : 'Something went wrong.';
   return {
+    title: "Couldn't load",
     root: h(
       'section',
       { class: 'card' },

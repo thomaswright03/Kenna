@@ -200,6 +200,7 @@ export async function buildLog(ctx) {
     doneBtn
   );
   return {
+    title: isToday ? 'Log Meal' : `Log Meal, ${core.formatDate(date, now)}`,
     root,
     mounted: () => {
       if (draft) status.set('error', `Not saved yet. ${draft.error}`);
