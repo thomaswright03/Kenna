@@ -94,7 +94,10 @@ async function start() {
   await render();
   reportUnclaimedDraft();
 
-  if (BACKEND === 'local' && 'serviceWorker' in navigator) {
+  // The app's files are kept for opening offline (the phone app) or while
+  // the server is stopped (the server version, which then says so).
+  // Browsers allow this on https and on localhost only.
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {
       // The app still works online without offline caching.
     });

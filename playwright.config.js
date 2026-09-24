@@ -37,7 +37,11 @@ module.exports = defineConfig({
   use: { trace: 'retain-on-failure' },
   projects: [
     { name: 'phone-app', use: { ...phone, browserName: 'chromium', backend: 'local' } },
-    { name: 'server-app', use: { ...phone, browserName: 'chromium', backend: 'server' } },
+    // The server version's tests stand in for a failing server with
+    // page.route, which can't see requests that pass through a service
+    // worker, so the worker is off there except in the test of opening
+    // the app while the server is stopped (server-offline.spec.js).
+    { name: 'server-app', use: { ...phone, browserName: 'chromium', backend: 'server', serviceWorkers: 'block' } },
     ...(withWebKit ? [{ name: 'phone-app-webkit', use: { ...phone, browserName: 'webkit', backend: 'local' } }] : []),
   ],
 });
