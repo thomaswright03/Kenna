@@ -32,7 +32,9 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
 
   await page.goto(appURL);
   await expect(page.locator('.chart-svg.series-calories .dot:not(.dot-hover)')).toHaveCount(2);
-  await expect(page.locator('.chart-svg.series-calories .line-gap')).toHaveCount(1);
+  // Today's total is still in progress, so it's joined by the dotted "so far" line.
+  await expect(page.locator('.chart-svg.series-calories .line-partial')).toHaveCount(1);
+  await expect(page.locator('.chart-svg.series-calories .line')).toHaveCount(0);
   await expect(page.locator('.chart-svg.series-weight .dot:not(.dot-hover)')).toHaveCount(3);
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 });
@@ -127,6 +129,35 @@ test('Compare shows 7-day averages instead of repeating the daily charts', async
   await page.goto(`${appURL}/#/compare`);
   await expect(page.getByText('7-day average of daily intake')).toBeVisible();
   await expect(page.locator('.chart-latest.series-calories')).toContainText('1,500 cal');
+});
+
+test("today's unfinished day doesn't drag the calorie trend, and is compared as 'so far'", async ({ page, appURL, data }) => {
+  const entries = {};
+  for (let i = 1; i <= 7; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { breakfast: 500, lunch: 700, dinner: 700 }, 180);
+  }
+  entries[TODAY] = day(TODAY, { breakfast: 400 }, 179.5);
+  await data.seed(entries);
+
+  await page.goto(`${appURL}/#/compare`);
+  const trend = page.locator('.chart-latest.series-calories');
+  await expect(trend).toContainText('1,900 cal');
+  await expect(trend).toContainText('Yesterday');
+  await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
+  const total = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Total calories' }) });
+  await expect(total.locator('.compare-caption')).toHaveText('So far today: ▼ −1,500 cal vs yesterday · ▼ −1,500 cal vs average');
+  await expect(total.locator('.compare-row').first()).toContainText('Today so far');
+  const weight = page.locator('.compare-metric').filter({ has: page.getByRole('heading', { name: 'Weight' }) });
+  await expect(weight.locator('.compare-caption')).not.toContainText('So far');
+
+  // The daily chart on Today shows the running total, marked as unfinished.
+  await page.goto(appURL);
+  await expect(page.locator('.chart-latest.series-calories')).toContainText('400 cal');
+  await expect(page.locator('.chart-latest.series-calories')).toContainText('Today so far');
+  await expect(page.locator('.chart-svg.series-calories .dot-partial')).toHaveCount(1);
+  await expect(page.locator('.chart-svg.series-calories .line-partial')).toHaveCount(1);
+  await expect(page.locator('.chart-svg.series-weight .dot-partial')).toHaveCount(0);
 });
 
 test('light and dark themes follow the system and can be overridden', async ({ browser, appURL }) => {

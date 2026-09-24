@@ -610,6 +610,8 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .chart-svg .line { fill: none; stroke: var(--series); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .chart-svg .line-gap { stroke: var(--series); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: 0.6; }
 .chart-svg .dot { fill: var(--series); stroke: var(--card); stroke-width: 2; }
+.chart-svg .dot-partial { fill: var(--card); stroke: var(--series); stroke-width: 2; }
+.chart-svg .line-partial { stroke: var(--series); stroke-width: 2; stroke-dasharray: 2 4; stroke-linecap: round; opacity: 0.8; }
 .chart-svg .crosshair { stroke: var(--muted); stroke-width: 1; }
 
 .chart-tooltip {

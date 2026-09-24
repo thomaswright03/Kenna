@@ -231,6 +231,25 @@ test('rolling average uses the trailing seven calendar days', () => {
   );
 });
 
+test("the 7-day calorie trend leaves out today's unfinished day; weight keeps it", () => {
+  /** @type {Record<string, any>} */
+  const entries = {};
+  for (let i = 1; i <= 7; i += 1) {
+    const date = core.shiftDate('2026-09-24', -i);
+    entries[date] = { date, weight: 180 - i / 10, meals: { breakfast: 500, lunch: 700, dinner: 700 } };
+  }
+  entries['2026-09-24'] = { date: '2026-09-24', weight: 179.8, meals: { breakfast: 400 } };
+  const rows = core.buildDailyRows(entries);
+  const calories = core.trendSeries(rows, 'calories', '2026-09-24');
+  const last = calories[calories.length - 1];
+  assert.equal(last.date, '2026-09-23');
+  assert.equal(last.value, 1900);
+  assert.ok(calories.every((p) => p.date < '2026-09-24'));
+  const weight = core.trendSeries(rows, 'weight', '2026-09-24');
+  assert.equal(weight[weight.length - 1].date, '2026-09-24');
+  assert.equal(weight.length, 8);
+});
+
 test('image sniffing recognises photos and rejects other files', () => {
   const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
   const heic = Uint8Array.from([0, 0, 0, 24, ...Buffer.from('ftypheic')]);

@@ -365,6 +365,22 @@
     return out;
   }
 
+  // The 7-day trend line on Compare. Today's calories are left out: the day
+  // isn't over, so its running total (breakfast only, at 10 AM) would drag
+  // the average down every morning. Weight is one reading a day and keeps
+  // today; days after today never count.
+  /**
+   * @param {{ date: string, calories: number | null, weight: number | null }[]} rows
+   * @param {'calories' | 'weight'} field
+   * @param {string} today
+   * @param {number} [windowDays]
+   * @returns {{ date: string, value: number, count: number }[]}
+   */
+  function trendSeries(rows, field, today, windowDays) {
+    const daily = seriesFromRows(rows, field).filter((p) => (field === 'calories' ? p.date < today : p.date <= today));
+    return rollingAverage(daily, windowDays || 7);
+  }
+
   // ---------------------------------------------------------------- input
 
   // Validates what the user typed. Returns { ok, value } or { ok: false, error }.
@@ -723,6 +739,7 @@
     buildDailyRows,
     seriesFromRows,
     rollingAverage,
+    trendSeries,
     validateCalories,
     validateWeight,
     validateIncomingEntry,

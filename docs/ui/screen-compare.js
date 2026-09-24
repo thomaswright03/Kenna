@@ -58,13 +58,15 @@ function compareMetric(metric, t, y, avg, withCaption) {
   const parts = [];
   if (t !== null && y !== null) parts.push(`${formatDelta(t - y, metric.unit)} vs yesterday`);
   if (t !== null && avg !== null) parts.push(`${formatDelta(t - avg, metric.unit)} vs average`);
-  let caption = parts.join(' · ');
+  // Today's calories are still being logged, so they're compared as "so far".
+  const partial = metric.unit === 'cal';
+  let caption = parts.length ? `${partial ? 'So far today: ' : ''}${parts.join(' · ')}` : '';
   if (!caption) caption = t === null ? `${metric.emptyToday} yet today.` : 'Not enough history to compare yet.';
   return h(
     'div',
     { class: 'compare-metric' },
     h('h3', { class: 'compare-label', text: metric.label }),
-    compareRow('Today', t, metric.unit, maxVal, true, metric.empty),
+    compareRow(partial ? 'Today so far' : 'Today', t, metric.unit, maxVal, true, metric.empty),
     withCaption ? compareRow('Yesterday', y, metric.unit, maxVal, false, metric.empty) : null,
     withCaption ? compareRow('All-time avg', avg, metric.unit, maxVal, false, metric.empty) : null,
     withCaption ? h('p', { class: 'compare-caption', text: caption }) : null
@@ -97,7 +99,7 @@ export async function buildCompare() {
     h('h2', { class: 'card-title', text: 'Compare' }),
     h('p', {
       class: 'card-sub',
-      text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Averages leave out today and days with nothing logged.`,
+      text: `Today (${core.formatDate(now, now)}) against yesterday and your all-time average. Today’s calories are what’s logged so far. Averages leave out today and days with nothing logged.`,
     })
   );
   if (!earlier) {
