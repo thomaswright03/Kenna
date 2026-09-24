@@ -2,17 +2,34 @@
 // store-local.js, backed by the /api endpoints in server.js. Every request
 // checks for failure and rejects with a plain-language message, so the UI
 // can say "not saved" instead of pretending.
+
+/**
+ * @typedef {import('./store-local.js').Photo} Photo
+ * @typedef {import('./core.js').Entry} Entry
+ */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./core.js'));
-  else root.KennaServerStore = factory(root.KennaCore);
-})(typeof self !== 'undefined' ? self : this, function (core) {
+  else /** @type {any} */ (root).KennaServerStore = factory(/** @type {any} */ (root).KennaCore);
+})(typeof self !== 'undefined' ? self : this, function (/** @type {typeof import('./core.js')} */ core) {
   'use strict';
 
+  /**
+   * @param {{ fetch?: typeof fetch, base?: string }} [options]
+   * @returns {import('./store-local.js').KennaStore}
+   */
   function createServerStore(options) {
     const opts = options || {};
-    const fetchFn = opts.fetch || ((...args) => fetch(...args));
+    /** @type {typeof fetch} */
+    const fetchFn = opts.fetch || ((input, init) => fetch(input, init));
     const base = opts.base || '';
 
+    /**
+     * @param {string} method
+     * @param {string} path
+     * @param {unknown} [body]
+     * @returns {Promise<any>}
+     */
     async function request(method, path, body) {
       let res;
       try {
@@ -39,7 +56,13 @@
 
     // Writes go one at a time, in order, so a slow save can never land after
     // (and undo) a later one.
+    /** @type {Promise<unknown>} */
     let queue = Promise.resolve();
+    /**
+     * @template T
+     * @param {() => Promise<T>} fn
+     * @returns {Promise<T>}
+     */
     function serial(fn) {
       const run = queue.then(fn, fn);
       queue = run.catch(() => {});
@@ -48,6 +71,7 @@
 
     async function loadEntries() {
       const list = await request('GET', '/api/entries');
+      /** @type {Record<string, Entry>} */
       const entries = {};
       for (const item of Array.isArray(list) ? list : []) {
         const entry = core.normalizeEntry(item && item.date, item);
@@ -62,20 +86,25 @@
       return entry && !core.isEntryEmpty(entry) ? entry : null;
     }
 
+    /** @param {string} date @param {import('./core.js').EntryPatch} patch */
     function updateEntry(date, patch) {
       return serial(async () => {
         const item = await request('PATCH', `/api/entries/${encodeURIComponent(date)}`, patch);
-        return core.normalizeEntry(date, item);
+        const entry = core.normalizeEntry(date, item);
+        if (!entry) throw new Error('The Kenna server sent back something unexpected. Reload the page and check this day.');
+        return entry;
       });
     }
 
+    /** @param {Record<string, Entry>} entries @returns {Promise<number>} */
     function importEntries(entries) {
       return serial(async () => {
         const result = await request('POST', '/api/import', { entries });
-        return result.restored;
+        return Number(result && result.restored) || 0;
       });
     }
 
+    /** @param {any} p @returns {Photo} */
     function toPhoto(p) {
       return { id: p.id, date: p.date, createdAt: p.createdAt, type: p.type || 'image/jpeg', url: `/photos/${encodeURIComponent(p.filename)}` };
     }
@@ -85,28 +114,33 @@
       return (Array.isArray(list) ? list : []).map(toPhoto);
     }
 
+    /** @param {Blob} blob @returns {Promise<string>} */
     function blobToDataUrl(blob) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
+        reader.onload = () => resolve(String(reader.result));
         reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(blob);
       });
     }
 
+    /** @param {{ date: string, createdAt?: string, blob?: Blob, type?: string, data?: string }} photo */
     async function postPhoto(photo) {
-      const dataUrl = photo.data ? `data:${photo.type};base64,${photo.data}` : await blobToDataUrl(photo.blob);
+      const dataUrl = photo.data ? `data:${photo.type};base64,${photo.data}` : await blobToDataUrl(photo.blob || new Blob());
       return request('POST', '/api/photos', { date: photo.date, createdAt: photo.createdAt, dataUrl });
     }
 
+    /** @param {{ date: string, blob: Blob, createdAt?: string }} photo */
     function addPhoto(photo) {
       return serial(async () => toPhoto(await postPhoto(photo)));
     }
 
+    /** @param {Photo['id']} id */
     function deletePhoto(id) {
       return serial(() => request('DELETE', `/api/photos/${encodeURIComponent(id)}`));
     }
 
+    /** @param {Photo} photo */
     async function getPhotoBlob(photo) {
       let res;
       try {
@@ -118,10 +152,15 @@
       return res.blob();
     }
 
+    /** @param {Photo} photo */
     function photoSrc(photo) {
       return { url: base + photo.url, release: () => {} };
     }
 
+    /**
+     * @param {import('./core.js').BackupPhoto[]} photos
+     * @param {(done: number, total: number) => void} [onProgress]
+     */
     function importPhotos(photos, onProgress) {
       return serial(async () => {
         let added = 0;
@@ -137,7 +176,7 @@
     }
 
     return {
-      kind: 'server',
+      kind: /** @type {const} */ ('server'),
       init: async () => ({ ok: true }),
       loadEntries,
       getEntry,

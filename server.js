@@ -83,6 +83,7 @@ function requireDate(date) {
 
 function validatePatch(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400, 'Send the fields to change as a JSON object.');
+  /** @type {import('./docs/core.js').EntryPatch} */
   const patch = {};
   for (const key of Object.keys(body)) {
     if (key !== 'weight' && key !== 'meals') throw new ApiError(400, `Unknown field "${key}".`);
@@ -96,7 +97,9 @@ function validatePatch(body) {
   }
   if (body.meals !== undefined) {
     if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) throw new ApiError(400, 'Meals must be an object.');
-    patch.meals = {};
+    /** @type {Record<string, number | null>} */
+    const meals = {};
+    patch.meals = meals;
     for (const key of Object.keys(body.meals)) {
       const step = core.MEAL_STEPS.find((m) => m.key === key);
       if (!step) throw new ApiError(400, `Unknown meal "${key}".`);
@@ -104,7 +107,7 @@ function validatePatch(body) {
       if (v !== null && !(Number.isInteger(v) && v >= core.LIMITS.caloriesMin && v <= core.LIMITS.caloriesMax)) {
         throw new ApiError(400, `${step.label} must be a whole number of calories from 0 to ${core.LIMITS.caloriesMax}.`);
       }
-      patch.meals[key] = v;
+      meals[key] = v;
     }
   }
   return patch;

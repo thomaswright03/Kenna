@@ -124,13 +124,20 @@ docs/            the app (also what GitHub Pages serves)
   store-local.js browser storage (localStorage + IndexedDB)
   store-server.js server storage (HTTP API)
   backend.js     picks the storage; server.js serves its own version
-  app.js         the user interface
+  app.js         the user interface's entry point (an ES module)
+  ui/            the interface, one module per screen plus shared parts
+                 (routing, rendering, charts, dialogs and messages, backup)
   sw.js          offline cache
 server.js        the server version and its API
 scripts/serve-docs.js  serves docs/ locally exactly as Pages would
 test/unit/       Node tests: data rules, browser storage, server API
 test/e2e/        Playwright tests, run against both versions
 ```
+
+The JavaScript is type-checked with TypeScript from JSDoc comments (no build
+step: the files that ship are the files in the repository). `npm run
+typecheck` runs it; `docs/globals.d.ts` declares what the classic scripts put
+on `window`.
 
 Run the phone app locally (no server storage involved):
 
@@ -143,7 +150,7 @@ Tests:
 
 ```bash
 npx playwright install chromium   # once
-npm test                          # lint, unit/API tests, then browser tests
+npm test                          # lint, type check, unit/API tests, then browser tests
 ```
 
 `npm run test:unit` and `npm run test:e2e` run the parts separately. GitHub

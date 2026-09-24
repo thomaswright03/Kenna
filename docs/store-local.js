@@ -2,10 +2,49 @@
 // progress photos in IndexedDB (photos are far bigger than localStorage's
 // quota allows). Every method returns a Promise so the UI treats this store
 // and the server store (store-server.js) identically.
+
+/**
+ * @typedef {import('./core.js').Entry} Entry
+ * @typedef {import('./core.js').EntryPatch} EntryPatch
+ * @typedef {import('./core.js').BackupPhoto} BackupPhoto
+ */
+
+/**
+ * A progress photo. Browser storage keeps the image itself (`blob`); the
+ * server store gives its address (`url`).
+ * @typedef {object} Photo
+ * @property {number | string} id
+ * @property {string} date the day it's filed under (YYYY-MM-DD)
+ * @property {string} createdAt when it was added (ISO time); also its identity in backups
+ * @property {string} type
+ * @property {Blob} [blob]
+ * @property {string} [url]
+ */
+
+/**
+ * The storage interface both stores implement.
+ * @typedef {object} KennaStore
+ * @property {'local' | 'server'} kind
+ * @property {() => Promise<{ ok: boolean, reason?: string }>} init
+ * @property {() => Promise<Record<string, Entry>>} loadEntries
+ * @property {(date: string) => Promise<Entry | null>} getEntry
+ * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
+ * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries
+ * @property {() => Promise<Photo[]>} listPhotos
+ * @property {(photo: { date: string, blob: Blob, createdAt?: string }) => Promise<Photo>} addPhoto
+ * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto
+ * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob
+ * @property {(photo: Photo) => { url: string, release: () => void }} photoSrc
+ * @property {(photos: BackupPhoto[], onProgress?: (done: number, total: number) => void) => Promise<{ added: number, skipped: number }>} importPhotos
+ * @property {() => Promise<boolean | null>} requestPersistence
+ * @property {() => Promise<boolean | null>} persistenceStatus
+ * @property {(callback: () => void) => void} onExternalChange
+ */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./core.js'));
-  else root.KennaLocalStore = factory(root.KennaCore);
-})(typeof self !== 'undefined' ? self : this, function (core) {
+  else /** @type {any} */ (root).KennaLocalStore = factory(/** @type {any} */ (root).KennaCore);
+})(typeof self !== 'undefined' ? self : this, function (/** @type {typeof import('./core.js')} */ core) {
   'use strict';
 
   const ENTRIES_KEY = 'kenna:entries';
@@ -16,9 +55,22 @@
 
   class StorageWriteError extends Error {}
 
+  // Stands in when the browser refuses access to localStorage altogether.
+  function blockedStorage() {
+    const fail = () => {
+      throw new Error('Storage is blocked in this browser.');
+    };
+    return /** @type {Storage} */ (/** @type {unknown} */ ({ getItem: fail, setItem: fail, removeItem: fail }));
+  }
+
+  /**
+   * @param {{ storage: Storage | null, indexedDB?: IDBFactory, navigator?: Navigator, window?: Window, onNotice?: (notice: { tone: 'warning' | 'error', message: string }) => void }} options
+   * @returns {KennaStore}
+   */
   function createLocalStore(options) {
-    const opts = options || {};
-    const storage = opts.storage;
+    const opts = options;
+    /** @type {Storage} */
+    const storage = opts.storage || blockedStorage();
     const idb = opts.indexedDB;
     const nav = opts.navigator;
     const win = opts.window;
@@ -63,7 +115,7 @@
       keepCorruptCopy(text);
       const backupText = storage.getItem(BACKUP_KEY);
       const recovered = backupText === null ? null : parseObject(backupText);
-      if (recovered) {
+      if (recovered && backupText !== null) {
         try {
           storage.setItem(ENTRIES_KEY, backupText);
         } catch {
@@ -94,8 +146,9 @@
         const previous = storage.getItem(ENTRIES_KEY);
         if (previous !== null && parseObject(previous)) storage.setItem(BACKUP_KEY, previous);
         storage.setItem(ENTRIES_KEY, JSON.stringify(obj));
-      } catch (err) {
-        const full = err && (err.name === 'QuotaExceededError' || err.code === 22);
+      } catch (e) {
+        const err = /** @type {{ name?: string, code?: number } | null} */ (e);
+        const full = err !== null && (err.name === 'QuotaExceededError' || err.code === 22);
         throw new StorageWriteError(
           full
             ? "Not saved: this browser's storage for Kenna is full."
@@ -213,12 +266,15 @@
       await tx('readwrite', (s) => s.delete(id));
     }
 
+    /** @param {Photo} photo */
     async function getPhotoBlob(photo) {
+      if (!photo.blob) throw new Error(`A photo from ${core.formatDate(photo.date)} is missing its image.`);
       return photo.blob;
     }
 
+    /** @param {Photo} photo */
     function photoSrc(photo) {
-      const url = URL.createObjectURL(photo.blob);
+      const url = URL.createObjectURL(photo.blob || new Blob());
       return { url, release: () => URL.revokeObjectURL(url) };
     }
 
@@ -288,7 +344,7 @@
     }
 
     return {
-      kind: 'local',
+      kind: /** @type {const} */ ('local'),
       init,
       loadEntries,
       getEntry,

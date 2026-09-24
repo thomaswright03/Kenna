@@ -176,7 +176,7 @@ test('older photo metadata (uploadedAt) is still listed', async (t) => {
 test('the server serves the shared app and switches it to server storage', async (t) => {
   const { base } = await startServer(t);
   const html = await (await fetch(`${base}/`)).text();
-  assert.match(html, /<script src="app.js"><\/script>/);
+  assert.match(html, /<script type="module" src="app.js"><\/script>/);
   const backend = await (await fetch(`${base}/backend.js`)).text();
   assert.match(backend, /KENNA_BACKEND = 'server'/);
 });

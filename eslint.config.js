@@ -13,6 +13,10 @@ module.exports = [
     },
   },
   {
+    files: ['docs/app.js', 'docs/ui/**/*.js'],
+    languageOptions: { sourceType: 'module' },
+  },
+  {
     files: ['docs/sw.js'],
     languageOptions: { globals: { ...globals.serviceworker } },
   },

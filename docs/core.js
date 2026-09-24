@@ -1,9 +1,19 @@
 // Kenna core: the data rules shared by the phone app, the server app and the
 // server API. Pure functions only (no DOM, no storage), so the same file runs
 // in the browser (as window.KennaCore) and in Node (via require).
+
+/**
+ * One day as the app works with it. A meal is its calorie total, or null
+ * when it wasn't logged.
+ * @typedef {{ date: string, weight: number | null, meals: Record<string, number | null> }} Entry
+ * @typedef {{ weight?: number | null, meals?: Record<string, number | null> }} EntryPatch
+ * @typedef {{ date: string, createdAt: string, type: string, data: string }} BackupPhoto a photo in a backup file (data is base64)
+ * @typedef {{ ok: true, value: number | null } | { ok: false, error: string }} Validation
+ */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.KennaCore = factory();
+  else /** @type {any} */ (root).KennaCore = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
@@ -137,7 +147,9 @@
 
   // ---------------------------------------------------------------- entries
 
+  /** @returns {Record<string, number | null>} */
   function emptyMeals() {
+    /** @type {Record<string, number | null>} */
     const meals = {};
     for (const key of MEAL_KEYS) meals[key] = null;
     return meals;
@@ -146,6 +158,7 @@
   // A meal's value is a single calorie total (number) or null if not logged.
   // Older versions logged individual foods per meal as an array; those are
   // read as their summed total, so old history keeps working unchanged.
+  /** @param {unknown} raw @returns {number | null} */
   function normalizeMealValue(raw) {
     if (raw === null || raw === undefined || raw === '') return null;
     if (Array.isArray(raw)) {
@@ -161,6 +174,7 @@
     return Number.isFinite(num) ? Math.round(num) : null;
   }
 
+  /** @param {unknown} raw @returns {number | null} */
   function normalizeWeight(raw) {
     if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') return null;
     const num = Number(raw);
@@ -170,42 +184,57 @@
   // Turns one stored entry into the clean shape the app works with, or null
   // when it can't be read at all. Tolerant on purpose: stored data may come
   // from any older version of the app.
+  /**
+   * @param {string} date
+   * @param {unknown} raw
+   * @returns {Entry | null}
+   */
   function normalizeEntry(date, raw) {
     if (!isValidDateStr(date)) return null;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const obj = /** @type {Record<string, any>} */ (raw);
     const meals = emptyMeals();
-    const rawMeals = raw.meals && typeof raw.meals === 'object' && !Array.isArray(raw.meals) ? raw.meals : {};
+    const rawMeals = obj.meals && typeof obj.meals === 'object' && !Array.isArray(obj.meals) ? obj.meals : {};
     for (const key of MEAL_KEYS) meals[key] = normalizeMealValue(rawMeals[key]);
-    return { date, weight: normalizeWeight(raw.weight), meals };
+    return { date, weight: normalizeWeight(obj.weight), meals };
   }
 
   // Reads a whole stored entries object, keeping every readable day and
   // counting (not throwing on) the ones that can't be read.
+  /**
+   * @param {unknown} raw
+   * @returns {{ entries: Record<string, Entry>, skipped: number }}
+   */
   function sanitizeEntries(raw) {
+    /** @type {Record<string, Entry>} */
     const entries = {};
     let skipped = 0;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { entries, skipped };
-    for (const key of Object.keys(raw)) {
-      const entry = normalizeEntry(key, raw[key]);
+    const obj = /** @type {Record<string, unknown>} */ (raw);
+    for (const key of Object.keys(obj)) {
+      const entry = normalizeEntry(key, obj[key]);
       if (entry) entries[key] = entry;
       else skipped += 1;
     }
     return { entries, skipped };
   }
 
+  /** @param {Record<string, unknown> | null | undefined} meals */
   function hasMeals(meals) {
     if (!meals) return false;
     return MEAL_KEYS.some((k) => normalizeMealValue(meals[k]) !== null);
   }
 
+  /** @param {Entry | null | undefined} entry */
   function isEntryEmpty(entry) {
     return !entry || (entry.weight === null && !hasMeals(entry.meals));
   }
 
   // The day's calorie total, or null when no meal has been logged. A day
   // with only a weight is "no calorie data", never "0 calories".
+  /** @param {Record<string, unknown> | null | undefined} meals @returns {number | null} */
   function totalCalories(meals) {
-    if (!hasMeals(meals)) return null;
+    if (!meals || !hasMeals(meals)) return null;
     let total = 0;
     for (const key of MEAL_KEYS) {
       const v = normalizeMealValue(meals[key]);
@@ -217,6 +246,12 @@
   // Applies a partial update ({ weight?, meals?: { key: value } }) to an
   // entry. Only the fields in the patch change, so two screens or tabs
   // editing different meals of the same day never overwrite each other.
+  /**
+   * @param {string} date
+   * @param {unknown} existing
+   * @param {EntryPatch} patch
+   * @returns {Entry}
+   */
   function applyPatch(date, existing, patch) {
     const base = existing ? normalizeEntry(date, existing) : null;
     const next = base || { date, weight: null, meals: emptyMeals() };
@@ -229,7 +264,12 @@
     return next;
   }
 
+  /**
+   * @param {Entry | null | undefined} entry
+   * @returns {Record<string, number | null>} weight, total and each meal
+   */
   function computeDayStats(entry) {
+    /** @type {Record<string, number | null>} */
     const stats = { weight: null, total: null };
     for (const key of MEAL_KEYS) stats[key] = null;
     if (!entry) return stats;
@@ -245,10 +285,16 @@
   // typical day rather than diluting its own baseline. Weight averages every
   // day with a weight; calories average only days with at least one meal; a
   // meal averages only the days that meal was logged.
+  /**
+   * @param {Record<string, Entry> | Entry[]} entries
+   * @param {string} excludeDate
+   * @returns {Record<string, number | null>} weight, total and each meal
+   */
   function computeAllTimeAverages(entries, excludeDate) {
     const list = (Array.isArray(entries) ? entries : Object.values(entries || {})).filter(
       (e) => e && e.date !== excludeDate
     );
+    /** @type {Record<string, number | null>} */
     const result = { weight: null, total: null };
     result.weight = mean(list.map((e) => normalizeWeight(e.weight)).filter((w) => w !== null));
     result.total = mean(list.map((e) => totalCalories(e.meals)).filter((t) => t !== null));
@@ -260,6 +306,10 @@
 
   // One row per logged day, oldest first; calories is null on days without
   // meals so charts show a gap there instead of a drop to zero.
+  /**
+   * @param {Record<string, Entry>} entries
+   * @returns {{ date: string, calories: number | null, weight: number | null }[]}
+   */
   function buildDailyRows(entries) {
     return Object.values(entries || {})
       .filter((e) => e && isValidDateStr(e.date))
@@ -267,12 +317,28 @@
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   }
 
+  /**
+   * @param {{ date: string, calories: number | null, weight: number | null }[]} rows
+   * @param {'calories' | 'weight'} field
+   * @returns {{ date: string, value: number }[]}
+   */
   function seriesFromRows(rows, field) {
-    return rows.filter((r) => r[field] !== null && r[field] !== undefined).map((r) => ({ date: r.date, value: r[field] }));
+    /** @type {{ date: string, value: number }[]} */
+    const out = [];
+    for (const r of rows) {
+      const value = r[field];
+      if (value !== null && value !== undefined) out.push({ date: r.date, value });
+    }
+    return out;
   }
 
   // Trailing rolling average: for each logged day, the mean of the values
   // logged in the `windowDays` calendar days ending on it.
+  /**
+   * @param {{ date: string, value: number }[]} points
+   * @param {number} windowDays
+   * @returns {{ date: string, value: number, count: number }[]}
+   */
   function rollingAverage(points, windowDays) {
     const days = windowDays || 7;
     const out = [];
@@ -293,6 +359,7 @@
   // ---------------------------------------------------------------- input
 
   // Validates what the user typed. Returns { ok, value } or { ok: false, error }.
+  /** @param {unknown} raw @returns {Validation} */
   function validateCalories(raw) {
     const text = String(raw === null || raw === undefined ? '' : raw).trim();
     if (text === '') return { ok: true, value: null };
@@ -304,6 +371,7 @@
     return { ok: true, value };
   }
 
+  /** @param {unknown} raw @returns {Validation} */
   function validateWeight(raw) {
     const text = String(raw === null || raw === undefined ? '' : raw).trim();
     if (text === '') return { ok: true, value: null };
@@ -324,6 +392,11 @@
 
   // Checks one incoming entry (from an API call or a backup file) strictly.
   // Returns { ok, entry } or { ok: false, error } naming the problem.
+  /**
+   * @param {string} date
+   * @param {any} raw
+   * @returns {{ ok: true, entry: Entry } | { ok: false, error: string }}
+   */
   function validateIncomingEntry(date, raw) {
     if (!isValidDateStr(date)) return { ok: false, error: `"${String(date).slice(0, 40)}" isn't a real date.` };
     const when = formatDate(date, date);
@@ -397,7 +470,12 @@
 
   // Validates a whole backup before anything is changed. Returns
   // { ok: true, entries, photos, dayCount, photoCount } or { ok: false, error }.
+  /**
+   * @param {unknown} input the file's text, or its parsed JSON
+   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number } | { ok: false, error: string }}
+   */
   function parseBackup(input) {
+    /** @type {any} */
     let payload = input;
     if (typeof input === 'string') {
       try {
@@ -419,6 +497,7 @@
       return { ok: false, error: "This file isn't a Kenna backup: it has no days in it." };
     }
 
+    /** @type {Record<string, Entry>} */
     const entries = {};
     const problems = [];
     for (const date of Object.keys(payload.entries)) {
@@ -427,6 +506,7 @@
       else problems.push(result.error);
     }
 
+    /** @type {BackupPhoto[]} */
     const photos = [];
     if (payload.photos !== undefined) {
       if (!Array.isArray(payload.photos)) {

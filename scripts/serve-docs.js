@@ -20,7 +20,7 @@ function createStaticServer() {
   return http.createServer((req, res) => {
     let pathname;
     try {
-      pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
+      pathname = decodeURIComponent(new URL(req.url || '/', 'http://localhost').pathname);
     } catch {
       res.writeHead(400).end('Bad request');
       return;

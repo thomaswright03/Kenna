@@ -9,7 +9,7 @@
 // pre-caches the whole new set together, so a phone that goes offline right
 // after an update still has matching files. A test checks every listed file
 // exists.
-const CACHE_NAME = 'kenna-v2';
+const CACHE_NAME = 'kenna-v3';
 
 const APP_SHELL = [
   './',
@@ -19,6 +19,21 @@ const APP_SHELL = [
   './store-local.js',
   './store-server.js',
   './app.js',
+  './ui/backup.js',
+  './ui/charts.js',
+  './ui/day.js',
+  './ui/dom.js',
+  './ui/feedback.js',
+  './ui/render.js',
+  './ui/router.js',
+  './ui/screen-compare.js',
+  './ui/screen-history.js',
+  './ui/screen-log.js',
+  './ui/screen-photos.js',
+  './ui/screen-settings.js',
+  './ui/screen-today.js',
+  './ui/store.js',
+  './ui/theme.js',
   './style.css',
   './manifest.webmanifest',
   './favicon.svg',
@@ -27,23 +42,25 @@ const APP_SHELL = [
   './icons/icon-512.png',
 ];
 
-self.addEventListener('install', (event) => {
+const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {unknown} */ (self));
+
+sw.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+  sw.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+sw.addEventListener('activate', (event) => {
   event.waitUntil(
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
+      .then(() => sw.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (event) => {
+sw.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  if (request.method !== 'GET' || new URL(request.url).origin !== sw.location.origin) return;
 
   event.respondWith(
     fetch(request)
@@ -54,6 +71,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request, { ignoreSearch: true }))
+      .catch(() => caches.match(request, { ignoreSearch: true }).then((cached) => cached || Response.error()))
   );
 });
