@@ -58,6 +58,7 @@ module.exports = Object.freeze({
   yearsBetween: dates.yearsBetween,
   formatRelativeDate: dates.formatRelativeDate,
   formatMonth: dates.formatMonth,
+  formatMonthDay: dates.formatMonthDay,
   formatNumber: numbers.formatNumber,
   formatCalories: numbers.formatCalories,
   formatWeight: numbers.formatWeight,

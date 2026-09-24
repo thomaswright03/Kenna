@@ -1,5 +1,6 @@
-// The Weight box on the Today screen: saves when you leave it, keeps a
-// value that can't be saved as a draft, and offers Undo after clearing.
+// The Weight box on the Today screen: saves when you leave it (or press
+// Enter), and says so under the box; keeps a value that can't be saved as
+// a draft, and offers Undo after clearing.
 
 import { core, h, uid, errorText } from './dom.js';
 import { announce, createFieldStatus } from './feedback.js';
@@ -32,6 +33,10 @@ export function buildWeightField(view) {
     value: weightText(view.entry.weight),
   });
   const status = createFieldStatus(input);
+  // How it saves, said before anything is typed; a status (Saving…, Saved,
+  // an error) shows in its place while there is one.
+  const hint = h('p', { class: 'field-hint', id: uid('weight-hint'), text: 'Saves when you leave the box' });
+  input.setAttribute('aria-describedby', `${status.el.id} ${hint.id}`);
   /** @type {Promise<boolean> | null} */
   let saving = null;
 
@@ -98,7 +103,7 @@ export function buildWeightField(view) {
   });
 
   return {
-    root: h('div', { class: 'field' }, h('label', { for: input.id, text: 'Weight (lbs)' }), input, status.el),
+    root: h('div', { class: 'field' }, h('label', { for: input.id, text: 'Weight (lbs)' }), input, status.el, hint),
     flush,
     mounted: () => {
       if (draft) status.set('error', `Not saved yet. ${draft.error}`);

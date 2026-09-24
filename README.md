@@ -13,7 +13,8 @@ data never leaves your device.
 - **Today** shows the day's date, your weight and the calories logged so far,
   one row per meal, and Calories and Weight charts (last 30 days, 90 days or
   all time). Tap anywhere on a meal's row to open Log Meal at that meal.
-  Emptying the weight box clears the day's weight, with **Undo** under the
+  The weight saves when you leave its box or press Enter, as the line
+  under the box says. Emptying the weight box clears the day's weight, with **Undo** under the
   box to put it back. Pick another day in **Day to view or edit**, or tap a day in
   History, to view or fix a past day; **Back to today** returns to the current day.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
@@ -24,7 +25,10 @@ data never leaves your device.
   puts it back in its box and says why). The day total updates as you type,
   marked "not saved yet" until the save is done; **Enter** moves
   to the next meal you haven't logged; **Save and close** saves what's in the box, returns to the day you
-  were logging and confirms what was saved. Each saved meal's button shows
+  were logging and confirms what was saved. **Back to Today** (or **Back
+  to Yesterday**, **Back to Sep 20** for a past day) returns to that day
+  without saving the number in the box, and says so; meals already saved
+  stay saved. **Escape** in the box puts back the saved number. Each saved meal's button shows
   a ✓ and its calories. On the Today screen **Log Meal** is the main way
   in; tapping a meal's row (its name, calories or **Add**/**Edit**) opens
   Log Meal at that meal. A meal removed on the Today screen

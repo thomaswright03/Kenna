@@ -331,6 +331,8 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 .field-status.is-saved { color: var(--accent-text); }
 .field-status.is-saved::before { content: '✓'; font-weight: 700; }
 .field-status.is-error { color: var(--danger); }
+.field-hint { margin: var(--s1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.field-status:not(:empty) + .field-hint { display: none; }
 
 /* ------------------------------------------------------------ buttons */
 
@@ -513,6 +515,9 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .meal-pill .pill-value:empty { display: none; }
 .meal-pill.filled { border-color: var(--accent); color: var(--text); }
 .meal-pill.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* Back (secondary) beside Save and close. */
+.log-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 
 .running-total {
   margin: 0 0 var(--s2);

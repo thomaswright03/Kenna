@@ -78,6 +78,8 @@ function showRunningTotal(el, state, typedText) {
 function mealSaver(state, input, status, onSaved) {
   /** @type {{ key: string, value: number | null, promise: Promise<boolean> } | null} */
   let saving = null;
+  // Set by Back: what's in the box is left unsaved from then on.
+  let discarded = false;
   /** @param {{ value: number | null }} result */
   const needsSave = (result) => result.value !== state.entry.meals[state.activeKey] || state.rolledOver;
 
@@ -105,6 +107,7 @@ function mealSaver(state, input, status, onSaved) {
 
   /** @returns {Promise<boolean>} */
   async function commit() {
+    if (discarded) return false;
     const key = state.activeKey;
     const result = core.validateCalories(input.value);
     if (!result.ok) {
@@ -126,7 +129,14 @@ function mealSaver(state, input, status, onSaved) {
     const result = core.validateCalories(input.value);
     return result.ok && !needsSave(result);
   };
-  return { commit, settled };
+  return {
+    commit,
+    settled,
+    discard: () => {
+      discarded = true;
+    },
+    isDiscarded: () => discarded,
+  };
 }
 
 /**
@@ -159,6 +169,31 @@ function doneButton(state, commit, input, routeDate) {
 }
 
 /**
+ * Back to the day, without saving what's in the box (meals already saved
+ * stay saved). A tap on it keeps the box focused, so leaving the box
+ * doesn't save the number on the way out.
+ * @param {LogState} state
+ * @param {HTMLInputElement} input
+ * @param {{ settled: () => boolean, discard: () => void }} saver
+ * @param {string | null} routeDate
+ */
+function backButton(state, input, saver, routeDate) {
+  const now = today();
+  const when = core.formatRelativeDate(state.date, now);
+  const label = `Back to ${when === 'Today' || when === 'Yesterday' ? when : core.formatMonthDay(state.date, state.date.slice(0, 4) !== now.slice(0, 4))}`;
+  const btn = h('button', { type: 'button', class: 'btn btn-secondary', text: label, 'data-log-back': '' });
+  btn.addEventListener('mousedown', (e) => e.preventDefault());
+  btn.addEventListener('click', () => {
+    const typed = input.value.trim();
+    const unsaved = !saver.settled() && typed !== '';
+    saver.discard();
+    if (unsaved) toast(`${mealLabel(state.activeKey)} not saved (“${typed.slice(0, 20)}”)`, { keepOnNavigate: true });
+    returnTo(dayHash(routeDate));
+  });
+  return btn;
+}
+
+/**
  * Enter saves the meal and moves to the next one not logged yet, or to
  * Save and close after the last.
  * @param {LogState} state
@@ -172,6 +207,23 @@ async function saveAndMoveOn(state, commit, select, doneBtn) {
   const next = MEAL_STEPS.slice(idx + 1).find((m) => state.entry.meals[m.key] === null);
   if (next) select(next.key);
   else doneBtn.focus();
+}
+
+/**
+ * Keys in the calories box: Enter saves and moves on; Escape puts back
+ * what's saved, as if nothing had been typed.
+ * @param {HTMLInputElement} input
+ * @param {{ enter: () => void, escape: () => boolean }} on escape: true when it put something back
+ */
+function boxKeys(input, on) {
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && on.escape()) {
+      e.preventDefault();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      on.enter();
+    }
+  });
 }
 
 /** @type {import('./render.js').ScreenBuilder} */
@@ -223,6 +275,7 @@ export async function buildLog(ctx) {
   // Saves what's in the box when the page is hidden or closed, exactly as
   // leaving the box would; a value that can't be saved is kept as a draft.
   function flush() {
+    if (saver.isDiscarded()) return;
     const result = core.validateCalories(input.value);
     if (result.ok) return void saver.commit();
     keepDraft({ field: state.activeKey, date: state.date, text: input.value, error: result.error });
@@ -232,10 +285,13 @@ export async function buildLog(ctx) {
   const doneBtn = doneButton(state, saver.commit, input, ctx.route.date);
   input.addEventListener('change', saver.commit);
   input.addEventListener('input', () => showRunningTotal(runningTotal, state, input.value));
-  input.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    saveAndMoveOn(state, saver.commit, select, doneBtn);
+  boxKeys(input, {
+    enter: () => saveAndMoveOn(state, saver.commit, select, doneBtn),
+    escape: () => {
+      if (saver.settled()) return false;
+      select(state.activeKey);
+      return true;
+    },
   });
   loadInput();
   if (draft) input.value = draft.text;
@@ -243,7 +299,8 @@ export async function buildLog(ctx) {
 
   const forDay = date === now ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now);
   const root = h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'Log Meal' }), h('p', { class: 'card-sub', text: `For ${forDay}. ${HOW_IT_SAVES}` }));
-  root.append(picker.el, h('div', { class: 'field' }, label, input, status.el), runningTotal, doneBtn);
+  const backBtn = backButton(state, input, saver, ctx.route.date);
+  root.append(picker.el, h('div', { class: 'field' }, label, input, status.el), runningTotal, h('div', { class: 'log-actions' }, backBtn, doneBtn));
   return {
     title: date === now ? 'Log Meal' : `Log Meal, ${core.formatDate(date, now)}`,
     root,

@@ -318,3 +318,64 @@ test('clearing the weight can be undone', async ({ page, appURL, data }) => {
   expect((await data.entry(TODAY)).weight).toBe(165.4);
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0);
 });
+
+test('Back leaves Log Meal without saving the number in the box; meals already saved stay saved', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('400');
+  await page.locator('[data-meal="lunch"]').click();
+  await expect(page.getByLabel('Lunch calories')).toBeVisible();
+  // Typed, and the box never left before the tap.
+  await page.getByLabel('Lunch calories').tap();
+  await page.keyboard.type('999');
+  await page.getByRole('button', { name: 'Back to Today' }).tap();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Lunch not saved (“999”)' })).toBeVisible();
+  await expect(page.locator('.total-num')).toHaveText('400');
+  const saved = await data.entry(TODAY);
+  expect(saved.meals.breakfast).toBe(400);
+  expect(saved.meals.lunch).toBe(null);
+
+  // A click (mouse) does the same.
+  await page.goto(`${appURL}/#/log/dinner`);
+  await page.getByLabel('Dinner calories').click();
+  await page.keyboard.type('777');
+  await page.getByRole('button', { name: 'Back to Today' }).click();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  expect((await data.entry(TODAY)).meals.dinner).toBe(null);
+});
+
+test('Back from a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', { breakfast: 300 }) });
+  await page.goto(`${appURL}/#/day/2026-09-20/log/breakfast`);
+  const cal = page.getByLabel('Breakfast calories');
+  await expect(cal).toHaveValue('300');
+  await cal.fill('999');
+  await expect(page.getByText('Breakfast not saved yet')).toBeVisible();
+  await cal.press('Escape');
+  await expect(cal).toHaveValue('300');
+  await expect(page.getByText('Breakfast not saved yet')).toHaveCount(0);
+  await expect(page.locator('.dialog[open]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Back to Sep 20' }).click();
+  await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
+  await expect(page.locator('.toast')).toHaveCount(0);
+  expect((await data.entry('2026-09-20')).meals.breakfast).toBe(300);
+
+  await page.goto(`${appURL}/#/day/2026-09-23/log`);
+  await expect(page.getByRole('button', { name: 'Back to Yesterday' })).toBeVisible();
+});
+
+test('the Weight box says how it saves before anything is typed', async ({ page, appURL, data }) => {
+  await page.goto(appURL);
+  const weight = page.getByLabel('Weight (lbs)');
+  const hint = page.getByText('Saves when you leave the box');
+  await expect(hint).toBeVisible();
+  await expect(weight).toHaveAccessibleDescription(/Saves when you leave the box/);
+  await weight.fill('170.2');
+  await weight.blur();
+  // The status takes the hint's place while it shows.
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await expect(hint).toBeHidden();
+  await page.clock.runFor(5000);
+  await expect(hint).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(170.2);
+});
