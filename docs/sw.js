@@ -1,10 +1,23 @@
-// Bump this whenever the cached files below change, so old clients pick up
-// the new version instead of being stuck on a stale cache forever.
-const CACHE_NAME = 'kenna-v1';
+// Offline support for the installable app.
+//
+// Requests are network-first: whenever the phone is online it gets the
+// latest deployed files (and refreshes the cached copy), and when it's
+// offline it falls back to that cached copy.
+//
+// Bump CACHE_NAME in the same change as any edit to the files below. A
+// changed sw.js is what makes browsers install the new worker, which
+// pre-caches the whole new set together, so a phone that goes offline right
+// after an update still has matching files. A test checks every listed file
+// exists.
+const CACHE_NAME = 'kenna-v2';
 
 const APP_SHELL = [
   './',
   './index.html',
+  './backend.js',
+  './core.js',
+  './store-local.js',
+  './store-server.js',
   './app.js',
   './style.css',
   './manifest.webmanifest',
@@ -24,22 +37,23 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Network-first so an online visit always picks up the latest deploy;
-// falls back to the cached copy so the app still opens and works offline.
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
+  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(request, { ignoreSearch: true }))
   );
 });

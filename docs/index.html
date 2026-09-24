@@ -2,36 +2,67 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<title>Kenna Calorie Tracker</title>
-<meta name="theme-color" content="#0f172a">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kenna</title>
+<meta name="description" content="A private calorie and weight tracker. Your data stays on your device.">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Kenna">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
+<script>
+  // Set the theme before the stylesheet paints, so there's no flash of the
+  // wrong theme on launch.
+  (function () {
+    var pref = 'system';
+    try { pref = localStorage.getItem('kenna:theme') || 'system'; } catch (e) { pref = 'system'; }
+    var dark = pref === 'dark' || (pref !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    var bar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (bar) bar.setAttribute('content', dark ? 'black' : 'default');
+  })();
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app" class="app">
+<div class="app">
 
   <header class="topbar">
-    <h1 id="titleBtn">Kenna</h1>
-    <nav class="nav-tabs">
-      <button id="photosBtn" class="nav-btn" type="button">Photos</button>
-      <button id="historyBtn" class="nav-btn" type="button">History</button>
-      <button id="compareBtn" class="nav-btn" type="button">Compare</button>
-    </nav>
+    <h1 class="brand">Kenna</h1>
+    <a class="icon-btn" href="#/settings" data-tab="settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
+        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+      </svg>
+    </a>
   </header>
 
-  <main id="stepContainer" class="step-container"></main>
+  <nav class="tabs" aria-label="Main">
+    <a class="tab" href="#/" data-tab="today">Today</a>
+    <a class="tab" href="#/history" data-tab="history">History</a>
+    <a class="tab" href="#/compare" data-tab="compare">Compare</a>
+    <a class="tab" href="#/photos" data-tab="photos">Photos</a>
+  </nav>
 
-  <p class="storage-note">Data is saved only in this browser, on this device.</p>
+  <div id="banners" class="banners"></div>
+
+  <main id="main" class="main"></main>
+
+  <p id="storageNote" class="storage-note"></p>
 
 </div>
 
+<div id="toasts" class="toasts"></div>
+
+<script src="backend.js"></script>
+<script src="core.js"></script>
+<script src="store-local.js"></script>
+<script src="store-server.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
