@@ -2,7 +2,8 @@
 // the tests. Pure functions only (no DOM, no storage). Each concern has its
 // own module in core/; this file puts them together as one object, which
 // Node gets with require('./docs/core.js') and the page as
-// window.KennaCore (npm run build bundles core/ into build/data.js).
+// window.KennaCore (npm run build bundles it, from data.js, into
+// build/data.js).
 //
 //   core/errors.js         messages written for the person using Kenna
 //   core/dates.js          YYYY-MM-DD dates and how they're written

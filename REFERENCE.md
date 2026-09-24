@@ -343,9 +343,10 @@ same file again adds only the photos that are still missing.
 ## Development details
 
 The JavaScript is type-checked with TypeScript from JSDoc comments. `npm
-run typecheck` runs it; `docs/globals.d.ts` declares what the classic
-scripts put on `window`. ESLint (`npm run lint`) also keeps every function
-in `docs/app.js` and `docs/ui/` to 80 lines of code or fewer.
+run typecheck` runs it; `docs/globals.d.ts` declares what `docs/data.js`
+puts on `window`. ESLint (`npm run lint`) also keeps every function in
+`docs/` (the screens, the rules, the storage and the backup files) to 80
+lines of code or fewer.
 
 The page loads `docs/build/data.js` and `docs/build/app.js` rather than the
 thirty-odd source files, so a first visit on a slow connection waits for a

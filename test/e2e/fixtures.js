@@ -85,7 +85,7 @@ const test = base.test.extend({
 
   // Reads and writes the stored days in the page's localStorage: every day
   // under kenna:entries, and the days saved since they were last folded in
-  // under kenna:entries:recent (see docs/store-local.js).
+  // under kenna:entries:recent (see docs/store/entries.js).
   data: async ({ appURL, page }, use) => {
     const all = () =>
       page.evaluate(() => {

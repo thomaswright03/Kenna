@@ -36,9 +36,8 @@ function run(command, args, env) {
 }
 
 /**
- * A built file and its source map, flattened into one plain map (data.js
- * has a map with one section per source file, which v8-to-istanbul can't
- * read).
+ * A built file and its source map, as v8-to-istanbul reads it: with the
+ * sources resolved to files on disk and their text included.
  * @type {Map<string, { source: string, sourceMap: { sourcemap: object } }>}
  */
 const builtFiles = new Map();
