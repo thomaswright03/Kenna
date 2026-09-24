@@ -29,9 +29,10 @@ test.describe('a meal saved in another window', () => {
   const exits = {
     'the page is hidden': async (b) => hideAndReturn(b),
     'the page is closed': async (b) => {
-      const closed = new Promise((resolve) => b.once('close', resolve));
-      await b.close({ runBeforeUnload: true });
-      await closed;
+      // What a closing page runs, then the close itself. (WebKit never
+      // finishes a close that runs the page's unload handlers itself.)
+      await b.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false })));
+      await b.close();
     },
     'another meal is picked': async (b) => {
       await b.locator('[data-meal="dinner"]').click();
@@ -56,7 +57,7 @@ test.describe('a meal saved in another window', () => {
       await leave(b);
       if (!b.isClosed()) await expect(b.locator('[data-meal="breakfast"]')).toContainText('450');
       await page.waitForTimeout(100);
-      expect((await stored(page))[TODAY].meals.breakfast).toBe(450);
+      await expect.poll(async () => (await stored(page))[TODAY].meals.breakfast).toBe(450);
     });
   }
 
