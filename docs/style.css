@@ -917,6 +917,14 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .tour-dot { width: 8px; height: 8px; border-radius: var(--r-pill); background: var(--border); }
 .tour-dot.is-current { background: var(--accent); width: 20px; }
 .tour-position { margin: var(--s2) 0 0; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+/* A short screen (iPhone SE) fits every card without scrolling. */
+@media (max-height: 700px) {
+  .tour.dialog-body { padding-top: var(--s3); }
+  .tour .dialog-title { font-size: var(--fs-md); }
+  .tour-points { font-size: var(--fs-sm); gap: var(--s1); }
+  .tour-dots { margin-top: var(--s3); }
+  .tour .dialog-actions { margin-top: var(--s3); }
+}
 
 /* ------------------------------------------------------------ loading */
 
