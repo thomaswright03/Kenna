@@ -98,6 +98,21 @@ test('Settings, where backups are made, is named in the header on a phone, not o
   await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
 });
 
+test('every label on a chart’s value axis has the same number of decimals', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-23': day('2026-09-23', { lunch: 1500 }, 180.4),
+    [TODAY]: day(TODAY, { lunch: 1650 }, 181.2),
+  });
+  for (const screen of ['/', '/#/compare']) {
+    await page.goto(`${appURL}${screen}`);
+    const weightTicks = await page.locator('.chart-svg.series-weight .axis-value').allTextContents();
+    expect(weightTicks.length).toBeGreaterThan(1);
+    for (const t of weightTicks) expect(t).toMatch(/^\d{1,3}(,\d{3})*\.\d$/);
+    const calorieTicks = await page.locator('.chart-svg.series-calories .axis-value').allTextContents();
+    for (const t of calorieTicks) expect(t).toMatch(/^\d{1,3}(,\d{3})*$/);
+  }
+});
+
 test('the header controls are reachable by keyboard', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.keyboard.press('Tab');

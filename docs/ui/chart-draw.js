@@ -118,7 +118,8 @@ function chartScale(plotted, frame, width, opts) {
   const minSpan = core.axisMinSpan(opts.unit, hi);
   // Calories can't go below zero, so neither does their axis.
   const { ticks, decimals } = opts.unit === 'lbs' ? core.niceTicks(lo, hi, 5, 0.1, undefined, minSpan) : core.niceTicks(lo, hi, 5, 10, 0, minSpan);
-  const tickText = ticks.map((t) => core.formatNumber(t, decimals));
+  // Every label on the axis has the same number of decimals (180.0, 180.5).
+  const tickText = ticks.map((t) => core.formatNumber(t, decimals, decimals));
   const left = 12 + Math.max(...tickText.map((t) => t.length)) * 7.5;
   const plotW = width - left - PAD.right;
   const plotH = HEIGHT - PAD.top - PAD.bottom;
@@ -149,7 +150,7 @@ function chartScale(plotted, frame, width, opts) {
 function drawAxes(chart, s, frame) {
   s.ticks.forEach((t, i) => {
     chart.append(svg('line', { class: 'gridline', x1: s.left, x2: s.right, y1: s.y(t), y2: s.y(t) }));
-    chart.append(svg('text', { class: 'axis-label', x: s.left - 6, y: s.y(t) + 4, 'text-anchor': 'end' }, s.tickText[i]));
+    chart.append(svg('text', { class: 'axis-label axis-value', x: s.left - 6, y: s.y(t) + 4, 'text-anchor': 'end' }, s.tickText[i]));
   });
   const crossesYear = core.dateFromDayNumber(frame.startDay).slice(0, 4) !== today().slice(0, 4);
   const labels = core.dateAxisLabels(frame.startDay, frame.endDay, crossesYear && s.right - s.left < 330 ? 3 : 4);
