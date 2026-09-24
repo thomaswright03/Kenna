@@ -355,7 +355,9 @@ the unit tests alone.
 GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
 request, as two checks: **Tests / test** (lint, type check, unit tests,
 Chromium) and **Tests / webkit**. GitHub only blocks merging a failing
-change once branch protection is on: in **Settings → Branches**, add a rule
+change once branch protection is on, and it isn't yet (checked 2026-09-24).
+To turn it on (the owner, or anyone with admin access): in **Settings →
+Branches**, add a rule
 for the published branch (see [Where the app is published](#where-the-app-is-published)), tick *Require status checks to pass
 before merging*, and select both checks.
 
