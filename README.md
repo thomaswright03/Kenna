@@ -73,7 +73,9 @@ stays on their own device.
 3. It opens full-screen with its own icon, like any other app.
 
 It works **offline** once opened at least once: the app's files are cached
-on the device.
+on the device. When online it loads the latest version; on a weak signal
+that hasn't answered within 3 seconds it opens from the cached copy instead,
+and the newer files, once they arrive, are used from the next launch.
 
 ### Where your data lives, and backups
 

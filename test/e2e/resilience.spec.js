@@ -1,4 +1,39 @@
 const { test, expect, TODAY, day } = require('./fixtures');
+const { createStaticServer } = require('../../scripts/serve-docs.js');
+
+// The phone app's files, served normally until `stall` is set, after which
+// requests are left hanging, as on a very weak signal.
+async function stallableServer() {
+  const inner = createStaticServer().listeners('request')[0];
+  const held = [];
+  const control = { stall: false, held: 0, served: 0 };
+  // Answers the requests left hanging, as when the signal comes back.
+  control.release = () => {
+    control.stall = false;
+    for (const [req, res] of held.splice(0)) inner(req, res);
+  };
+  const server = require('node:http').createServer((req, res) => {
+    if (control.stall) {
+      control.held += 1;
+      held.push([req, res]);
+    } else {
+      control.served += 1;
+      inner(req, res);
+    }
+  });
+  const sockets = new Set();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  control.url = `http://127.0.0.1:${server.address().port}`;
+  control.close = () => {
+    for (const socket of sockets) socket.destroy();
+    server.close();
+  };
+  return control;
+}
 
 test.describe('server version', () => {
   test.beforeEach(({ backend }) => test.skip(backend !== 'server', 'server-only behaviour'));
@@ -163,6 +198,32 @@ test.describe('phone version', () => {
     await page.reload();
     await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
     await context.setOffline(false);
+  });
+
+  test('on a stalled connection it opens from its offline copy within a few seconds', async ({ page }) => {
+    const site = await stallableServer();
+    try {
+      await page.goto(site.url);
+      await page.evaluate(() => navigator.serviceWorker.ready);
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+
+      site.stall = true;
+      const started = Date.now();
+      await page.reload({ timeout: 10000 });
+      await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible({ timeout: 10000 });
+      expect(Date.now() - started).toBeLessThan(6000);
+      expect(site.held).toBeGreaterThan(0);
+
+      // Once the connection is back, the network is used again.
+      site.release();
+      site.served = 0;
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+      expect(site.served).toBeGreaterThan(0);
+    } finally {
+      site.close();
+    }
   });
 
   test('blocked storage explains what to do', async ({ page, appURL }) => {
