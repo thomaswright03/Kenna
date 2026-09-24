@@ -58,7 +58,7 @@ test('two photos can be compared side by side, labelled with their days and weig
 
   const compare = page.getByRole('dialog', { name: 'Compare photos' });
   await expect(compare).toContainText('19 days apart, 6.4 lbs down');
-  await expect(compare.locator('figcaption')).toHaveText([/Tue, Sep 1\s*182.4 lbs/, /Sun, Sep 20\s*176 lbs/]);
+  await expect(compare.locator('figcaption')).toHaveText([/Tue, Sep 1\s*182\.4 lbs/, /Sun, Sep 20\s*176\.0 lbs/]);
   await expect(compare.getByRole('img', { name: 'Progress photo, Tue, Sep 1' })).toBeVisible();
   await expect(compare.getByRole('img', { name: 'Progress photo, Sun, Sep 20' })).toBeVisible();
   await compare.getByRole('button', { name: 'Close' }).click();

@@ -31,12 +31,17 @@ function byMonth(days) {
 // A month's averages leave out today, as every average does.
 const monthAverages = core.computeMonthAverages;
 
-/** @param {Entry[]} days @param {string} now */
-function monthSummary(days, now) {
+// A month's weights, its average among them, are all written with the same
+// number of decimals ("180.0 lbs" above "180.6 lbs").
+/** @param {Entry[]} days */
+const monthWeights = (days) => core.weightFormatFor(days.map((e) => e.weight)).format;
+
+/** @param {Entry[]} days @param {string} now @param {(n: number) => string} lbs */
+function monthSummary(days, now, lbs) {
   const avg = monthAverages(days, now);
   const parts = [plural(days.length, 'day')];
   if (avg.calories !== null) parts.push(`avg ${core.formatCalories(avg.calories)}`);
-  if (avg.weight !== null) parts.push(`avg ${core.formatAverageWeight(avg.weight)}`);
+  if (avg.weight !== null) parts.push(`avg ${lbs(avg.weight)}`);
   return parts.join(' · ');
 }
 
@@ -82,11 +87,11 @@ function returnToPlace(root, place) {
   link.focus({ preventScroll: true });
 }
 
-/** @param {Entry} e @param {string} now */
-function dayRow(e, now) {
+/** @param {Entry} e @param {string} now @param {(n: number) => string} lbs */
+function dayRow(e, now, lbs) {
   const total = core.totalCalories(e.meals);
   const parts = [total === null ? 'No meals logged' : core.formatCalories(total)];
-  if (e.weight !== null) parts.push(core.formatWeight(e.weight));
+  if (e.weight !== null) parts.push(lbs(e.weight));
   return h(
     'li',
     null,
@@ -115,12 +120,13 @@ function monthList(months, now, place) {
   /** @param {Month} m */
   function monthSection(m) {
     const headingId = uid('month');
+    const lbs = monthWeights(m.days);
     return h(
       'section',
       { class: 'history-month', 'aria-labelledby': headingId, 'data-month': m.key },
       h('h3', { class: 'history-month-title', id: headingId, tabindex: '-1', text: core.formatMonth(m.key) }),
-      h('p', { class: 'history-month-sub', text: monthSummary(m.days, now) }),
-      h('ul', { class: 'history-list' }, m.days.map((e) => dayRow(e, now)))
+      h('p', { class: 'history-month-sub', text: monthSummary(m.days, now, lbs) }),
+      h('ul', { class: 'history-list' }, m.days.map((e) => dayRow(e, now, lbs)))
     );
   }
 

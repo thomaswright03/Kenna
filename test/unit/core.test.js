@@ -516,6 +516,20 @@ test('an average weight always shows its one decimal; a logged weight shows as e
   assert.equal(core.formatNumber(1.25, 0, 2), '1', 'never more decimals than the most asked for');
 });
 
+test('weights shown together share their decimals: one, or two when any was logged with two', () => {
+  const plain = core.weightFormatFor([171, 180.6, null, undefined]);
+  assert.equal(plain.decimals, 1);
+  assert.equal(plain.format(171), '171.0 lbs');
+  assert.equal(plain.format(180.6), '180.6 lbs');
+  assert.equal(plain.format(179.5333), '179.5 lbs', 'an average among them is rounded to fit');
+  const fine = core.weightFormatFor([171, 165.25]);
+  assert.equal(fine.decimals, 2);
+  assert.equal(fine.format(171), '171.00 lbs');
+  assert.equal(fine.format(165.25), '165.25 lbs', 'never rounded away');
+  assert.equal(core.weightFormatFor([165.3 + 0.0000001]).decimals, 1, 'floating-point noise is not a second decimal');
+  assert.equal(core.weightFormatFor([]).format(1000), '1,000.0 lbs');
+});
+
 test("a month's averages leave out today, like every other average", () => {
   const days = [
     { date: '2026-09-22', weight: null, meals: { ...core.emptyMeals(), breakfast: 500 } },

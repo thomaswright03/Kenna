@@ -193,6 +193,25 @@ test('an average that comes out whole still shows its decimal on Compare', async
   await data.seed({ '2026-09-20': day('2026-09-20', {}, 165), '2026-09-21': day('2026-09-21', {}, 167), [TODAY]: day(TODAY, {}, 167) });
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
-  await expect(weight).toContainText('167 lbs today: 1.0 lbs above your average.');
+  await expect(weight).toContainText('167.0 lbs today: 1.0 lbs above your average.');
   await expect(weight).toContainText('average 166.0 lbs');
+});
+
+test('the weights in a History month are written with the same decimals, its average too', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-21': day('2026-09-21', {}, 180),
+    '2026-09-22': day('2026-09-22', {}, 180.6),
+    '2026-08-10': day('2026-08-10', {}, 181),
+    '2026-08-11': day('2026-08-11', {}, 180.25),
+  });
+  await page.goto(`${appURL}/#/history`);
+  const september = page.locator('.history-month').filter({ hasText: 'September 2026' });
+  await expect(september.locator('.history-item', { hasText: 'Mon, Sep 21' })).toContainText('180.0 lbs');
+  await expect(september.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('180.6 lbs');
+  await expect(september.locator('.history-month-sub')).toHaveText('2 days · avg 180.3 lbs');
+  // A month with a weight logged to two decimals shows two throughout, never rounding it.
+  const august = page.locator('.history-month').filter({ hasText: 'August 2026' });
+  await expect(august.locator('.history-item', { hasText: 'Aug 10' })).toContainText('181.00 lbs');
+  await expect(august.locator('.history-item', { hasText: 'Aug 11' })).toContainText('180.25 lbs');
+  await expect(august.locator('.history-month-sub')).toHaveText('2 days · avg 180.63 lbs');
 });

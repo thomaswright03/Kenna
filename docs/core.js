@@ -66,6 +66,7 @@ module.exports = Object.freeze({
   formatCalories: numbers.formatCalories,
   formatWeight: numbers.formatWeight,
   formatAverageWeight: numbers.formatAverageWeight,
+  weightFormatFor: numbers.weightFormatFor,
   emptyMeals: entries.emptyMeals,
   normalizeMealValue: entries.normalizeMealValue,
   normalizeEntry: entries.normalizeEntry,

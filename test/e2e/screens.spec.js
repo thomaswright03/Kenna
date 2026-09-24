@@ -19,13 +19,13 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
   // Lunch has never been logged before, so there's no usual lunch to compare with.
   await expect(calories.locator('.compare-answer-text')).toHaveText("1,000 cal so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.");
   await expect(calories).toContainText('average day 2,000 cal · no meals logged yesterday');
-  await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180 lbs)');
+  await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180.0 lbs)');
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 
   await page.goto(`${appURL}/#/history`);
   const yesterday = page.locator('.history-item', { hasText: 'Yesterday' });
-  await expect(yesterday).toContainText('No meals logged · 180 lbs');
-  await expect(page.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('2,000 cal · 181 lbs');
+  await expect(yesterday).toContainText('No meals logged · 180.0 lbs');
+  await expect(page.locator('.history-item', { hasText: 'Tue, Sep 22' })).toContainText('2,000 cal · 181.0 lbs');
   expect(await visibleText(page)).not.toMatch(/\b0 cal/);
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
 
@@ -193,7 +193,7 @@ test('the calorie axis never shows a negative value', async ({ page, appURL, dat
   expect(labels.join(' ')).not.toMatch(/[-−]\d/);
 });
 
-test('a weight is shown everywhere as it was entered, to two decimals', async ({ page, appURL, data }) => {
+test('a weight entered with two decimals keeps them everywhere, and the weights beside it match', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 166) });
   await page.goto(appURL);
   await page.getByLabel('Weight (lbs)').fill('165.25');
@@ -205,24 +205,30 @@ test('a weight is shown everywhere as it was entered, to two decimals', async ({
   await expect(page.locator('.history-item', { hasText: 'Today' })).toContainText('165.25 lbs');
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
-  await expect(weight).toContainText('165.25 lbs today: 0.8 lbs below your average.');
-  // A difference is always to one decimal, whatever the weights' own.
-  await expect(weight).toContainText('average 166.0 lbs · 0.8 lbs down from yesterday (166 lbs)');
+  // Every weight in the answer, differences included, has today's two decimals.
+  await expect(weight).toContainText('165.25 lbs today: 0.75 lbs below your average.');
+  await expect(weight).toContainText('average 166.00 lbs · 0.75 lbs down from yesterday (166.00 lbs)');
 });
 
-test('every weight difference on Compare has one decimal, however the weights were entered', async ({ page, appURL, data }) => {
+test('every weight on Compare has the same decimals as the others in its answer', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 185.2), [TODAY]: day(TODAY, {}, 173.2) });
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
   await expect(weight.locator('.compare-answer-text')).toHaveText('173.2 lbs today: 12.0 lbs below your average.');
   await expect(weight).toContainText('average 185.2 lbs · 12.0 lbs down from yesterday (185.2 lbs)');
 
-  // Too small to show at one decimal, but not the same.
+  // Yesterday's 171 and an average of 171 read alike: "171.0 lbs".
+  await data.seed({ '2026-09-22': day('2026-09-22', {}, 171), '2026-09-23': day('2026-09-23', {}, 171) });
+  await page.goto(appURL);
+  await page.goto(`${appURL}/#/compare`);
+  await expect(weight).toContainText('average 171.0 lbs · yesterday 171.0 lbs');
+
+  // A small difference is written to the weights' own two decimals, never "the same".
   await data.seed({ '2026-09-23': day('2026-09-23', {}, 180), [TODAY]: day(TODAY, {}, 180.04) });
   await page.goto(appURL);
   await page.goto(`${appURL}/#/compare`);
-  await expect(weight).toContainText('less than 0.1 lbs up from yesterday (180 lbs)');
-  await expect(weight.locator('.compare-answer-text')).toHaveText('180.04 lbs today: less than 0.1 lbs above your average.');
+  await expect(weight).toContainText('0.04 lbs up from yesterday (180.00 lbs)');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('180.04 lbs today: 0.04 lbs above your average.');
 });
 
 test('Compare answers how today stands in plain sentences, within the first screenful', async ({ page, appURL, data }) => {
@@ -236,7 +242,7 @@ test('Compare answers how today stands in plain sentences, within the first scre
   const calories = page.locator('[data-answer="calories"]');
   const weight = page.locator('[data-answer="weight"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 750 cal more than your average breakfast and lunch.');
-  await expect(weight.locator('.compare-answer-text')).toHaveText('179 lbs today: 1.5 lbs above your average.');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('179.0 lbs today: 1.5 lbs above your average.');
   await expect(weight).toContainText('average 177.5 lbs · 1.3 lbs down from yesterday (180.3 lbs)');
   for (const a of [calories.locator('.compare-answer-text'), weight.locator('.compare-answer-text')]) {
     const box = await a.boundingBox();
@@ -291,7 +297,7 @@ test('with no meals yet today, Compare says so and gives the average day', async
   await data.seed({ '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, {}, 180) });
   await page.goto(`${appURL}/#/compare`);
   await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('No meals logged yet today. Your average day is 1,600 cal.');
-  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('180 lbs today: the same as your average.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('180.0 lbs today: the same as your average.');
   await expect(page.locator('.amount-bars')).toHaveCount(0);
 });
 
@@ -479,7 +485,7 @@ test('Compare explains once that there is nothing to compare with yet', async ({
   await page.reload();
   await expect(page.getByText('Log a few more days to see how today compares.')).toHaveCount(1);
   await expect(page.locator('[data-answer="calories"] .compare-answer-text')).toHaveText('450 cal so far today.');
-  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('181 lbs today.');
+  await expect(page.locator('[data-answer="weight"] .compare-answer-text')).toHaveText('181.0 lbs today.');
   await expect(page.locator('.compare-answer-detail')).toHaveCount(0);
   await expect(page.getByText('No weight logged')).toHaveCount(0);
 });

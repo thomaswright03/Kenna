@@ -10,31 +10,34 @@ import { buildChartsCard } from './charts.js';
 
 /** @param {number} n */
 const cal = (n) => core.formatCalories(n);
-/** A weight as entered. @param {number} n */
-const lbs = (n) => core.formatWeight(n);
-/** An average weight, or any difference between weights: always one decimal. @param {number} n */
-const avgLbs = (n) => core.formatAverageWeight(n);
+
+/**
+ * How weights are written in the weight answer: every weight in it, and
+ * every difference between them, with the same number of decimals (see
+ * core.weightFormatFor).
+ * @typedef {ReturnType<typeof core.weightFormatFor>} WeightFormat
+ */
 
 /**
  * "500 cal more than", "the same as": today against a reference value.
- * Calories compare in whole calories; every weight difference is written
- * to one decimal ("12.0 lbs", "0.4 lbs"), and one too small to show at
- * that is "less than 0.1 lbs" rather than "the same".
+ * Calories compare in whole calories; a weight difference is written with
+ * the answer's decimals ("12.0 lbs", "0.4 lbs"), and one too small to show
+ * that way is "less than 0.1 lbs" rather than "the same".
  * @param {number} diff
- * @param {'cal' | 'lbs'} unit
+ * @param {WeightFormat | null} weights null for calories
  * @param {[string, string]} words above/below words, e.g. ['more than', 'less than']
  */
-function difference(diff, unit, words) {
-  const scale = unit === 'lbs' ? 10 : 1;
+function difference(diff, weights, words) {
+  const scale = weights ? 10 ** weights.decimals : 1;
   // Rounded the same way above and below (0.75 is 0.8 either way).
   const rounded = (Math.sign(diff) * Math.round(Math.abs(diff) * scale)) / scale;
   const direction = diff > 0 ? 'above' : 'below';
   if (rounded === 0) {
     // Weights are kept to two decimals, so anything smaller is the same.
-    if (unit === 'cal' || Math.abs(diff) < 0.005) return { amount: '', text: 'the same as', direction: 'same' };
-    return { amount: 'less than 0.1 lbs', text: diff > 0 ? words[0] : words[1], direction };
+    if (!weights || Math.abs(diff) < 0.005) return { amount: '', text: 'the same as', direction: 'same' };
+    return { amount: `less than ${weights.format(1 / scale)}`, text: diff > 0 ? words[0] : words[1], direction };
   }
-  const amount = unit === 'cal' ? cal(Math.abs(rounded)) : avgLbs(Math.abs(rounded));
+  const amount = weights ? weights.format(Math.abs(rounded)) : cal(Math.abs(rounded));
   return { amount, text: rounded > 0 ? words[0] : words[1], direction };
 }
 
@@ -101,7 +104,7 @@ function sameMealsSentence(t, avg, same) {
   if (!same) {
     return [document.createTextNode(`${cal(Number(t.total))} so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.`)];
   }
-  const d = difference(same.today - same.average, 'cal', ['more than', 'less than']);
+  const d = difference(same.today - same.average, null, ['more than', 'less than']);
   return [
     document.createTextNode('So far today: '),
     d.amount ? h('strong', { text: d.amount }) : null,
@@ -185,25 +188,27 @@ function calorieAnswer(t, y, avg, earlier) {
  * @param {Stats} avg
  */
 function weightAnswer(t, y, avg) {
+  const weights = core.weightFormatFor([t.weight, y.weight]);
+  const lbs = weights.format;
   /** @type {Node[]} */
   let sentence;
   const details = [];
   if (t.weight === null) {
     sentence = [document.createTextNode('No weight logged yet today.')];
-    if (avg.weight !== null) details.push(`average ${avgLbs(avg.weight)}`);
+    if (avg.weight !== null) details.push(`average ${lbs(avg.weight)}`);
     if (y.weight !== null) details.push(`yesterday ${lbs(y.weight)}`);
   } else if (avg.weight === null) {
     sentence = [document.createTextNode(`${lbs(t.weight)} today.`)];
   } else {
-    const d = difference(t.weight - avg.weight, 'lbs', ['above', 'below']);
+    const d = difference(t.weight - avg.weight, weights, ['above', 'below']);
     sentence = [
       document.createTextNode(`${lbs(t.weight)} today: `),
       d.amount ? h('strong', { text: d.amount }) : null,
       document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average.`),
     ].filter((n) => n !== null);
-    details.push(`average ${avgLbs(avg.weight)}`);
+    details.push(`average ${lbs(avg.weight)}`);
     if (y.weight !== null) {
-      const dy = difference(t.weight - y.weight, 'lbs', ['up', 'down']);
+      const dy = difference(t.weight - y.weight, weights, ['up', 'down']);
       details.push(dy.direction === 'same' ? `same as yesterday (${lbs(y.weight)})` : `${dy.amount} ${dy.text} from yesterday (${lbs(y.weight)})`);
     }
   }

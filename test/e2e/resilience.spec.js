@@ -107,7 +107,7 @@ test.describe('phone version', () => {
     await page.reload();
     await expect(page.getByRole('status').filter({ hasText: 'restored it from its automatic copy' })).toBeVisible();
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
-    await expect(page.locator('.history-item')).toContainText('181 lbs');
+    await expect(page.locator('.history-item')).toContainText('181.0 lbs');
   });
 
   test('asks the browser to keep data persistently on launch', async ({ page, appURL }) => {

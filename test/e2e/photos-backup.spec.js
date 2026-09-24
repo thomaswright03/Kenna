@@ -112,7 +112,7 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   await expect(fresh.getByRole('button', { name: 'Progress photo, Sun, Sep 20' })).toBeVisible();
   await expect(fresh.getByRole('button', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
   await fresh.goto(`${freshURL}/#/history`);
-  await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182 lbs');
+  await expect(fresh.locator('.history-item', { hasText: 'Sun, Sep 20' })).toContainText('700 cal · 182.0 lbs');
 
   await fresh.goto(`${freshURL}/#/settings`);
   await fresh.locator('input[type=file]').setInputFiles(file);

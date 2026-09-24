@@ -14,8 +14,9 @@ import { unviewablePhoto } from './photo-image.js';
  * @param {Photo} photo
  * @param {Record<string, import('../core.js').Entry>} entries
  * @param {(release: () => void) => void} keep called with a function that frees the image
+ * @param {(n: number) => string} lbs writes a weight as the pair shows them
  */
-function comparedPhoto(photo, entries, keep) {
+function comparedPhoto(photo, entries, keep, lbs) {
   const now = today();
   const entry = entries[photo.date];
   const date = core.formatDate(photo.date, now);
@@ -37,7 +38,7 @@ function comparedPhoto(photo, entries, keep) {
       'figcaption',
       null,
       h('span', { class: 'compare-date', text: date }),
-      entry && entry.weight !== null ? h('span', { class: 'compare-weight', text: core.formatWeight(entry.weight) }) : null
+      entry && entry.weight !== null ? h('span', { class: 'compare-weight', text: lbs(entry.weight) }) : null
     )
   );
 }
@@ -60,14 +61,16 @@ export function openPhotoCompare(a, b, entries, onClose) {
   const apart = days === 0 ? 'Both from the same day' : `${core.formatNumber(days)} day${days === 1 ? '' : 's'} apart`;
   const w1 = entries[older.date] ? entries[older.date].weight : null;
   const w2 = entries[newer.date] ? entries[newer.date].weight : null;
-  const change = w1 !== null && w2 !== null && w1 !== w2 ? `, ${core.formatWeight(Math.abs(w2 - w1))} ${w2 < w1 ? 'down' : 'up'}` : '';
+  // Both weights and the change between them, written alike ("180.0 lbs", "180.6 lbs", "0.6 lbs up").
+  const lbs = core.weightFormatFor([w1, w2]).format;
+  const change = w1 !== null && w2 !== null && w1 !== w2 ? `, ${lbs(Math.abs(w2 - w1))} ${w2 < w1 ? 'down' : 'up'}` : '';
   const closeBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Close' });
   const content = h(
     'div',
     { class: 'viewer' },
     h('h2', { id: labelId, class: 'viewer-title', text: 'Compare photos' }),
     h('p', { class: 'viewer-position', text: `${apart}${change}` }),
-    h('div', { class: 'compare-pair' }, comparedPhoto(older, entries, keep), comparedPhoto(newer, entries, keep)),
+    h('div', { class: 'compare-pair' }, comparedPhoto(older, entries, keep, lbs), comparedPhoto(newer, entries, keep, lbs)),
     closeBtn
   );
   const close = openDialog({
