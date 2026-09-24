@@ -132,7 +132,10 @@ Compare, History and Settings use two columns: the day's entry or the
 answers on the left, charts and the rest on the right; from about 900
 pixels the tabs also move up beside the Kenna name and Settings. History's right column lists every
 month's average calories and weight (**Month by month**, in place of Go
-to month); tapping a month goes to it.
+to month); tapping a month goes to it. The table scrolls inside its box so
+the column stays beside the list; when older months are below the box's
+edge, the edge fades and a button under it says how many (**Show 5 earlier
+months**) and scrolls to them.
 
 ## How the numbers work
 

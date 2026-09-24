@@ -1196,6 +1196,13 @@ body.is-touring { padding-bottom: 100vh; }
   .history-jump { display: none; }
   .history-side { position: sticky; top: var(--s4); }
   .months-overview-scroll { max-height: calc(100vh - 26rem); min-height: 12rem; overflow-y: auto; }
+  /* Older months below the box's edge: the edge fades, and a button under
+     it says how many. */
+  .months-overview-scroll.has-more {
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+    mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
+  }
+  .months-overview-more { margin-top: var(--s2); }
   .screen-stack.two-col {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

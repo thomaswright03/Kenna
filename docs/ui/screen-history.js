@@ -211,12 +211,15 @@ function jumpField(months, jump) {
 
 /**
  * On a wide screen, every month's averages at a glance beside the list;
- * a month's name jumps to it.
+ * a month's name jumps to it. The table scrolls inside its box so the
+ * column stays in view; when older months are below its edge, the box
+ * fades out there and a button under it says how many, and shows them.
  * @param {Month[]} months
  * @param {string} now
  * @param {(index: number) => void} jump
+ * @param {import('./render.js').ScreenContext} ctx
  */
-function monthsOverview(months, now, jump) {
+function monthsOverview(months, now, jump, ctx) {
   /** @param {number | null} v @param {(n: number) => string} format */
   const cell = (v, format) => h('td', { text: v === null ? '—' : format(v) });
   const rows = months.map((m, i) => {
@@ -231,23 +234,51 @@ function monthsOverview(months, now, jump) {
       cell(avg.weight, (n) => core.formatNumber(n, 1, 1))
     );
   });
-  return h(
+  const scroll = h(
+    'div',
+    { class: 'months-overview-scroll' },
+    h(
+      'table',
+      { class: 'meal-table' },
+      h('caption', { class: 'visually-hidden', text: 'Averages for each month' }),
+      h('thead', null, h('tr', null, h('th', { scope: 'col', text: 'Month' }), h('th', { scope: 'col', text: 'Days' }), h('th', { scope: 'col', text: 'Avg cal' }), h('th', { scope: 'col', text: 'Avg lbs' }))),
+      h('tbody', null, rows)
+    )
+  );
+  const more = h('button', { type: 'button', class: 'btn-text months-overview-more', hidden: true, 'data-overview-more': '' });
+  /** The rows below the box's lower edge. */
+  const below = () => {
+    const edge = scroll.getBoundingClientRect().bottom;
+    return rows.filter((r) => r.getBoundingClientRect().bottom > edge + 1);
+  };
+  const update = () => {
+    const hidden = scroll.clientHeight > 0 ? below() : [];
+    scroll.classList.toggle('has-more', hidden.length > 0);
+    more.hidden = hidden.length === 0;
+    more.textContent = `Show ${plural(hidden.length, 'earlier month')}`;
+  };
+  more.addEventListener('click', () => {
+    const first = below()[0];
+    scroll.scrollTop = scroll.scrollHeight;
+    const link = first ? first.querySelector('button') : null;
+    if (link) link.focus({ preventScroll: true });
+    update();
+  });
+  scroll.addEventListener('scroll', update, { passive: true });
+  if (typeof ResizeObserver === 'function') {
+    const observer = new ResizeObserver(update);
+    observer.observe(scroll);
+    ctx.onRelease(() => observer.disconnect());
+  }
+  const root = h(
     'section',
     { class: 'card months-overview', 'aria-labelledby': 'months-overview-title' },
     h('h3', { class: 'section-title', id: 'months-overview-title', text: 'Month by month' }),
     h('p', { class: 'card-sub', text: 'Average calories (days with meals) and weight (lbs) each month, not counting today. Tap a month to go to it.' }),
-    h(
-      'div',
-      { class: 'months-overview-scroll' },
-      h(
-        'table',
-        { class: 'meal-table' },
-        h('caption', { class: 'visually-hidden', text: 'Averages for each month' }),
-        h('thead', null, h('tr', null, h('th', { scope: 'col', text: 'Month' }), h('th', { scope: 'col', text: 'Days' }), h('th', { scope: 'col', text: 'Avg cal' }), h('th', { scope: 'col', text: 'Avg lbs' }))),
-        h('tbody', null, rows)
-      )
-    )
+    scroll,
+    more
   );
+  return { root, update };
 }
 
 function backupCard() {
@@ -261,7 +292,7 @@ function backupCard() {
 }
 
 /** @type {import('./render.js').ScreenBuilder} */
-export async function buildHistory() {
+export async function buildHistory(ctx) {
   const now = today();
   // A day dated after today (only possible from an old version or a wrong
   // clock) is kept in storage and backups but not listed.
@@ -291,7 +322,12 @@ export async function buildHistory() {
   card.append(h('p', { class: 'card-sub', text: `${count}. Tap a day to view or edit it.` }));
   if (months.length > 3) card.append(jumpField(months, jump));
   card.append(list, moreBtn);
-  const side = h('div', { class: 'screen-stack history-side' }, months.length > 1 ? monthsOverview(months, now, jump) : null, backupCard());
+  const overview = months.length > 1 ? monthsOverview(months, now, jump, ctx) : null;
+  const side = h('div', { class: 'screen-stack history-side' }, overview ? overview.root : null, backupCard());
   const root = h('div', { class: 'screen-stack two-col history-layout' }, card, side);
-  return { title: 'History', root, mounted: place ? () => returnToPlace(root, place) : undefined };
+  const mounted = () => {
+    if (overview) overview.update();
+    if (place) returnToPlace(root, place);
+  };
+  return { title: 'History', root, mounted };
 }

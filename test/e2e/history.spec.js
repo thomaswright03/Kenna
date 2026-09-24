@@ -124,6 +124,32 @@ test('on a wide screen History shows every month at a glance beside the list', a
   expect(box.x).toBeGreaterThan(list.x + list.width - 1);
   await expect(overview.locator('tr[data-overview-month="2026-09"]')).toHaveText(/September 2026\s*24\s*1,542\s*170.2/);
   await expect(overview.locator('tbody tr')).toHaveCount(14);
+  // Months below the edge of the box are announced, not silently cut off.
+  const more = overview.locator('[data-overview-more]');
+  await expect(more).toBeVisible();
+  await expect(more).toHaveText(/^Show \d+ earlier months?$/);
+  const hidden = Number(/\d+/.exec(await more.textContent())[0]);
+  const lastRow = overview.locator('tbody tr').last();
+  await expect(lastRow).not.toBeInViewport({ ratio: 1 });
+  const shown = await overview.locator('tbody tr').evaluateAll((rows) => {
+    const edge = document.querySelector('.months-overview-scroll').getBoundingClientRect().bottom;
+    return rows.filter((r) => r.getBoundingClientRect().bottom <= edge + 1).length;
+  });
+  expect(shown + hidden).toBe(14);
+  await more.click();
+  await expect(more).toBeHidden();
+  await expect(lastRow).toBeInViewport();
+  await expect(overview.locator('tbody tr').nth(shown).getByRole('button')).toBeFocused();
+  // Scrolled back up, the button comes back.
+  await overview.locator('.months-overview-scroll').evaluate((el) => {
+    el.scrollTop = 0;
+  });
+  await expect(more).toBeVisible();
+  // A tall enough window shows every month, with nothing to announce.
+  await page.setViewportSize({ width: 1440, height: 1600 });
+  await expect(more).toBeHidden();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(more).toBeVisible();
   // The overview takes Go to month's place.
   await expect(page.getByLabel('Go to month')).toBeHidden();
   await overview.getByRole('button', { name: 'October 2025' }).click();
