@@ -19,6 +19,7 @@ been removed along with its tests and documentation.
 - [Test](#test)
 - [Release](#release)
 - [REFERENCE.md](REFERENCE.md): every screen and rule in detail
+- [REQUIREMENTS.md](REQUIREMENTS.md): every rule's value and reason, for the owner to confirm
 
 ## Use it on your phone
 
@@ -49,6 +50,9 @@ backup). [REFERENCE.md](REFERENCE.md#screens) describes each.
 | Units and language | pounds, US English only |
 
 The full rules: [How the numbers work](REFERENCE.md#how-the-numbers-work).
+Every threshold and limit, with why it was chosen and whether the owner
+has agreed it yet, is in [REQUIREMENTS.md](REQUIREMENTS.md); a pull request
+that changes one updates it too (a unit test checks it matches the code).
 
 ## Your data and backups
 
