@@ -20,7 +20,7 @@ async function seedPhotos(page) {
         for (let b = 0; b < size; b += 1) bytes[b] = (b * 31 + i) & 255;
         bytes.set([0xff, 0xd8, 0xff, 0xe0]);
         const day = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
-        const record = { date: day, createdAt: new Date(Date.UTC(2026, 8, 24 - i, 8)).toISOString(), blob: new Blob([bytes], { type: 'image/jpeg' }) };
+        const record = { date: day, createdAt: new Date(Date.UTC(2026, 8, 24 - i, 8)).toISOString(), bytes: bytes.buffer, type: 'image/jpeg' };
         await new Promise((resolve, reject) => {
           const tx = db.transaction('photos', 'readwrite');
           tx.objectStore('photos').add(record);
