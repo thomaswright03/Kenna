@@ -12,7 +12,9 @@ data never leaves your device.
 
 - **Today** shows the day's date, your weight and the calories logged so far,
   one row per meal, and Calories and Weight charts (last 30 days, 90 days or
-  all time). Pick another day in **Day to view or edit**, or tap a day in
+  all time). Tap anywhere on a meal's row to open Log Meal at that meal.
+  Emptying the weight box clears the day's weight, with **Undo** under the
+  box to put it back. Pick another day in **Day to view or edit**, or tap a day in
   History, to view or fix a past day; **Back to today** returns to the current day.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
@@ -24,7 +26,7 @@ data never leaves your device.
   to the next meal you haven't logged; **Save and close** saves what's in the box, returns to the day you
   were logging and confirms what was saved. Each saved meal's button shows
   a ✓ and its calories. On the Today screen **Log Meal** is the main way
-  in; each meal row also has a quieter **Add** or **Edit** link that opens
+  in; tapping a meal's row (its name, calories or **Add**/**Edit**) opens
   Log Meal at that meal. A meal removed on the Today screen
   keeps an **Undo** button in its row until you leave that screen.
 - **History** lists every logged day with its total calories and weight,
@@ -40,12 +42,17 @@ data never leaves your device.
   yesterday side by side, from zero. Each meal's today, yesterday and
   average are one tap further down (**Each meal…**). Below that are
   7-day rolling averages of calories and weight. The 7-day calorie average
-  leaves today out until the day is over (today's running total is drawn
-  hollow on the Today screen's Calories chart).
+  leaves today out until the day is over (on the Today screen's Calories
+  chart today's running total is a lone hollow marker labelled "so far",
+  never joined to the line).
 - **Photos** stores progress pictures, filed under the day they were taken:
   pick the day before adding one (it starts at today, and future days aren't
-  allowed), and change it later from the photo viewer. Deleting one asks for
-  confirmation first.
+  allowed), and change it later from the photo viewer. The viewer steps
+  through the photos oldest first with **Previous** and **Next**, a swipe or
+  the arrow keys. **Compare photos** (on the Photos screen, or **Compare**
+  in the viewer) shows two photos side by side, older on the left, with
+  each one's date and that day's weight and how far apart they are.
+  Deleting a photo asks for confirmation first.
 - **Settings** (gear icon) has the light/dark theme (or follow the system),
   backup export and import, and where your data is stored.
 
@@ -67,19 +74,20 @@ How the numbers work:
   (a decimal, a minus sign, a stray letter, a decimal comma, too many decimal
   places, or out of range). A weight ending in a decimal point ("165.") is
   read as the whole number. The same rules, with the same messages, apply
-  to a value sent to the server's API or found in a backup file: nothing
-  is rounded to fit, and a backup holding such a value isn't imported (the
-  message names the day and meal). Meals saved by the first version as
+  to a value sent to the server's API, which refuses it. In a backup file
+  the day holding such a value is left out of the restore, and the restore
+  names it (see Import Backup below). Meals saved by the first version as
   lists of foods still import as their total. The first version saved
   weights exactly as typed; a weight with more than two decimals from then
-  is shown, and written into backups, rounded to two.
+  is shown, written into backups and read from backups rounded to two.
 - A day after today can't be logged, whether picked, typed into the address
   bar or sent to the server's API (the server allows one day ahead of its
   own clock, for a phone in a time zone ahead of it). The same goes for filing a photo, on
   the phone and through the server's API. A backup's days and photos dated
   after today are left out on import, and the import says how many. An
   address that doesn't lead anywhere opens Today and is replaced by Today's
-  address.
+  address; one with a date that doesn't exist (Feb 30) does the same and
+  says "That date doesn't exist, so Today is shown."
 - A day more than a year ago that is also more than a month before the
   first day you logged is probably a mistyped year (2002 for 2026), so
   opening it, by the day picker or by address, asks "Log a day in 2002?"
@@ -90,7 +98,11 @@ How the numbers work:
   logged after midnight goes to the new day. A past day you opened on purpose
   stays open.
 - Charts use a real time axis: days you didn't log are gaps (a dashed line
-  bridges them), and each chart ends at today. When a chart spans more
+  bridges them), and each chart ends at today. Over more than 120 days (the
+  All range) a chart plots weekly averages instead of single days, and
+  over more than about three years monthly averages, which keeps it to
+  about 160 points or fewer for up to 13 years of data; the chart's subtitle says which ("Weekly average
+  weight"), and a point's tooltip names its week or month. When a chart spans more
   than one calendar year, every date on its axis shows the year. The
   calorie axis never goes below 0. The value axis always covers at least
   2 lbs, or 200 cal (a fifth of the value, when that's more), so a single
@@ -114,6 +126,10 @@ stays on their own device.
    **⋮** menu → **Add to Home screen** / **Install app**.
 3. It opens full-screen with its own icon, like any other app.
 
+The first visit downloads a handful of files (the app's scripts are built
+into two minified files, see Development), showing "Loading Kenna…" until
+they arrive. With Chromium's "Slow 3G" network emulation Today appears in
+under 6 seconds (a browser test checks this).
 It works **offline** once opened at least once: the app's files are cached
 on the device. When online it loads the latest version; on a weak signal
 that hasn't answered within 3 seconds it opens from the cached copy instead,
@@ -126,6 +142,9 @@ on that device only. On first launch the app asks the browser to keep this
 data even when the device runs low on space (Settings shows the answer
 where the browser supports asking). Every save also keeps one previous copy of your days, and if
 the stored data is ever found damaged the app restores that copy and tells you.
+The damaged data itself is kept aside (the two most recent damaged copies,
+never more), and Settings then shows a card to **Download damaged data**
+as a file or **Delete damaged data**.
 
 If the browser refuses a save (storage full, or photo storage that won't
 open), the app says what failed, that what's already saved is safe, and
@@ -162,10 +181,17 @@ makes one straight away, and **Not now** hides the reminder for three days.
   download leaves the reminder in place. (Versions before this recorded
   the time a download started; that time is still used by the reminder, and
   Settings says it wasn't confirmed.)
-- **Settings → Import Backup** checks the whole file first. If anything in it
-  is invalid, nothing is imported and you're told what's wrong. Otherwise days
-  in the file replace the same days on the device (other days are kept), and
-  photos are added unless they're already there (a photo is recognised by
+- **Settings → Import Backup** checks the whole file first, then asks
+  before changing anything: how many days and photos the file has, how
+  many of your days it will replace with the file's version, and how many
+  it adds. If some days or photos in the file can't be restored (a value
+  outside the rules above, a date that doesn't exist), the question lists
+  them and the button reads **Restore the rest**; the result lists them
+  again. A file with nothing that can be restored isn't imported, and the
+  message says what's wrong. Days in the file replace the same days on the
+  device (other days are kept); the days about to be replaced are saved
+  first, so **Undo restore**, shown with the result, puts them back as they
+  were and removes the photos the restore added. Photos are added unless they're already there (a photo is recognised by
   the time it was first added, so moving it to another day doesn't make it
   look new), so importing the same file twice never creates duplicates. Backups made by older versions (days only)
   still import.
@@ -236,7 +262,10 @@ If the server doesn't answer within 10 seconds (60 for a photo), the app
 says it isn't responding and offers **Try again** (or **Retry** next to a
 value that wasn't saved; the typed value stays in its box). Unknown
 addresses on the server, including a photo that no longer exists opened
-in a browser, show a "Page not found" page with a link to the app.
+in a browser, show a "Page not found" page with a link to the app (the
+same `docs/404.html` that GitHub Pages shows for an unknown address). The
+server sends the app's files and its answers compressed when the browser
+accepts it.
 
 ## Development
 
@@ -249,24 +278,42 @@ docs/            the app (also what GitHub Pages serves)
   backend.js     picks the storage; server.js serves its own version
   app.js         the user interface's entry point (an ES module)
   ui/            the interface, one module per screen plus shared parts
-                 (routing, rendering, charts, dialogs and messages, backup)
+                 (routing, rendering, charts, dialogs and messages, backup,
+                 photo viewer and comparison)
+  build/         what the page loads: the scripts above, minified into
+                 data.js (the classic scripts) and app.js (app.js and ui/),
+                 with source maps; made by npm run build
+  404.html       the "Page not found" page
   sw.js          offline cache
 server.js        the server version and its API
-scripts/serve-docs.js  serves docs/ locally exactly as Pages would
+scripts/build.js       builds docs/build/ (esbuild)
+scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
+                       404.html for unknown addresses)
 test/unit/       Node tests: data rules, browser storage, server API
 test/e2e/        Playwright tests, run against both versions
 ```
 
-The JavaScript is type-checked with TypeScript from JSDoc comments (no build
-step: the files that ship are the files in the repository). `npm run
-typecheck` runs it; `docs/globals.d.ts` declares what the classic scripts put
-on `window`.
+The JavaScript is type-checked with TypeScript from JSDoc comments. `npm
+run typecheck` runs it; `docs/globals.d.ts` declares what the classic
+scripts put on `window`. ESLint (`npm run lint`) also keeps every function
+in `docs/app.js` and `docs/ui/` to 80 lines of code or fewer.
+
+The page loads `docs/build/data.js` and `docs/build/app.js` rather than the
+thirty-odd source files, so a first visit on a slow connection waits for a
+few downloads instead of dozens. After changing any `.js` file in `docs/`
+(other than `sw.js` and `backend.js`), run `npm run build`, or keep `npm run
+build:watch` running, and commit the rebuilt files with the change: Pages
+serves `docs/` as it is. A unit test fails when the built files don't match
+the sources. The build minifies without changing the language level the
+sources are written in (ES2022), and the source maps point browser
+developer tools at the original files.
 
 Run the phone app locally (no server storage involved):
 
 ```bash
 npm install
-npm run serve:docs          # http://localhost:8080 (set PORT to change)
+npm run build:watch         # in one terminal: rebuilds docs/build/ on every change
+npm run serve:docs          # in another: http://localhost:8080 (set PORT to change)
 ```
 
 Tests:
@@ -276,7 +323,9 @@ npx playwright install chromium webkit   # once
 npm test                                 # lint, type check, unit/API tests, then browser tests
 ```
 
-`npm run test:unit` and `npm run test:e2e` run the parts separately. The
+`npm run test:unit` and `npm run test:e2e` run the parts separately
+(`test:e2e` rebuilds `docs/build/` first, so the browser tests run the
+current sources). The
 browser tests include an accessibility check (axe-core, WCAG 2 A and AA)
 of every screen in both themes. The
 browser tests run every scenario against both versions in Chromium with an
@@ -300,11 +349,13 @@ folder **`/docs`**. That branch (also the repository's default branch) is
 the published branch: whatever is in its `docs/` folder is the live app.
 Other branches, such as `claude/excellence-loop`, are not published until
 they are merged into it.
-Pages serves the files in `docs/` as they are; there is no build step.
+Pages serves the files in `docs/` as they are, which is why the built files
+in `docs/build/` are committed (see Development).
 
 Releasing a change:
 
-1. If you changed any file listed in `APP_SHELL` in `docs/sw.js`, bump
+1. If you changed a script in `docs/`, run `npm run build`. If any file
+   listed in `APP_SHELL` in `docs/sw.js` changed (a rebuilt file counts), bump
    `CACHE_NAME` there (for example `kenna-v2` → `kenna-v3`) in the same
    change, so phones pre-cache the new set of files together.
 2. Make sure `npm test` passes, and go through the "Before merging" part

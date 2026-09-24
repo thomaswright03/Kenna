@@ -27,12 +27,26 @@ here touches your real days or photos.
 8. Settings → **Export Backup** → **Save or share…** → **Save to Files**.
    Settings then says "Backup shared" and when.
 9. Delete the photo and change the meal, then Settings → **Import Backup**
-   and pick the file just saved. The meal and the photo come back, and
-   importing it a second time adds nothing.
-10. Delete the test copy from the Home Screen (touch and hold → Remove App).
+   and pick the file just saved. The question says 1 day will be replaced;
+   after **Restore**, the meal and the photo come back. **Undo restore**
+   brings back the changed meal and removes the photo again. Importing the
+   file twice adds nothing the second time.
+10. Open Photos with two photos added, step between them with a swipe,
+    and compare them side by side (**Compare photos**).
+11. Delete the test copy from the Home Screen (touch and hold → Remove App).
 
 ## After Pages deploys
 
 1. Open the live app from its Home Screen icon while online, then close it.
 2. Turn on Airplane Mode and open it again: it opens and shows your data.
 3. If anything fails, roll back as the README describes.
+
+## Record
+
+Add a row here, in the same pull request as the change, each time the
+list is gone through: the date, the iPhone model and iOS version, the
+commit tested, which part (before merging or after deploy) and the
+result. Name any step that failed and what was done about it.
+
+| Date | iPhone, iOS | Commit | Part | Result |
+|---|---|---|---|---|
