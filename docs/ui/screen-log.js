@@ -43,8 +43,9 @@ export async function buildLog(ctx) {
       pill.className = `meal-pill${active ? ' active' : ''}${value !== null ? ' filled' : ''}`;
       pill.setAttribute('aria-pressed', active ? 'true' : 'false');
       const valueEl = pill.querySelector('.pill-value');
-      if (valueEl) valueEl.textContent = value !== null ? core.formatNumber(value) : '';
-      pill.setAttribute('aria-label', value !== null ? `${step.label}, ${core.formatCalories(value)}` : `${step.label}, not logged`);
+      // A logged meal keeps a saved tick for as long as the screen is open.
+      if (valueEl) valueEl.textContent = value !== null ? `✓ ${core.formatNumber(value)}` : '';
+      pill.setAttribute('aria-label', value !== null ? `${step.label}, ${core.formatCalories(value)}, saved` : `${step.label}, not logged`);
     }
     refreshTotal();
   }
@@ -176,7 +177,7 @@ export async function buildLog(ctx) {
   const doneBtn = h('button', {
     type: 'button',
     class: 'btn btn-primary',
-    text: 'Done',
+    text: 'Save and close',
     onClick: async () => {
       // One tap finishes; further taps while it's saving do nothing.
       if (doneBtn.disabled) return;
@@ -205,7 +206,7 @@ export async function buildLog(ctx) {
     h('h2', { class: 'card-title', text: 'Log Meal' }),
     h('p', {
       class: 'card-sub',
-      text: `For ${isToday ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now)}. Each meal saves as soon as you leave the box.`,
+      text: `For ${isToday ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now)}. Each meal saves as soon as you leave its box or pick another meal; saved meals show a ✓.`,
     }),
     picker,
     h('div', { class: 'field' }, label, input, status.el),

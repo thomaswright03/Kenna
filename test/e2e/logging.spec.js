@@ -24,7 +24,7 @@ test('typing then tapping another control takes effect on the first tap', async 
   expect(saved.meals.lunch).toBe(650);
   await expect(page.getByText('Day total: 1,050 cal')).toBeVisible();
 
-  await page.getByRole('button', { name: 'Done' }).tap();
+  await page.getByRole('button', { name: 'Save and close' }).tap();
   await expect(page.getByRole('status').filter({ hasText: 'Saved for Today: 1,050 cal' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.locator('.total-num')).toHaveText('1,050');
@@ -121,7 +121,7 @@ test('removing a meal can be undone', async ({ page, appURL, data }) => {
 test('a confirmation message never blocks a tap on what is under it', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/log/breakfast`);
   await page.getByLabel('Breakfast calories').fill('400');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   const saved = page.locator('.toast').filter({ hasText: 'Saved for Today' });
   await expect(saved).toBeVisible();
   // Put the Log Meal button right where the message is.
@@ -137,10 +137,31 @@ test('a confirmation message never blocks a tap on what is under it', async ({ p
   await expect(page.getByRole('heading', { name: 'Log Meal' })).toBeVisible();
 });
 
+test('Log Meal is the one main way in, and each saved meal keeps a tick', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  // The primary button comes before the meal rows, whose Add links are quieter.
+  const logMeal = page.getByRole('link', { name: 'Log Meal' });
+  const firstRow = page.locator('.meal-row').first();
+  expect((await logMeal.boundingBox()).y).toBeLessThan((await firstRow.boundingBox()).y);
+  await expect(page.getByRole('link', { name: 'Add Breakfast' })).toHaveClass(/btn-quiet/);
+
+  await logMeal.click();
+  await page.getByLabel('Breakfast calories').fill('400');
+  await page.getByRole('button', { name: /^Lunch/ }).click();
+  const breakfast = page.locator('.meal-pill[data-meal="breakfast"]');
+  await expect(breakfast).toHaveAccessibleName('Breakfast, 400 cal, saved');
+  await expect(breakfast.locator('.pill-value')).toHaveText('✓ 400');
+  // The tick stays; it isn't a message that fades.
+  await page.clock.runFor(10000);
+  await expect(breakfast.locator('.pill-value')).toHaveText('✓ 400');
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  await expect(page.locator('.toast')).toHaveText(['Saved for Today: 400 cal']);
+});
+
 test('one message at a time, cleared when another screen opens, and a tap dismisses it', async ({ page, appURL }) => {
   await page.goto(`${appURL}/#/log/breakfast`);
   await page.getByLabel('Breakfast calories').fill('400');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   // Done's confirmation belongs to the screen it returns to, so it stays.
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(page.locator('.toast')).toHaveText(['Saved for Today: 400 cal']);
@@ -158,7 +179,7 @@ test('one message at a time, cleared when another screen opens, and a tap dismis
 
   // A tap on a message dismisses it.
   await page.goto(`${appURL}/#/log/lunch`);
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   const saved = page.locator('.toast');
   await expect(saved).toHaveText(['Saved for Today: 400 cal']);
   const box = await saved.boundingBox();
@@ -175,7 +196,7 @@ test('a day left open past midnight moves to the new day', async ({ page, appURL
   await expect(page.getByText('Fri, Sep 25')).toBeVisible();
   await page.getByRole('link', { name: 'Log Meal' }).click();
   await page.getByLabel('Breakfast calories').fill('350');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   expect((await data.entry('2026-09-25')).meals.breakfast).toBe(350);
   const old = await data.entry('2026-09-24');
   expect(old === null || old.meals.breakfast === null).toBe(true);
@@ -204,7 +225,7 @@ test('a second tap on Done while it is saving does nothing more', async ({ page,
   await page.goto(`${appURL}/#/log/breakfast`);
   await page.getByLabel('Breakfast calories').fill('420');
   // Two taps in the same instant: the second arrives while the first is saving.
-  await page.getByRole('button', { name: 'Done' }).evaluate((btn) => {
+  await page.getByRole('button', { name: 'Save and close' }).evaluate((btn) => {
     btn.click();
     btn.click();
   });

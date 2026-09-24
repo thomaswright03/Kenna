@@ -196,10 +196,10 @@ export async function buildToday(ctx) {
     }
     actions.append(
       h('a', {
-        class: 'btn-text',
+        class: `btn-text${logged ? '' : ' btn-quiet'}`,
         href,
         'aria-label': `${logged ? 'Edit' : 'Add'} ${step.label}`,
-        text: logged ? 'Edit' : '+ Add',
+        text: logged ? 'Edit' : 'Add',
       })
     );
     if (logged) {
@@ -265,8 +265,8 @@ export async function buildToday(ctx) {
           h('div', { class: 'field' }, h('label', { for: weightInput.id, text: 'Weight (lbs)' }), weightInput, weightStatus.el)
         ),
         h('div', { class: 'total-box' }, totalNum, totalLabel),
-        mealsList,
-        logBtn
+        logBtn,
+        mealsList
       );
 
   const charts = buildChartsCard({

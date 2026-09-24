@@ -21,8 +21,11 @@ data never leaves your device.
   still in the box (a number that isn't valid isn't saved; the next visit
   puts it back in its box and says why). The day total updates as you type,
   marked "not saved yet" until the save is done; **Enter** moves
-  to the next meal you haven't logged; **Done** returns to the day you were
-  logging and confirms what was saved. A meal removed on the Today screen
+  to the next meal you haven't logged; **Save and close** saves what's in the box, returns to the day you
+  were logging and confirms what was saved. Each saved meal's button shows
+  a ✓ and its calories. On the Today screen **Log Meal** is the main way
+  in; each meal row also has a quieter **Add** or **Edit** link that opens
+  Log Meal at that meal. A meal removed on the Today screen
   keeps an **Undo** button in its row until you leave that screen.
 - **History** lists every logged day with its total calories and weight,
   grouped by month under headings with each month's average calories

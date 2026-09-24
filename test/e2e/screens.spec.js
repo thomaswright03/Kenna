@@ -57,7 +57,7 @@ test('Done returns to the screen the log was opened from without stacking histor
   await page.goto(`${appURL}/#/history`);
   await nav(page).getByRole('link', { name: 'Today' }).click();
   await page.getByRole('link', { name: 'Log Meal' }).click();
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
@@ -71,7 +71,7 @@ test('tapping a History day opens it for editing, with a way back to today', asy
   await expect(page.getByLabel('Weight (lbs)')).toHaveValue('182');
   await page.getByRole('link', { name: 'Add Breakfast' }).click();
   await page.getByLabel('Breakfast calories').fill('250');
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
   expect((await data.entry('2026-09-20')).meals.breakfast).toBe(250);
   await page.getByRole('link', { name: 'Back to today' }).click();

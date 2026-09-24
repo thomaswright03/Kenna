@@ -370,6 +370,9 @@ input[aria-invalid='true'] { border-color: var(--danger); }
   cursor: pointer;
 }
 
+/* A secondary way to do what a primary button on the same card does. */
+.btn-text.btn-quiet { color: var(--muted); font-weight: 500; }
+
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -419,8 +422,10 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
   border-radius: var(--r-md);
   padding: var(--s4);
   text-align: center;
-  margin: 0 0 var(--s3);
+  margin: 0;
 }
+
+.total-box + .btn { margin: var(--s3) 0 var(--s2); }
 
 .total-num {
   font-size: var(--fs-xl);

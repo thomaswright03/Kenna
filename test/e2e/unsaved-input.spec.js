@@ -39,7 +39,7 @@ test('typed values are saved when the app is sent to the background, only once',
   await expect(page.getByText('Lunch saved')).toBeVisible();
   await hide();
   await page.getByLabel('Lunch calories').blur();
-  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   await expect(page.locator('.total-num')).toHaveText('720');
 
   await page.getByLabel('Weight (lbs)').fill('179.8');
