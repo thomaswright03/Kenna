@@ -2,7 +2,8 @@ const js = require('@eslint/js');
 const globals = require('globals');
 
 module.exports = [
-  { ignores: ['node_modules/', 'test-results/', 'playwright-report/', 'docs/build/'] },
+  // test/unit/published/ holds the published version's built scripts, as served.
+  { ignores: ['node_modules/', 'test-results/', 'playwright-report/', 'docs/build/', 'test/unit/published/'] },
   js.configs.recommended,
   {
     files: ['docs/**/*.js'],

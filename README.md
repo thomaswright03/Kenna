@@ -106,7 +106,9 @@ scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
 scripts/coverage.js    measures what the unit and browser tests run
 scripts/make-icons.js  draws the app icon (a scale) in every size, from
                        the drawing in it (then run npm run build)
-test/unit/       Node tests: data rules, browser storage, backup files, build
+test/unit/       Node tests: data rules, browser storage, backup files, build,
+                 and days passing both ways between this version and the
+                 published one (its built data.js, kept in published/)
 test/e2e/        Playwright tests of the app, served as Pages serves it
 ```
 
@@ -139,8 +141,9 @@ Pages serves its `docs/` folder. Other branches, such as
    **Tests / webkit**) are green on the pull request; the published
    branch's ruleset (see [Who looks after it](#who-looks-after-it)) won't
    let GitHub merge it otherwise. Go through the "Before merging" part
-   of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install to
-   the Home Screen, log a meal, add a photo, export with Save to Files and
+   of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install
+   the live version to the Home Screen and upgrade it to this one with its
+   days intact, log a meal, add a photo, export with Save to Files and
    import that file back) and add its row to the checklist's Record table;
    the pull request template asks for both. Then merge the pull request into the
    published branch.
