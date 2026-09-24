@@ -16,51 +16,155 @@ import { buildWeightField } from './today-weight.js';
 import { buildMealList } from './today-meals.js';
 
 /**
+ * Opens `picked` as the day shown, or says under the heading why it can't
+ * be: an empty or unfinished date, or a day that hasn't happened yet.
+ * @param {string} picked
+ * @param {string} date the day shown now
+ * @param {import('./feedback.js').StatusLine} status
+ * @returns {boolean} false when it was refused
+ */
+function openPicked(picked, date, status) {
+  if (!core.isValidDateStr(picked)) {
+    status.set('error', 'Pick a date to view.');
+    return false;
+  }
+  if (picked > today()) {
+    status.set('error', core.FUTURE_DAY);
+    return false;
+  }
+  if (picked !== date) navigate(dayHash(picked));
+  return true;
+}
+
+/**
+ * Change day from the keyboard: a visible date box with Open day and
+ * Cancel. What's typed or changed with the arrow keys only opens a day
+ * when it's confirmed: Enter, Open day, or leaving the box for elsewhere
+ * on the page. Escape or Cancel puts it away.
+ * @param {string} date the day shown
+ * @param {(picked: string) => boolean} open opens a day; false when refused
+ * @param {() => void} onClose runs when it's put away from the keyboard (focus goes back)
+ */
+function dayEditor(date, open, onClose) {
+  const input = h('input', { type: 'date', id: uid('day'), value: date, max: today(), required: true });
+  const openBtn = h('button', { type: 'button', class: 'btn btn-primary btn-compact', text: 'Open day' });
+  const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary btn-compact', text: 'Cancel' });
+  const root = h(
+    'div',
+    { class: 'day-editor', id: uid('day-editor'), hidden: true, 'data-day-editor': '' },
+    h('label', { for: input.id, text: 'Day to open' }),
+    h('div', { class: 'day-editor-row' }, input, openBtn, cancelBtn)
+  );
+  // Set once a day has been opened, so leaving the box as the screen
+  // changes doesn't open it a second time.
+  let done = false;
+  const hide = () => {
+    root.hidden = true;
+  };
+  const confirm = () => {
+    if (done || root.hidden) return;
+    if (!open(input.value)) {
+      input.focus();
+      return;
+    }
+    done = true;
+    if (input.value === date) {
+      hide();
+      onClose();
+    }
+  };
+  const cancel = () => {
+    hide();
+    onClose();
+  };
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      confirm();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+    }
+  });
+  openBtn.addEventListener('click', confirm);
+  cancelBtn.addEventListener('click', cancel);
+  // Leaving for elsewhere on the page confirms a changed date, as leaving
+  // any other box saves it; an unchanged or empty one is simply put away.
+  root.addEventListener('focusout', (e) => {
+    if (root.hidden || done || (e.relatedTarget instanceof Node && root.contains(e.relatedTarget))) return;
+    if (input.value && input.value !== date) {
+      if (open(input.value)) done = true;
+    } else {
+      hide();
+    }
+  });
+  function show() {
+    done = false;
+    input.value = date;
+    root.hidden = false;
+    input.focus();
+  }
+  return { root, input, show };
+}
+
+/**
  * "Change day", beside the day's heading: a secondary control, so the
  * Weight box is the only thing on Today that looks like a field to fill.
- * The date input itself lies unseen over the button, so a tap on the
- * button is a tap on the input and opens the phone's own date picker;
- * with a mouse, a click opens the browser's picker. Picking a day opens
- * it; a day that hasn't happened yet is refused.
+ * It's one button to the keyboard, which opens a date box (dayEditor). For
+ * a tap or a click, a date input lies unseen over the button, so the phone's
+ * own date picker opens (with a mouse, the browser's), and picking a day
+ * opens it. A day that hasn't happened yet is refused.
  * @param {string} date the day shown
  */
 function buildDaySwitch(date) {
-  const now = today();
-  const input = h('input', { type: 'date', id: uid('date'), class: 'day-switch-input', value: date, max: now, required: true });
-  const status = createFieldStatus(input);
-  input.addEventListener('change', () => {
-    const picked = input.value;
-    if (!core.isValidDateStr(picked)) {
-      input.value = date;
-      status.set('error', 'Pick a date to view.');
-      return;
-    }
-    if (picked > today()) {
-      input.value = date;
-      status.set('error', core.FUTURE_DAY);
-      return;
-    }
-    if (picked !== date) navigate(dayHash(picked));
+  const button = h('button', { type: 'button', class: 'day-switch-label', 'aria-expanded': 'false' });
+  const editor = dayEditor(date, (picked) => openPicked(picked, date, status), () => {
+    button.setAttribute('aria-expanded', 'false');
+    button.focus();
   });
-  input.addEventListener('blur', () => {
-    if (!input.value) input.value = date;
+  const status = createFieldStatus(editor.input);
+  button.setAttribute('aria-controls', editor.root.id);
+  const showEditor = () => {
+    status.set(null);
+    button.setAttribute('aria-expanded', 'true');
+    editor.show();
+  };
+  button.addEventListener('click', showEditor);
+
+  // For taps and clicks only: out of the Tab order and hidden from screen
+  // readers, which use the button.
+  const picker = h('input', { type: 'date', class: 'day-switch-input', value: date, max: today(), tabindex: '-1', 'aria-hidden': 'true' });
+  picker.addEventListener('change', () => {
+    if (!openPicked(picker.value, date, status)) picker.value = date;
   });
-  input.addEventListener('click', () => {
+  picker.addEventListener('blur', () => {
+    if (!picker.value) picker.value = date;
+  });
+  picker.addEventListener('click', () => {
     if (!window.matchMedia || !window.matchMedia('(pointer: fine)').matches) return;
-    const picker = /** @type {HTMLInputElement & { showPicker?: () => void }} */ (input);
+    const withPicker = /** @type {HTMLInputElement & { showPicker?: () => void }} */ (picker);
     try {
-      if (picker.showPicker) picker.showPicker();
+      if (withPicker.showPicker) withPicker.showPicker();
     } catch {
-      // The input still takes typing.
+      // The date box below still works.
     }
   });
+  // Typing after a click goes to the visible date box instead, so no key
+  // opens a day on its own.
+  picker.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' || e.key === 'Shift') return;
+    e.preventDefault();
+    showEditor();
+  });
+
   const icon = svg('svg', { class: 'day-switch-icon', viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true', focusable: 'false' });
   icon.append(
     svg('rect', { x: 3.5, y: 5, width: 17, height: 15, rx: 2.5, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }),
     svg('path', { d: 'M3.5 10h17M8 3v4M16 3v4', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round' })
   );
-  const control = h('div', { class: 'day-switch' }, h('label', { class: 'day-switch-label', for: input.id }, icon, h('span', { text: 'Change day' })), input);
-  return { control, status: status.el };
+  button.append(icon, h('span', { text: 'Change day' }));
+  const control = h('div', { class: 'day-switch' }, button, picker);
+  return { control, editor: editor.root, status: status.el };
 }
 
 /**
@@ -79,6 +183,7 @@ function dayHeading(date) {
       h('div', null, h('h2', { class: 'card-title', text: isToday ? 'Today' : core.formatDate(date, now) }), h('p', { class: 'card-sub', text: isToday ? core.formatDate(date, now) : 'Past day' })),
       daySwitch.control
     ),
+    daySwitch.editor,
     daySwitch.status,
   ];
 }

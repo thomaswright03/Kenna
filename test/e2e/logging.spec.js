@@ -74,7 +74,8 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
 
 test('Change day cannot be emptied or set to the future', async ({ page, appURL, data }) => {
   await page.goto(appURL);
-  const date = page.getByLabel('Change day');
+  // The date input a tap or a click lands on, which opens the phone's picker.
+  const date = page.locator('.day-switch-input');
   await date.fill('');
   await date.dispatchEvent('change');
   await expect(date).toHaveValue(TODAY);
@@ -86,6 +87,54 @@ test('Change day cannot be emptied or set to the future', async ({ page, appURL,
   await date.dispatchEvent('change');
   await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();
   await expect(date).toHaveValue(TODAY);
+});
+
+test('Change day works from the keyboard: one Tab stop, and a day opens only when confirmed', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  const change = page.getByRole('button', { name: 'Change day' });
+  await expect(change).toHaveAttribute('aria-expanded', 'false');
+  // One stop: the next Tab goes on to the Weight box.
+  await change.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Weight (lbs)')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(change).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(change).toHaveAttribute('aria-expanded', 'true');
+  const box = page.getByLabel('Day to open');
+  await expect(box).toBeFocused();
+  await expect(box).toHaveValue(TODAY);
+  // Changing the date, with the arrow keys or by typing, doesn't open a day.
+  await page.keyboard.press('ArrowDown');
+  await box.fill('2026-09-15');
+  await expect(box).toBeVisible();
+  await expect(box).toHaveValue('2026-09-15');
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  expect(new URL(page.url()).hash).toBe('');
+  // Enter does.
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Tue, Sep 15' })).toBeVisible();
+  await expect(page).toHaveURL(/#\/day\/2026-09-15$/);
+
+  // A day that hasn't happened yet is refused, and the box stays open.
+  await page.getByRole('button', { name: 'Change day' }).press('Enter');
+  await page.getByLabel('Day to open').fill('2026-10-01');
+  await page.getByLabel('Day to open').press('Enter');
+  await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();
+  await expect(page.getByLabel('Day to open')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tue, Sep 15' })).toBeVisible();
+
+  // Escape puts the box away and goes back to the button.
+  await page.getByLabel('Day to open').press('Escape');
+  await expect(page.getByLabel('Day to open')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Change day' })).toBeFocused();
+
+  // Leaving the box for elsewhere confirms a changed date.
+  await page.getByRole('button', { name: 'Change day' }).press('Enter');
+  await page.getByLabel('Day to open').fill('2026-09-20');
+  await page.getByLabel('Weight (lbs)').focus();
+  await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
 });
 
 test('saving a weight shows that it was saved', async ({ page, appURL }) => {
@@ -256,7 +305,7 @@ test('a day long before anything logged asks first, so a mistyped year is not sa
 
   // The day picker lands on the same question for a mistyped year.
   await page.goto(appURL);
-  const picker = page.getByLabel('Change day');
+  const picker = page.locator('.day-switch-input');
   await picker.fill('2002-09-23');
   await picker.dispatchEvent('change');
   await expect(page.getByRole('group', { name: 'Log a day in 2002?' })).toBeVisible();

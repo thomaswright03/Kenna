@@ -21,7 +21,11 @@ run, test and release it.
   **Undo**. Emptying the weight box clears the day's weight, with **Undo** under the
   box to put it back. Tap **Change day** beside the day's heading and pick
   a date, or tap a day in History, to view or fix a past day; **Back to
-  today** returns to the current day. Before anything is logged, a short
+  today** returns to the current day. From a keyboard, **Change day** is
+  one Tab stop that opens a **Day to open** box under the heading: the
+  date can be typed or changed with the arrow keys, and the day opens only
+  on Enter, **Open day** or leaving the box (Escape or **Cancel** puts it
+  away). Before anything is logged, a short
   welcome under the heading says what Kenna is. A day with no meals says
   "No meals logged yet today" in place of a total. Once anything is
   logged, a line under the day says how old the last saved backup is

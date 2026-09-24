@@ -18,7 +18,7 @@ test('no screen has accessibility problems axe can find, in either theme', async
   }
 });
 
-test('the backup save panel, the meal table, the photo viewer and the "Log a day in …?" question have no problems axe can find', async ({ page, appURL, data }) => {
+test('the backup save panel, the Change day box, the meal table, the photo viewer and the "Log a day in …?" question have no problems axe can find', async ({ page, appURL, data }) => {
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }, 180) });
   const check = async (label) => {
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
@@ -32,6 +32,10 @@ test('the backup save panel, the meal table, the photo viewer and the "Log a day
   await page.getByRole('button', { name: 'Export Backup' }).click();
   await expect(page.getByRole('button', { name: 'I’ve saved it' })).toBeVisible();
   await check('settings');
+  await page.goto(appURL);
+  await page.getByRole('button', { name: 'Change day' }).press('Enter');
+  await expect(page.getByLabel('Day to open')).toBeVisible();
+  await check('change day');
   await page.goto(`${appURL}/#/day/2001-01-01`);
   await expect(page.locator('[data-far-back]')).toBeVisible();
   await check('far back');

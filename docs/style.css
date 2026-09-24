@@ -452,12 +452,15 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 /* ------------------------------------------------------------ today */
 
 /* The day's heading, with Change day beside it: a small secondary button
-   with the date input lying unseen over it, so a tap opens the picker. */
+   with a date input lying unseen over it, so a tap opens the picker. From
+   the keyboard the button opens a visible date box under the heading. */
 .day-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
 .day-head .card-sub { margin-bottom: var(--s3); }
 .day-switch { position: relative; flex-shrink: 0; }
 .day-switch-label {
   display: flex;
+  font: inherit;
+  cursor: pointer;
   align-items: center;
   gap: var(--s2);
   min-height: var(--tap);
@@ -483,9 +486,12 @@ input[type='date'].day-switch-input {
   cursor: pointer;
   font-size: 16px;
 }
-.day-switch:focus-within .day-switch-label { outline: 3px solid var(--focus); outline-offset: 2px; }
-.day-switch:has(.day-switch-input[aria-invalid='true']) .day-switch-label { border-color: var(--danger); }
-.day-head + .field-status:not(:empty) { margin: calc(-1 * var(--s2)) 0 var(--s3); }
+.day-switch-label:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.day-editor { margin: 0 0 var(--s3); }
+.day-editor-row { display: flex; align-items: center; gap: var(--s2); }
+.day-editor-row input[type='date'] { flex: 1 1 auto; min-width: 0; }
+.day-head + .field-status:not(:empty),
+.day-editor + .field-status:not(:empty) { margin: calc(-1 * var(--s2)) 0 var(--s3); }
 
 .welcome {
   margin: 0 0 var(--s4);
