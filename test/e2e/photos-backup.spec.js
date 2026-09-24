@@ -35,7 +35,7 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await thumb.click();
   await viewer.getByRole('button', { name: 'Delete…' }).click();
   const question = viewer.getByRole('group', { name: 'Delete this photo from Thu, Sep 24?' });
-  await expect(question).toContainText("can't be undone");
+  await expect(question).toContainText('Undo brings it back straight afterwards.');
   expect(await page.evaluate(() => document.querySelectorAll('dialog[open]').length)).toBe(1);
   await expect(viewer.getByRole('img', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
   await expect(viewer.getByRole('button', { name: 'Close' })).toBeHidden();
@@ -56,6 +56,55 @@ test('photo viewer is an accessible dialog and deleting asks first', async ({ pa
   await viewer.getByRole('button', { name: 'Delete photo' }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
+});
+
+test('a deleted photo can be brought back with Undo, as it was, and is erased once that chance has passed', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  // A backup with the photo in it, for later.
+  await page.goto(`${appURL}/#/settings`);
+  const saved = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Backup' }).click();
+  const file = await (await saved).path();
+
+  const deletePhoto = async () => {
+    await page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete…' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete photo' }).click();
+    await expect(page.getByRole('heading', { name: 'No photos yet' })).toBeVisible();
+  };
+  const stored = () =>
+    page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const req = indexedDB.open('kenna-photos');
+          req.onsuccess = () => {
+            const get = req.result.transaction('photos').objectStore('photos').getAll();
+            get.onsuccess = () => resolve(get.result.map((r) => ({ date: r.date, createdAt: r.createdAt })));
+          };
+        })
+    );
+  await page.goto(`${appURL}/#/photos`);
+  const before = await stored();
+  await deletePhoto();
+  const offer = page.locator('.toast').filter({ hasText: 'Photo from Thu, Sep 24 deleted' });
+  await offer.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('button', { name: 'Progress photo, Thu, Sep 24' })).toBeVisible();
+  expect(await stored()).toEqual(before);
+
+  // Still recognised as the same photo by a backup that has it.
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByText(/1 photo was already here/)).toBeVisible();
+
+  // Moving on to another screen erases it.
+  await page.goto(`${appURL}/#/photos`);
+  await deletePhoto();
+  await expect(offer).toBeVisible();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(offer).toHaveCount(0);
+  await expect.poll(stored).toEqual([]);
 });
 
 test('tapping outside the photo closes the viewer', async ({ page, appURL }) => {

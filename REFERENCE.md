@@ -95,7 +95,12 @@ run, test and release it.
   in the viewer) shows two photos side by side, older on the left, with
   each one's date and that day's weight and how far apart they are.
   Deleting a photo asks first, inside the viewer (the photo stays in view;
-  **Cancel** or Escape goes back to it), so only one dialog is ever open. A photo in a format the
+  **Cancel** or Escape goes back to it), so only one dialog is ever open.
+  Once it's deleted, **Undo** in the message that follows brings it back
+  as it was, on the same day and with the same time added (so a backup
+  that has it still finds it already here). Until then it's only hidden;
+  it's erased for good when that message goes (dismissed, or you move on
+  to another screen), or the next time Kenna starts. A photo in a format the
   browser can't draw (HEIC anywhere but Safari, for example after
   restoring a backup on a laptop) is still kept and backed up as it is;
   adding one says it can't be previewed in this browser, and the grid, the

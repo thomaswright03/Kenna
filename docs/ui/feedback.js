@@ -5,7 +5,8 @@ import { h, uid, byId } from './dom.js';
 
 /**
  * @typedef {{ tone?: 'info' | 'warning' | 'error', message: string }} Notice
- * @typedef {{ tone?: 'error', action?: { label: string, onClick: () => void } }} ToastOptions
+ * @typedef {{ tone?: 'error', action?: { label: string, onClick: () => void }, onGone?: () => void }} ToastOptions
+ *   onGone: runs when a message with a button goes without the button being used
  */
 
 /**
@@ -66,11 +67,16 @@ export function toast(message, options) {
   const classes = ['toast', opts.tone === 'error' ? 'toast-error' : '', opts.action ? 'toast-actionable' : ''].filter(Boolean).join(' ');
   const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': opts.keepOnNavigate ? 'true' : null });
   el.append(h('span', { class: 'toast-text', text: message }));
-  const dismiss = () => {
+  let gone = false;
+  /** @param {boolean} [used] its button was used */
+  const dismiss = (used) => {
+    if (gone) return;
+    gone = true;
     clearTimeout(timer);
     liveToasts.delete(el);
     el.remove();
     makeRoomForToasts();
+    if (!used && opts.onGone) opts.onGone();
   };
   const action = opts.action;
   if (action) {
@@ -80,11 +86,11 @@ export function toast(message, options) {
         class: 'toast-action',
         text: action.label,
         onClick: () => {
-          dismiss();
+          dismiss(true);
           action.onClick();
         },
       }),
-      h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Dismiss', text: '×', onClick: dismiss })
+      h('button', { type: 'button', class: 'toast-close', 'aria-label': 'Dismiss', text: '×', onClick: () => dismiss() })
     );
   }
   toasts.append(el);
@@ -95,9 +101,9 @@ export function toast(message, options) {
     if (dismissOldest) dismissOldest();
     else oldest.remove();
   }
-  const timer = action ? undefined : setTimeout(dismiss, 4000);
+  const timer = action ? undefined : setTimeout(() => dismiss(), 4000);
   makeRoomForToasts();
-  return dismiss;
+  return () => dismiss();
 }
 
 /**

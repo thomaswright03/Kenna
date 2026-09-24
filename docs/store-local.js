@@ -42,7 +42,10 @@
  * @property {() => Promise<Photo[]>} listPhotos every photo's details, newest first (no images)
  * @property {() => Promise<number>} countPhotos
  * @property {(photo: { date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }) => Promise<Photo>} addPhoto
- * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto
+ * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto erases a photo now
+ * @property {(id: Photo['id']) => Promise<boolean>} hidePhoto deletes a photo so that it can still be brought back (unhidePhoto) until deleteHiddenPhotos; false when it couldn't be kept that way and was erased at once
+ * @property {(id: Photo['id']) => Promise<void>} unhidePhoto brings back a photo hidePhoto deleted, as it was
+ * @property {(ids?: Photo['id'][]) => Promise<void>} deleteHiddenPhotos erases the photos hidePhoto deleted (only `ids`, when given)
  * @property {(id: Photo['id'], changes: { date: string }) => Promise<Photo>} updatePhoto changes the day a photo is filed under
  * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob the full image
  * @property {(photo: Photo, size: 'thumb' | 'full') => Promise<{ url: string, release: () => void }>} photoUrl an address to show the preview or full image
@@ -76,6 +79,10 @@
   const INDEX_DB_NAME = 'kenna-photo-index';
   const META_STORE = 'meta';
   const THUMBS_STORE = 'thumbs';
+  // Photos deleted but not yet erased, so that Undo can bring them back:
+  // their ids, in localStorage. Older versions don't know this key and
+  // still show them, so a rollback never loses one.
+  const HIDDEN_PHOTOS_KEY = 'kenna:photos:hidden';
 
   class StorageWriteError extends core.KennaError {}
 
@@ -650,18 +657,37 @@
       return Array.from(known.values());
     }
 
+    /** @returns {Set<number>} the ids of photos deleted but not yet erased */
+    function hiddenPhotos() {
+      try {
+        const ids = JSON.parse(storage.getItem(HIDDEN_PHOTOS_KEY) || '[]');
+        return new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'number') : []);
+      } catch {
+        return new Set();
+      }
+    }
+
+    /** @param {Set<number>} ids */
+    function writeHiddenPhotos(ids) {
+      if (ids.size) storage.setItem(HIDDEN_PHOTOS_KEY, JSON.stringify([...ids]));
+      else storage.removeItem(HIDDEN_PHOTOS_KEY);
+    }
+
     /** Every photo's details, newest first, without reading any image. */
     async function listPhotos() {
       const metas = await syncIndex();
+      const hidden = hiddenPhotos();
       return metas
-        .filter((m) => !m.missing && core.isValidDateStr(m.date))
+        .filter((m) => !m.missing && !hidden.has(m.id) && core.isValidDateStr(m.date))
         .map(toPhoto)
         .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
     }
 
     /** @returns {Promise<number>} */
     async function countPhotos() {
-      return Number(await photosTx((s) => s.count())) || 0;
+      const hidden = hiddenPhotos();
+      const keys = /** @type {number[]} */ (await photosTx((s) => s.getAllKeys()));
+      return keys.filter((id) => !hidden.has(id)).length;
     }
 
     /** @param {Blob} blob */
@@ -718,6 +744,48 @@
         t.objectStore(META_STORE).delete(id);
         t.objectStore(THUMBS_STORE).delete(id);
       }, 'readwrite').catch(() => undefined);
+    }
+
+    // Deleting from the photo viewer hides the photo first (it's left out
+    // of every listing, count and backup), so Undo can bring it back as it
+    // was, with its day and the time it was added. It's erased once that
+    // chance has passed (deleteHiddenPhotos), or at the next start.
+    /** @param {Photo['id']} id */
+    async function hidePhoto(id) {
+      const ids = hiddenPhotos();
+      ids.add(Number(id));
+      try {
+        writeHiddenPhotos(ids);
+      } catch {
+        // No room to note it: erased now instead, without Undo.
+        await deletePhoto(id);
+        return false;
+      }
+      return true;
+    }
+
+    /** @param {Photo['id']} id */
+    async function unhidePhoto(id) {
+      if (!(await getRecord(Number(id)))) throw new core.KennaError('That photo has already been deleted for good.');
+      const ids = hiddenPhotos();
+      ids.delete(Number(id));
+      try {
+        writeHiddenPhotos(ids);
+      } catch (e) {
+        throw writeError(e, 'The photo wasn’t brought back.');
+      }
+    }
+
+    /** @param {Photo['id'][]} [only] */
+    async function deleteHiddenPhotos(only) {
+      const hidden = hiddenPhotos();
+      const ids = only ? only.map(Number).filter((id) => hidden.has(id)) : [...hidden];
+      for (const id of ids) {
+        await deletePhoto(id);
+        const left = hiddenPhotos();
+        left.delete(id);
+        writeHiddenPhotos(left);
+      }
     }
 
     /** @param {Photo} photo @returns {Promise<Blob>} the full image, read on its own */
@@ -804,6 +872,8 @@
       if (!storageWorks()) return { ok: false, reason: 'blocked' };
       readRaw(); // surfaces any recovery notice straight away
       settle();
+      // Photos deleted in an earlier visit, whose Undo has gone with it.
+      if (hiddenPhotos().size) guardPhotos('write', () => deleteHiddenPhotos()).catch(() => undefined);
       return { ok: true };
     }
 
@@ -852,6 +922,9 @@
       addPhoto: (photo) => guardPhotos('write', () => addPhoto(photo)),
       updatePhoto: (id, changes) => guardPhotos('write', () => updatePhoto(id, changes)),
       deletePhoto: (id) => guardPhotos('write', () => deletePhoto(id)),
+      hidePhoto: (id) => guardPhotos('write', () => hidePhoto(id)),
+      unhidePhoto: (id) => guardPhotos('write', () => unhidePhoto(id)),
+      deleteHiddenPhotos: (ids) => guardPhotos('write', () => deleteHiddenPhotos(ids)),
       getPhotoBlob: (photo) => guardPhotos('read', () => getPhotoBlob(photo)),
       photoUrl: (photo, size) => guardPhotos('read', () => photoUrl(photo, size)),
       createPhotoImporter: () => guardPhotos('list', createPhotoImporter),
@@ -861,5 +934,5 @@
     };
   }
 
-  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS, CORRUPT_KEY, UNDO_IMPORT_KEY, MAX_CORRUPT_COPIES, StorageWriteError });
+  return Object.freeze({ createLocalStore, HIDDEN_PHOTOS_KEY, ENTRIES_KEY, BACKUP_KEY, RECENT_KEY, RECENT_BACKUP_KEY, MAX_RECENT_DAYS, CORRUPT_KEY, UNDO_IMPORT_KEY, MAX_CORRUPT_COPIES, StorageWriteError });
 });

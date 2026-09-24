@@ -5,7 +5,7 @@
 // picked for a side-by-side comparison.
 
 import { core, h, uid, today } from './dom.js';
-import { failureText } from './problems.js';
+import { failureText, recordProblem } from './problems.js';
 import { toast, openDialog, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
@@ -178,7 +178,8 @@ async function moveToPickedDay(v, c) {
 /**
  * Asks, inside the viewer, before deleting the shown photo: the photo stays
  * in view and the viewer's controls give way to the question. Cancel (or
- * Escape) goes back to the photo; Delete photo deletes it and closes.
+ * Escape) goes back to the photo; Delete photo deletes it and closes, with
+ * Undo (see offerPhotoBack).
  * @param {ViewerState} v
  * @param {ViewerControls} c
  * @param {() => void} close
@@ -194,7 +195,7 @@ function askToDelete(v, c, close) {
     'div',
     { class: 'viewer-confirm', role: 'group', 'aria-labelledby': titleId, 'data-delete-question': '' },
     h('p', { class: 'viewer-confirm-title', id: titleId, text: question }),
-    h('p', { class: 'dialog-text', text: "It will be removed from Kenna for good. This can't be undone." }),
+    h('p', { class: 'dialog-text', text: 'It will be removed from Kenna. Undo brings it back straight afterwards.' }),
     h('div', { class: 'dialog-actions' }, cancelBtn, deleteBtn),
     status.el
   );
@@ -213,8 +214,10 @@ function askToDelete(v, c, close) {
   deleteBtn.addEventListener('click', async () => {
     cancelBtn.disabled = true;
     deleteBtn.disabled = true;
+    /** @type {boolean} */
+    let undoable;
     try {
-      await store.deletePhoto(photo.id);
+      undoable = await store.hidePhoto(photo.id);
     } catch (err) {
       cancelBtn.disabled = false;
       deleteBtn.disabled = false;
@@ -224,8 +227,36 @@ function askToDelete(v, c, close) {
     v.moved = false;
     v.asking = null;
     close();
-    toast('Photo deleted');
+    if (undoable) offerPhotoBack(photo);
+    else toast('Photo deleted');
     render();
+  });
+}
+
+/**
+ * "Photo deleted", with Undo: the photo is only hidden until the message
+ * goes (dismissed, or the user moves on to another screen), and erased then.
+ * @param {Photo} photo
+ */
+function offerPhotoBack(photo) {
+  const when = core.formatDate(photo.date, today());
+  toast(`Photo from ${when} deleted`, {
+    action: {
+      label: 'Undo',
+      onClick: async () => {
+        try {
+          await store.unhidePhoto(photo.id);
+        } catch (err) {
+          toast(`Photo not brought back. ${failureText('Bring back a photo', err)}`, { tone: 'error' });
+          return;
+        }
+        toast(`Photo from ${when} brought back`);
+        render();
+      },
+    },
+    onGone: () => {
+      store.deleteHiddenPhotos([photo.id]).catch((err) => recordProblem('Delete a photo', err));
+    },
   });
 }
 
