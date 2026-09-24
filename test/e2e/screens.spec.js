@@ -16,7 +16,8 @@ test('days with only a weight are not counted as 0-calorie days', async ({ page,
 
   await page.goto(`${appURL}/#/compare`);
   const calories = page.locator('[data-answer="calories"]');
-  await expect(calories).toContainText('So far today: 1,000 cal less than your average day.');
+  // Lunch has never been logged before, so there's no usual lunch to compare with.
+  await expect(calories.locator('.compare-answer-text')).toHaveText("1,000 cal so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.");
   await expect(calories).toContainText('average day 2,000 cal · no meals logged yesterday');
   await expect(page.locator('[data-answer="weight"]')).toContainText('from yesterday (180 lbs)');
   expect(await visibleText(page)).not.toMatch(ISO_DATE);
@@ -186,7 +187,7 @@ test('Compare answers how today stands in plain sentences, within the first scre
   await page.goto(`${appURL}/#/compare`);
   const calories = page.locator('[data-answer="calories"]');
   const weight = page.locator('[data-answer="weight"]');
-  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 750 cal more than your average day.');
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 750 cal more than your average breakfast and lunch.');
   await expect(weight.locator('.compare-answer-text')).toHaveText('179 lbs today: 1.5 lbs above your average.');
   await expect(weight).toContainText('average 177.5 lbs · 1.3 lbs down from yesterday (180.3 lbs)');
   for (const a of [calories.locator('.compare-answer-text'), weight.locator('.compare-answer-text')]) {
@@ -197,7 +198,9 @@ test('Compare answers how today stands in plain sentences, within the first scre
   // Bars are plain amounts from zero, each labelled with its value; today's
   // is set apart by shade only.
   const rows = calories.locator('.amount-row');
-  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Average day\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
+  // The average day is the same as the usual breakfast and lunch here, so
+  // it isn't shown twice.
+  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
   const widths = await rows.locator('.amount-bar').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
   expect(widths[0]).toBeGreaterThan(widths[2]);
   expect(widths[2]).toBeGreaterThan(widths[1]);
@@ -245,7 +248,8 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(trend).toContainText('Yesterday');
   await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
   const calories = page.locator('[data-answer="calories"]');
-  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 1,500 cal less than your average day.');
+  await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal less than your average breakfast.');
+  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/, /^Average day\s*1,900 cal$/, /^Yesterday\s*1,900 cal$/]);
   await expect(calories.locator('.amount-row').first()).toContainText('Today so far');
   await expect(page.locator('[data-answer="weight"]')).not.toContainText('So far');
 

@@ -400,6 +400,41 @@
     return result;
   }
 
+  // Today's calories so far, compared like with like: the meals logged
+  // today against the average of those same meals (each meal's average
+  // counting only the days it was logged, as the Each meal table shows).
+  // Before dinner that says how breakfast and lunch went, rather than that
+  // half a day is less than a whole one. A meal logged today that has never
+  // been logged before has no average and is listed in `unmatched`.
+  /**
+   * @param {Record<string, number | null>} todayStats computeDayStats of today
+   * @param {Record<string, number | null>} averages computeAllTimeAverages
+   * @returns {{ meals: string[], today: number, average: number, unmatched: string[] } | null}
+   *   null when no meal logged today has an average to compare with
+   */
+  function compareSameMeals(todayStats, averages) {
+    /** @type {string[]} */
+    const meals = [];
+    /** @type {string[]} */
+    const unmatched = [];
+    let todaySum = 0;
+    let averageSum = 0;
+    for (const key of MEAL_KEYS) {
+      const value = todayStats[key];
+      if (value === null || value === undefined) continue;
+      const average = averages[key];
+      if (average === null || average === undefined) {
+        unmatched.push(key);
+        continue;
+      }
+      meals.push(key);
+      todaySum += value;
+      averageSum += average;
+    }
+    if (meals.length === 0) return null;
+    return { meals, today: todaySum, average: averageSum, unmatched };
+  }
+
   // One row per logged day, oldest first; calories is null on days without
   // meals so charts show a gap there instead of a drop to zero.
   /**
@@ -1055,6 +1090,7 @@
     applyPatch,
     computeDayStats,
     computeAllTimeAverages,
+    compareSameMeals,
     buildDailyRows,
     seriesFromRows,
     rollingAverage,

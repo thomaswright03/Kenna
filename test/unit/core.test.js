@@ -49,6 +49,27 @@ test('all-time averages skip days without meals and exclude today', () => {
   );
 });
 
+test("today's calories so far are compared with the same meals on earlier days", () => {
+  const entries = {
+    '2026-09-21': entry('2026-09-21', { breakfast: 400, lunch: 700, dinner: 900 }),
+    '2026-09-22': entry('2026-09-22', { breakfast: 600, lunch: 500, dinner: 800, snack2: 200 }),
+    '2026-09-23': entry('2026-09-23', { lunch: 600, dinner: 700 }),
+  };
+  const avg = core.computeAllTimeAverages(entries, '2026-09-24');
+  // Only breakfast so far: against the average breakfast, not a whole day.
+  const breakfastOnly = core.computeDayStats(entry('2026-09-24', { breakfast: 450 }));
+  assert.deepEqual(core.compareSameMeals(breakfastOnly, avg), { meals: ['breakfast'], today: 450, average: 500, unmatched: [] });
+  // Breakfast and lunch against the average breakfast plus the average lunch
+  // (each averaged over the days it was logged).
+  const twoMeals = core.computeDayStats(entry('2026-09-24', { breakfast: 450, lunch: 700 }));
+  assert.deepEqual(core.compareSameMeals(twoMeals, avg), { meals: ['breakfast', 'lunch'], today: 1150, average: 1100, unmatched: [] });
+  // A meal never logged before has no average and is left out of both sides.
+  const withNew = core.computeDayStats(entry('2026-09-24', { breakfast: 450, snack3: 150 }));
+  assert.deepEqual(core.compareSameMeals(withNew, avg), { meals: ['breakfast'], today: 450, average: 500, unmatched: ['snack3'] });
+  assert.equal(core.compareSameMeals(core.computeDayStats(entry('2026-09-24', { snack3: 150 })), avg), null);
+  assert.equal(core.compareSameMeals(core.computeDayStats(null), avg), null);
+});
+
 test('averages are null with no usable history', () => {
   const avg = core.computeAllTimeAverages({}, '2026-09-24');
   assert.equal(avg.total, null);

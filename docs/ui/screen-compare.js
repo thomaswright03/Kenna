@@ -2,7 +2,7 @@
 // top answers that in two sentences, calories and weight; each meal's
 // numbers are one tap further down; then the 7-day trend charts.
 
-import { core, h, MEAL_STEPS, today } from './dom.js';
+import { core, h, MEAL_STEPS, today, mealLabel } from './dom.js';
 import { store } from './store.js';
 import { buildChartsCard } from './charts.js';
 
@@ -75,6 +75,32 @@ function calorieBars(rows) {
   );
 }
 
+/** "breakfast, snack 1 and lunch" @param {string[]} keys */
+function mealNames(keys) {
+  const names = keys.map((k) => mealLabel(k).toLowerCase());
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+}
+
+/**
+ * The calorie sentence once today and earlier days both have meals: today's
+ * meals so far against your average for those same meals.
+ * @param {Stats} t
+ * @param {Stats} avg
+ * @param {ReturnType<typeof core.compareSameMeals>} same
+ * @returns {Node[]}
+ */
+function sameMealsSentence(t, avg, same) {
+  if (!same) {
+    return [document.createTextNode(`${cal(Number(t.total))} so far today. Today’s meals haven’t been logged on an earlier day, so there’s no average for them yet.`)];
+  }
+  const d = difference(same.today - same.average, 'cal', ['more than', 'less than']);
+  return [
+    document.createTextNode('So far today: '),
+    d.amount ? h('strong', { text: d.amount }) : null,
+    document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average ${mealNames(same.meals)}.`),
+  ].filter((n) => n !== null);
+}
+
 /**
  * @param {Stats} t today
  * @param {Stats} y yesterday
@@ -87,6 +113,7 @@ function calorieAnswer(t, y, avg, earlier) {
   if (avg.total !== null) details.push(`average day ${cal(avg.total)}`);
   if (y.total !== null) details.push(`yesterday ${cal(y.total)}`);
   else if (earlier) details.push('no meals logged yesterday');
+  const same = core.compareSameMeals(t, avg);
   /** @type {Node[]} */
   let sentence;
   if (t.total === null) {
@@ -96,18 +123,18 @@ function calorieAnswer(t, y, avg, earlier) {
     sentence = [document.createTextNode(`${cal(t.total)} so far today.${earlier ? ' No earlier day has meals logged to compare with yet.' : ''}`)];
     details.length = 0;
   } else {
-    const d = difference(t.total - avg.total, 'cal', ['more than', 'less than']);
-    sentence = [
-      document.createTextNode('So far today: '),
-      d.amount ? h('strong', { text: d.amount }) : null,
-      document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average day.`),
-    ].filter((n) => n !== null);
+    sentence = sameMealsSentence(t, avg, same);
+    if (same && same.unmatched.length) details.push(`${mealNames(same.unmatched)} not compared: not logged before today`);
   }
+  // The average for today's meals, and the average whole day when that's
+  // different (it is until the day's usual meals are all logged).
+  const usual = same && avg.total !== null ? same.average : null;
   const bars =
     t.total !== null && avg.total !== null
       ? calorieBars([
         { label: 'Today so far', value: t.total, today: true },
-        { label: 'Average day', value: avg.total },
+        { label: 'Usual for these meals', value: usual },
+        { label: 'Average day', value: usual !== null && Math.round(usual) === Math.round(avg.total) ? null : avg.total },
         { label: 'Yesterday', value: y.total },
       ])
     : null;
@@ -202,18 +229,16 @@ export async function buildCompare() {
     h('h2', { class: 'card-title', text: 'Compare' }),
     h('p', {
       class: 'card-sub',
-      text: `Today, ${core.formatDate(now, now)}, against your average day and yesterday. Averages leave out today and days with nothing logged.`,
+      text: `Today, ${core.formatDate(now, now)}, against your averages and yesterday. Averages leave out today and days with nothing logged.`,
     })
   );
-  if (!earlier) {
+  if (!earlier && !loggedToday) {
     card.append(
-      h('p', {
-        class: 'inline-note compare-first',
-        text: loggedToday
-          ? 'Log a few more days to see how today compares.'
-          : "Nothing logged yet. Log today's weight and meals, then come back over the next few days to see how each day compares.",
-      })
+      h('p', { class: 'compare-first', text: "Nothing logged yet. Log today's weight and meals, then come back over the next few days to see how each day compares." }),
+      h('a', { class: 'btn btn-primary', href: '#/log', text: 'Log Meal' })
     );
+  } else if (!earlier) {
+    card.append(h('p', { class: 'compare-first', text: 'Log a few more days to see how today compares.' }));
   }
   if (earlier || loggedToday) {
     card.append(h('div', { class: 'compare-answers' }, calorieAnswer(t, y, avg, earlier), weightAnswer(t, y, avg)));
