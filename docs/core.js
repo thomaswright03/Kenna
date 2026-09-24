@@ -291,19 +291,18 @@
 
   const mean = (vals) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
 
-  // All-time averages, excluding one day (today) so today is compared with a
-  // typical day rather than diluting its own baseline. Weight averages every
-  // day with a weight; calories average only days with at least one meal; a
-  // meal averages only the days that meal was logged.
+  // All-time averages of the days before `today`: today itself is left out
+  // so it's compared with a typical day rather than diluting its own
+  // baseline (and a day wrongly dated in the future never counts). Weight
+  // averages every day with a weight; calories average only days with at
+  // least one meal; a meal averages only the days that meal was logged.
   /**
    * @param {Record<string, Entry> | Entry[]} entries
-   * @param {string} excludeDate
+   * @param {string} today
    * @returns {Record<string, number | null>} weight, total and each meal
    */
-  function computeAllTimeAverages(entries, excludeDate) {
-    const list = (Array.isArray(entries) ? entries : Object.values(entries || {})).filter(
-      (e) => e && e.date !== excludeDate
-    );
+  function computeAllTimeAverages(entries, today) {
+    const list = (Array.isArray(entries) ? entries : Object.values(entries || {})).filter((e) => e && e.date < today);
     /** @type {Record<string, number | null>} */
     const result = { weight: null, total: null };
     result.weight = mean(list.map((e) => normalizeWeight(e.weight)).filter((w) => w !== null));
@@ -469,12 +468,14 @@
   /**
    * Checks everything in a backup except its photos: that it's a Kenna
    * backup this version can read, and every day in it. Problems are added
-   * to `problems`.
+   * to `problems`. Days after `latestDay` (a device clock that was wrong)
+   * are left out and counted in `futureDays` rather than failing the file.
    * @param {any} payload the backup's top-level object (photos not needed)
    * @param {string[]} problems
-   * @returns {{ ok: true, entries: Record<string, Entry> } | { ok: false, error: string }}
+   * @param {string} [latestDay] YYYY-MM-DD; no limit when omitted
+   * @returns {{ ok: true, entries: Record<string, Entry>, futureDays: number } | { ok: false, error: string }}
    */
-  function checkBackupDays(payload, problems) {
+  function checkBackupDays(payload, problems, latestDay) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return { ok: false, error: "This file isn't a Kenna backup." };
     }
@@ -489,12 +490,14 @@
     }
     /** @type {Record<string, Entry>} */
     const entries = {};
+    let futureDays = 0;
     for (const date of Object.keys(payload.entries)) {
       const result = validateIncomingEntry(date, payload.entries[date]);
-      if (result.ok) entries[date] = result.entry;
-      else problems.push(result.error);
+      if (!result.ok) problems.push(result.error);
+      else if (latestDay && isFutureDate(date, latestDay)) futureDays += 1;
+      else entries[date] = result.entry;
     }
-    return { ok: true, entries };
+    return { ok: true, entries, futureDays };
   }
 
   /**
@@ -525,6 +528,8 @@
     return `Nothing was imported. ${problems[0]}${extra}`;
   }
 
+  const FUTURE_DAY = "You can't log a day that hasn't happened yet.";
+
   const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
 
   // Validates a whole backup held in memory before anything is changed (the
@@ -533,9 +538,10 @@
   // memory at once; both apply the same checks.
   /**
    * @param {unknown} input the file's text, or its parsed JSON
-   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number } | { ok: false, error: string }}
+   * @param {string} [latestDay] days after this are left out (see checkBackupDays)
+   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number, futureDays: number } | { ok: false, error: string }}
    */
-  function parseBackup(input) {
+  function parseBackup(input, latestDay) {
     /** @type {any} */
     let payload = input;
     if (typeof input === 'string') {
@@ -547,7 +553,7 @@
     }
     /** @type {string[]} */
     const problems = [];
-    const days = checkBackupDays(payload, problems);
+    const days = checkBackupDays(payload, problems, latestDay);
     if (!days.ok) return days;
 
     /** @type {BackupPhoto[]} */
@@ -565,7 +571,14 @@
     }
 
     if (problems.length > 0) return { ok: false, error: backupProblemsMessage(problems) };
-    return { ok: true, entries: days.entries, photos, dayCount: Object.keys(days.entries).length, photoCount: photos.length };
+    return {
+      ok: true,
+      entries: days.entries,
+      photos,
+      dayCount: Object.keys(days.entries).length,
+      photoCount: photos.length,
+      futureDays: days.futureDays,
+    };
   }
 
   // When the Today screen reminds the user to save a backup file.
@@ -707,6 +720,7 @@
     checkBackupPhoto,
     backupProblemsMessage,
     UNREADABLE_BACKUP,
+    FUTURE_DAY,
     parseBackup,
     niceTicks,
     sniffImageType,

@@ -41,6 +41,12 @@ How the numbers work:
 - A meal's average uses only the days that meal was logged.
 - Calories must be whole numbers from 0 to 10,000 per meal; weight must be
   between 50 and 1,000 lbs. Anything else shows a message and isn't saved.
+- A day after today can't be logged, whether picked, typed into the address
+  bar or sent to the server's API (the server allows one day ahead of its
+  own clock, for a phone in a time zone ahead of it). A backup's days dated
+  after today are left out on import, and the import says how many. An
+  address that doesn't lead anywhere opens Today and is replaced by Today's
+  address.
 - The Today screen follows the calendar: if the app is left open (or resumed
   from the background) past midnight it moves to the new day, and anything
   logged after midnight goes to the new day. A past day you opened on purpose

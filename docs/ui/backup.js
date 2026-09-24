@@ -158,7 +158,10 @@ export function buildBackupSection() {
     try {
       // First pass: check the whole file without changing anything.
       setMessage('pending', 'Checking backup file…');
-      const checked = await backupFile.checkBackup(file, (n) => setMessage('pending', `Checking backup file: ${plural(n, 'photo')} so far…`));
+      const checked = await backupFile.checkBackup(file, {
+        onProgress: (n) => setMessage('pending', `Checking backup file: ${plural(n, 'photo')} so far…`),
+        latestDay: today(),
+      });
       if (!checked.ok) {
         setMessage('error', checked.error);
         return;
@@ -189,7 +192,10 @@ export function buildBackupSection() {
         });
       }
       const skippedNote = skipped ? ` ${plural(skipped, 'photo')} ${skipped === 1 ? 'was' : 'were'} already here.` : '';
-      setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}`);
+      const futureNote = checked.futureDays
+        ? ` ${plural(checked.futureDays, 'day')} dated after today ${checked.futureDays === 1 ? 'was' : 'were'} left out.`
+        : '';
+      setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}${futureNote}`);
     } catch (err) {
       setMessage('error', `Import stopped. ${errorText(err)} Days already restored are kept; importing the file again adds the photos that are missing.`);
     } finally {

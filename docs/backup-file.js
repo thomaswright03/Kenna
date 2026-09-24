@@ -306,10 +306,12 @@
    * Checks a whole backup file without keeping its photos in memory.
    * Nothing is changed; importing is a second pass (importBackupPhotos).
    * @param {Blob} blob
-   * @param {(photosChecked: number) => void} [onProgress]
-   * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number } | { ok: false, error: string }>}
+   * @param {{ onProgress?: (photosChecked: number) => void, latestDay?: string }} [options] days after
+   *   `latestDay` are left out and counted (see core.checkBackupDays)
+   * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number, futureDays: number } | { ok: false, error: string }>}
    */
-  async function checkBackup(blob, onProgress) {
+  async function checkBackup(blob, options) {
+    const onProgress = options && options.onProgress;
     /** @type {string[]} */
     const problems = [];
     let photoCount = 0;
@@ -326,11 +328,11 @@
       throw err;
     }
     const { top, photosIsArray } = scanned;
-    const days = core.checkBackupDays(top, problems);
+    const days = core.checkBackupDays(top, problems, options && options.latestDay);
     if (!days.ok) return days;
     if (top.photos !== undefined && !photosIsArray) problems.push('The photos section is not in the expected format.');
     if (problems.length > 0) return { ok: false, error: core.backupProblemsMessage(problems) };
-    return { ok: true, entries: days.entries, dayCount: Object.keys(days.entries).length, photoCount };
+    return { ok: true, entries: days.entries, dayCount: Object.keys(days.entries).length, photoCount, futureDays: days.futureDays };
   }
 
   /**

@@ -69,7 +69,7 @@ test('a written backup reads back in slices with every day and photo intact', as
   const { entries, photos, blob } = await roundTrip(8);
   assert.ok(blob.size > 2 * CHUNK_BYTES, 'spans several slices');
   const progress = [];
-  const checked = await checkBackup(blob, (n) => progress.push(n));
+  const checked = await checkBackup(blob, { onProgress: (n) => progress.push(n) });
   assert.equal(checked.ok, true);
   assert.deepEqual(checked.entries, entries);
   assert.equal(checked.dayCount, 1);

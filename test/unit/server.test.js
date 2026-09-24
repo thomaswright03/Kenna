@@ -218,3 +218,19 @@ test('unknown pages get a plain "Page not found" page that links back to the app
   assert.match(html, /<a href="\/">Open Kenna<\/a>/);
   assert.doesNotMatch(html, /Cannot GET/);
 });
+
+test('days that have not happened yet are refused with a readable message', async (t) => {
+  const { call } = await startServer(t);
+  const res = await call('PATCH', '/api/entries/2030-01-01', { weight: 150 });
+  assert.equal(res.status, 400);
+  assert.equal(res.json.error, "You can't log a day that hasn't happened yet.");
+  const imported = await call('POST', '/api/import', {
+    entries: { '2026-09-01': { date: '2026-09-01', weight: 190, meals: {} }, '2030-01-01': { date: '2030-01-01', weight: 150, meals: {} } },
+  });
+  assert.equal(imported.json.restored, 1);
+  assert.equal(imported.json.futureDays, 1);
+  assert.deepEqual(
+    (await call('GET', '/api/entries')).json.map((e) => e.date),
+    ['2026-09-01']
+  );
+});

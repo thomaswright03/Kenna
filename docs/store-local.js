@@ -185,6 +185,7 @@
     // can't be displayed are left in storage untouched rather than dropped.
     async function updateEntry(date, patch) {
       if (!core.isValidDateStr(date)) throw new Error('Not saved: pick a valid date first.');
+      if (core.isFutureDate(date)) throw new Error(`Not saved. ${core.FUTURE_DAY}`);
       const raw = readRaw();
       const next = core.applyPatch(date, raw[date], patch);
       if (core.isEntryEmpty(next)) delete raw[date];

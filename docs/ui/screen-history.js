@@ -7,7 +7,11 @@ import { dayHash } from './router.js';
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildHistory() {
   const now = today();
-  const entries = visibleEntries(await store.loadEntries()).sort((a, b) => (a.date < b.date ? 1 : -1));
+  // A day dated after today (only possible from an old version or a wrong
+  // clock) is kept in storage and backups but not listed.
+  const entries = visibleEntries(await store.loadEntries())
+    .filter((e) => !core.isFutureDate(e.date, now))
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
   const card = h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'History' }));
   if (entries.length === 0) {
     card.append(h('p', { class: 'empty-hint', text: 'No days logged yet.' }), h('a', { class: 'btn btn-primary', href: '#/', text: 'Log today' }));

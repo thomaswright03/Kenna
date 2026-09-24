@@ -5,10 +5,11 @@
 //   #/history  #/compare  #/photos  #/settings
 
 import { core, today } from './dom.js';
+import { toast } from './feedback.js';
 
 /**
  * @typedef {'today' | 'log' | 'history' | 'compare' | 'photos' | 'settings'} ScreenName
- * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null }} Route
+ * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean }} Route
  */
 
 /** @type {ScreenName[]} */
@@ -28,6 +29,7 @@ export function parseRoute(hash) {
   if (parts.length === 0) return { screen: 'today', date: null };
   if (parts[0] === 'log') return { screen: 'log', date: null, meal: mealKey(parts[1]) };
   if (parts[0] === 'day' && core.isValidDateStr(parts[1])) {
+    if (core.isFutureDate(parts[1], today())) return { screen: 'today', date: null, future: true };
     if (parts[2] === 'log') return { screen: 'log', date: parts[1], meal: mealKey(parts[3]) };
     return { screen: 'today', date: parts[1] };
   }
@@ -56,6 +58,22 @@ export function routeHash(r) {
 
 export const currentHash = () => routeHash(parseRoute(window.location.hash));
 
+/**
+ * An address that doesn't lead anywhere valid (mistyped, an old bookmark,
+ * a day that hasn't happened yet) is replaced by the address of what's
+ * actually shown, without adding a history entry, so refreshing or
+ * bookmarking doesn't bring the bad address back.
+ * @param {Route} r the route parsed from the current address
+ */
+function settleAddress(r) {
+  const canonical = routeHash(r);
+  const actual = window.location.hash || '#/';
+  if (actual !== canonical && !(canonical === '#/' && (actual === '#' || actual === '#/'))) {
+    window.history.replaceState(window.history.state, '', canonical);
+  }
+  if (r.future) toast(core.FUTURE_DAY);
+}
+
 /** The screen being shown. */
 export let route = parseRoute(window.location.hash);
 
@@ -75,10 +93,12 @@ export function startRouter(render) {
   visited.length = 0;
   visited.push(currentHash());
   route = parseRoute(window.location.hash);
+  settleAddress(route);
   window.addEventListener('hashchange', onHashChange);
 }
 
 function onHashChange() {
+  settleAddress(parseRoute(window.location.hash));
   const hash = currentHash();
   if (replacing) {
     replacing = false;

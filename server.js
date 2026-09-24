@@ -81,12 +81,12 @@ function requireDate(date) {
   if (!core.isValidDateStr(date)) throw new ApiError(400, `"${String(date).slice(0, 40)}" isn't a real date. Use YYYY-MM-DD.`);
 }
 
-// The server may be in a different time zone from the phone using it, so a
-// day is "in the future" only once it's after tomorrow on the server's clock.
-function requireNotFuture(date, what) {
-  if (core.isFutureDate(date, core.shiftDate(core.todayStr(), 1))) {
-    throw new ApiError(400, `${what} can't be dated ${core.formatDate(date)}: that day hasn't happened yet.`);
-  }
+// The latest day the server accepts. The phone using the server may be in
+// a time zone ahead of it, so that's tomorrow on the server's clock.
+const latestDay = () => core.shiftDate(core.todayStr(), 1);
+
+function requireNotFuture(date, message) {
+  if (core.isFutureDate(date, latestDay())) throw new ApiError(400, message);
 }
 
 function validatePatch(body) {
@@ -186,6 +186,7 @@ function createApp(options) {
   app.patch('/api/entries/:date', (req, res) => {
     const { date } = req.params;
     requireDate(date);
+    requireNotFuture(date, core.FUTURE_DAY);
     const patch = validatePatch(req.body);
     const entries = store.readEntries();
     const next = core.applyPatch(date, entries[date], patch);
@@ -198,12 +199,12 @@ function createApp(options) {
   // Restore days from a backup file. Everything is checked first; if any
   // day is invalid, nothing is changed.
   app.post('/api/import', (req, res) => {
-    const parsed = core.parseBackup({ entries: req.body && req.body.entries });
+    const parsed = core.parseBackup({ entries: req.body && req.body.entries }, latestDay());
     if (!parsed.ok) throw new ApiError(400, parsed.error);
     const entries = store.readEntries();
     for (const date of Object.keys(parsed.entries)) entries[date] = parsed.entries[date];
     store.writeEntries(entries);
-    res.json({ restored: parsed.dayCount });
+    res.json({ restored: parsed.dayCount, futureDays: parsed.futureDays });
   });
 
   // Progress photos are real files under data/photos/, with their date and
@@ -260,7 +261,7 @@ function createApp(options) {
   app.patch('/api/photos/:id', (req, res) => {
     const date = req.body && req.body.date;
     requireDate(date);
-    requireNotFuture(date, 'A photo');
+    requireNotFuture(date, "A photo can't be filed under a day that hasn't happened yet.");
     const photos = store.readPhotos();
     const photo = photos.find((p) => p && p.id === req.params.id);
     if (!photo) throw new ApiError(404, 'That photo no longer exists.');

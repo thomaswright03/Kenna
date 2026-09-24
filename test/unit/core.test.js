@@ -229,3 +229,26 @@ test('a backup reminder is due with data and no backup, or a week after the last
   assert.equal(due({ snoozedUntil: new Date(2026, 8, 25).toISOString() }), null, 'snoozed');
   assert.deepEqual(due({ snoozedUntil: new Date(2026, 8, 23).toISOString() }), { never: true }, 'snooze over');
 });
+
+test('days after today never count toward averages', () => {
+  const entries = {
+    '2026-09-23': entry('2026-09-23', { lunch: 1000 }, 180),
+    '2030-01-01': entry('2030-01-01', { lunch: 5000 }, 300),
+  };
+  const avg = core.computeAllTimeAverages(entries, '2026-09-24');
+  assert.equal(avg.total, 1000);
+  assert.equal(avg.weight, 180);
+  assert.equal(core.isFutureDate('2026-09-25', '2026-09-24'), true);
+  assert.equal(core.isFutureDate('2026-09-24', '2026-09-24'), false);
+});
+
+test('backup days dated after the latest allowed day are left out and counted', () => {
+  const parsed = core.parseBackup(
+    { entries: { '2026-09-23': entry('2026-09-23', { lunch: 600 }), '2030-01-01': entry('2030-01-01', { lunch: 500 }) } },
+    '2026-09-24'
+  );
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(Object.keys(parsed.entries), ['2026-09-23']);
+  assert.equal(parsed.futureDays, 1);
+  assert.equal(core.parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
+});

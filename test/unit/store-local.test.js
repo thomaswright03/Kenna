@@ -124,3 +124,9 @@ test('importing merges days, replacing only the days in the file', async () => {
   assert.equal(entries['2026-09-01'].weight, 190);
   assert.equal(entries['2026-09-02'].weight, 170);
 });
+
+test('days that have not happened yet are refused', async () => {
+  const { store } = makeStore(fakeStorage());
+  await assert.rejects(store.updateEntry('2999-01-01', { weight: 180 }), /You can't log a day that hasn't happened yet/);
+  assert.deepEqual(await store.loadEntries(), {});
+});
