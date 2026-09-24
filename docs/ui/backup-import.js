@@ -2,7 +2,8 @@
 // say what the restore will change, restore the days and then the photos
 // one at a time, and offer to undo it.
 
-import { core, h, today, plural, formatBytes, errorText, BACKEND } from './dom.js';
+import { core, h, today, plural, formatBytes, BACKEND } from './dom.js';
+import { failureText } from './problems.js';
 import { confirmDialog, itemList, createStatusLine } from './feedback.js';
 import { store } from './store.js';
 
@@ -185,7 +186,7 @@ async function undoRestore(ui, done) {
     const removed = photos.length ? `, and the ${plural(photos.length, 'photo')} it added ${photos.length === 1 ? 'was' : 'were'} removed` : '';
     ui.status.set('saved', `Restore undone: your days are as they were before it${removed}.`);
   } catch (err) {
-    ui.status.set('error', `The restore couldn’t be fully undone. ${errorText(err)}`);
+    ui.status.set('error', `The restore couldn’t be fully undone. ${failureText('Undo a restore', err)}`);
     showOutcome(ui, { tone: 'error', text: 'Tap Undo restore to try again.', skipped: [], done });
   } finally {
     ui.setProgress(0, 0);
@@ -212,7 +213,7 @@ export async function importBackupFile(file, ui) {
     await restore(file, checked, ui, done);
     showOutcome(ui, { tone: 'saved', text: restoredText(done, checked), skipped: checked.skipped, done });
   } catch (err) {
-    const reason = errorText(err, "Kenna couldn't read the rest of the backup file.");
+    const reason = failureText('Import a backup', err, "Kenna couldn't read the rest of the backup file.");
     const changed = done.daysReplaced || done.photos.length > 0;
     const kept = changed ? ' What was restored so far is kept (Undo restore takes it back); importing the file again adds the photos that are missing.' : ' Nothing was changed.';
     showOutcome(ui, { tone: 'error', text: `Import stopped. ${reason}${kept}`, skipped: [], done });

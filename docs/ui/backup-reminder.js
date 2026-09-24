@@ -2,7 +2,8 @@
 // logged data and no backup has been saved from this device yet, or the
 // last one is more than a week old. "Not now" hides it for a few days.
 
-import { core, h, uid, prefs, BACKEND, errorText } from './dom.js';
+import { core, h, uid, prefs, BACKEND } from './dom.js';
+import { failureText } from './problems.js';
 import { announce, createStatusLine } from './feedback.js';
 import { exportBackup, buildBackupDelivery, lastBackup } from './backup.js';
 
@@ -76,7 +77,7 @@ export function buildBackupReminder(hasData) {
       backupBtn.disabled = false;
       laterBtn.disabled = false;
       backupBtn.textContent = 'Back up now';
-      status.set('error', `Backup not saved. ${errorText(err)}`);
+      status.set('error', `Backup not saved. ${failureText('Make a backup', err)}`);
     }
   });
 

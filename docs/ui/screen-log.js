@@ -1,6 +1,7 @@
 // Log Meal: one calorie total per meal, picked with the meal buttons.
 
-import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry, errorText } from './dom.js';
+import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry } from './dom.js';
+import { failureText } from './problems.js';
 import { toast, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
@@ -97,8 +98,8 @@ function mealSaver(state, input, status, onSaved) {
       if (state.activeKey === key) status.set('saved', value === null ? `${mealLabel(key)} cleared` : `${mealLabel(key)} saved`);
       return true;
     } catch (err) {
-      if (state.activeKey === key) status.set('error', errorText(err), { label: 'Retry', onClick: () => commit() });
-      else toast(`${mealLabel(key)} not saved. ${errorText(err)}`, { tone: 'error' });
+      if (state.activeKey === key) status.set('error', failureText('Save a meal', err), { label: 'Retry', onClick: () => commit() });
+      else toast(`${mealLabel(key)} not saved. ${failureText('Save a meal', err)}`, { tone: 'error' });
       return false;
     } finally {
       if (saving && saving.key === key && saving.value === value) saving = null;

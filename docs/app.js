@@ -16,6 +16,7 @@ import { buildHistory } from './ui/screen-history.js';
 import { buildCompare } from './ui/screen-compare.js';
 import { buildPhotos } from './ui/screen-photos.js';
 import { buildSettings } from './ui/screen-settings.js';
+import { recordProblem, recordUncaughtErrors } from './ui/problems.js';
 
 registerScreens({
   today: buildToday,
@@ -54,11 +55,13 @@ function renderBlocked() {
 }
 
 async function start() {
+  recordUncaughtErrors();
   applyTheme(prefs.get('theme', 'system'));
   followSystemTheme();
   byId('storageNote').textContent = BACKEND === 'server' ? 'Data is saved on the Kenna server.' : 'Data is saved only in this browser, on this device.';
   const status = await store.init();
   if (!status.ok) {
+    recordProblem('Open storage', { name: 'StorageBlocked' }, { where: null });
     renderBlocked();
     return;
   }

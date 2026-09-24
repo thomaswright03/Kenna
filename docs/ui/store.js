@@ -3,6 +3,7 @@
 
 import { BACKEND } from './dom.js';
 import { showBanner } from './feedback.js';
+import { recordProblem } from './problems.js';
 import { makeThumbnail } from './photo-image.js';
 
 function createStore() {
@@ -19,7 +20,11 @@ function createStore() {
     indexedDB: window.indexedDB,
     navigator: window.navigator,
     window,
-    onNotice: showBanner,
+    // Damaged saved days, found and dealt with while reading them.
+    onNotice: (notice) => {
+      recordProblem('Read saved days', { name: notice.tone === 'warning' ? 'DamagedDataRestoredFromCopy' : 'DamagedDataNotRestored' }, { where: null });
+      showBanner(notice);
+    },
     makeThumbnail,
   });
 }

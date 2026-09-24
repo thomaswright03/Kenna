@@ -2,7 +2,8 @@
 // Enter), and says so under the box; keeps a value that can't be saved as
 // a draft, and offers Undo after clearing.
 
-import { core, h, uid, errorText } from './dom.js';
+import { core, h, uid } from './dom.js';
+import { failureText } from './problems.js';
 import { announce, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
@@ -52,7 +53,7 @@ export function buildWeightField(view) {
       if (view.rolledOver) render();
       return true;
     } catch (err) {
-      status.set('error', errorText(err), { label: 'Retry', onClick: () => commit() });
+      status.set('error', failureText('Save the weight', err), { label: 'Retry', onClick: () => commit() });
       return false;
     }
   }

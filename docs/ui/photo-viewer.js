@@ -4,7 +4,8 @@
 // first, in place of its own buttons, so only one dialog is ever open), or
 // picked for a side-by-side comparison.
 
-import { core, h, uid, today, errorText } from './dom.js';
+import { core, h, uid, today } from './dom.js';
+import { failureText } from './problems.js';
 import { toast, openDialog, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
@@ -87,7 +88,7 @@ function photoFrame() {
           src = loaded;
           img.src = loaded.url;
         })
-        .catch((err) => mine === shown && img.replaceWith(h('p', { class: 'photo-missing', role: 'alert', text: errorText(err) })));
+        .catch((err) => mine === shown && img.replaceWith(h('p', { class: 'photo-missing', role: 'alert', text: failureText('Show a photo', err) })));
     },
   };
 }
@@ -170,7 +171,7 @@ async function moveToPickedDay(v, c) {
     c.dayStatus.set('saved', `Moved to ${core.formatRelativeDate(photo.date, today())}`);
   } catch (err) {
     c.dayInput.value = photo.date;
-    c.dayStatus.set('error', `Not moved. ${errorText(err)}`);
+    c.dayStatus.set('error', `Not moved. ${failureText('Move a photo', err)}`);
   }
 }
 
@@ -217,7 +218,7 @@ function askToDelete(v, c, close) {
     } catch (err) {
       cancelBtn.disabled = false;
       deleteBtn.disabled = false;
-      status.set('error', `Photo not deleted. ${errorText(err)}`);
+      status.set('error', `Photo not deleted. ${failureText('Delete a photo', err)}`);
       return;
     }
     v.moved = false;

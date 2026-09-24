@@ -1,7 +1,8 @@
 // Two progress photos side by side, the older on the left, each labelled
 // with its day (and the weight logged that day, if any).
 
-import { core, h, uid, today, errorText } from './dom.js';
+import { core, h, uid, today } from './dom.js';
+import { failureText } from './problems.js';
 import { openDialog } from './feedback.js';
 import { store } from './store.js';
 import { inDateOrder } from './photo-viewer.js';
@@ -27,7 +28,7 @@ function comparedPhoto(photo, entries, keep) {
       keep(loaded.release);
       img.src = loaded.url;
     })
-    .catch((err) => img.replaceWith(h('p', { class: 'photo-missing', role: 'alert', text: errorText(err) })));
+    .catch((err) => img.replaceWith(h('p', { class: 'photo-missing', role: 'alert', text: failureText('Show a photo', err) })));
   return h(
     'figure',
     { class: 'compare-photo' },

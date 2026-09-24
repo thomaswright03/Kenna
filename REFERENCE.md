@@ -75,7 +75,8 @@ run, test and release it.
   viewer and the comparison say "Can't preview in this browser" in its
   place.
 - **Settings** (gear icon) has the light/dark theme (or follow the system),
-  backup export and import, and where your data is stored.
+  backup export and import, where your data is stored, and the **Problem
+  log** (see [Where your data lives](#where-your-data-lives-and-backups)).
 
 On a screen wider than about 900 pixels (a laptop or tablet), the tabs
 move up beside the Kenna name and Settings, and Today, Compare, History
@@ -185,6 +186,19 @@ open), the app says what failed, that what's already saved is safe, and
 what to do next: close and reopen Kenna, or export a backup and delete old
 photos or free up space on the phone. The browser's own error text is never
 shown.
+
+Every such failure is also noted in a **Problem log** on the device (in
+`localStorage`, key `kenna:problemLog`): the time, what Kenna was doing
+("Save a meal", "Add a photo", "Open history") and the kind of error
+("KennaError ← QuotaExceededError"), plus errors in Kenna's own code with
+the place in the built script where they happened. It never holds a
+logged value, a photo or an error's message, keeps the last 30 events (a
+failure repeated straight after itself is counted, not listed again), and
+is never sent anywhere. **Settings → Problem log** shows the latest,
+**Copy problem log** copies the whole list as text to paste into a
+message (or downloads it as a file where the browser won't copy), and
+**Clear…** empties it. When the browser's storage is full the event is
+still shown and copied for that visit.
 
 On iPhone and iPad, Safari may delete a website's data when it hasn't
 been used for about a week, unless the site is on the Home Screen. So when

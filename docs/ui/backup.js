@@ -1,6 +1,7 @@
 // Backup file export and import (Settings).
 
-import { core, h, uid, prefs, today, visibleEntries, formatBytes, errorText, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today, visibleEntries, formatBytes, BACKEND } from './dom.js';
+import { failureText, recordProblem } from './problems.js';
 import { createStatusLine } from './feedback.js';
 import { store } from './store.js';
 import { importBackupFile, daysAndPhotos } from './backup-import.js';
@@ -145,6 +146,7 @@ export function buildBackupDelivery(result, options) {
       } catch (err) {
         shareBtn.disabled = false;
         const cancelled = err instanceof Error && err.name === 'AbortError';
+        if (!cancelled) recordProblem('Share a backup', err);
         status.set(
           'error',
           cancelled
@@ -204,7 +206,7 @@ async function runExport(ui, onSaved) {
     ui.deliverySlot.append(delivery.root);
     delivery.focus();
   } catch (err) {
-    ui.status.set('error', `No backup file was made. ${errorText(err)}`);
+    ui.status.set('error', `No backup file was made. ${failureText('Make a backup', err)}`);
   } finally {
     ui.setProgress(0, 0);
     ui.busy(false);

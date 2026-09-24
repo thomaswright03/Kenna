@@ -1,6 +1,7 @@
 // Settings: theme, backup export/import and where the data is stored.
 
-import { core, h, uid, prefs, today, errorText, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today, BACKEND } from './dom.js';
+import { failureText, recordProblem, buildProblemLogCard } from './problems.js';
 import { confirmDialog, createStatusLine } from './feedback.js';
 import { store } from './store.js';
 import { applyTheme } from './theme.js';
@@ -84,7 +85,7 @@ export async function buildSettings() {
   const damaged = await buildDamagedDataCard();
   return {
     title: 'Settings',
-    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), h('div', { class: 'screen-stack' }, damaged, storageCard)),
+    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), h('div', { class: 'screen-stack' }, damaged, storageCard, buildProblemLogCard(downloadBlob))),
   };
 }
 
@@ -94,7 +95,10 @@ export async function buildSettings() {
  * to send off for repair, or deleted. Null when there's none.
  */
 async function buildDamagedDataCard() {
-  const copies = await store.damagedCopies().catch(() => []);
+  const copies = await store.damagedCopies().catch((err) => {
+    recordProblem('List damaged data', err);
+    return [];
+  });
   if (copies.length === 0) return null;
   const status = createStatusLine();
   const newest = copies[0].savedAt;
@@ -129,7 +133,7 @@ async function buildDamagedDataCard() {
       await store.deleteDamagedCopies();
       card.replaceChildren(h('h3', { class: 'section-title', text: 'Damaged data' }), h('p', { class: 'card-sub', role: 'status', text: 'The damaged data was deleted.' }));
     } catch (err) {
-      status.set('error', errorText(err));
+      status.set('error', failureText('Delete damaged data', err));
     }
   });
   return card;

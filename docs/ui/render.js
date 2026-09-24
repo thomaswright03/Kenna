@@ -2,9 +2,10 @@
 // replace the page, and a newer navigation discards an older one's late
 // results.
 
-import { h, byId, errorText } from './dom.js';
+import { h, byId } from './dom.js';
 import { closeAllDialogs } from './feedback.js';
 import { route, updateTabs } from './router.js';
+import { failureText, recordProblem } from './problems.js';
 
 /**
  * What a screen builder returns.
@@ -47,7 +48,7 @@ export const getCurrentView = () => currentView;
  * drawing History or Compare again.
  */
 export function refreshCurrentScreen() {
-  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage().catch(() => {});
+  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage().catch((err) => recordProblem('Show changes made elsewhere', err));
   else if (route.screen === 'history' || route.screen === 'compare') render();
 }
 
@@ -69,7 +70,7 @@ export async function render(options) {
   try {
     view = await builders[route.screen](ctx);
   } catch (err) {
-    view = errorView(err);
+    view = errorView(err, route.screen);
   }
   if (!isCurrent()) {
     releases.forEach((fn) => fn());
@@ -123,10 +124,11 @@ function startLoading(main) {
 
 /**
  * @param {unknown} err
+ * @param {string} screen
  * @returns {View}
  */
-function errorView(err) {
-  const message = errorText(err, 'Nothing has been changed. Try again, and if it keeps happening, close Kenna completely and open it again.');
+function errorView(err, screen) {
+  const message = failureText(`Open ${screen}`, err, 'Nothing has been changed. Try again, and if it keeps happening, close Kenna completely and open it again.');
   return {
     title: "Couldn't load",
     root: h(

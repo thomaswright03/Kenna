@@ -1016,6 +1016,13 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
   .spinner { animation-duration: 2.4s; }
 }
 
+/* ------------------------------------------------------------ problem log */
+
+.problem-list { list-style: none; margin: 0 0 var(--s2); padding: 0; display: flex; flex-direction: column; gap: var(--s2); }
+.problem-list li { display: flex; flex-direction: column; padding: var(--s2) var(--s3); border-radius: var(--r-md); background: var(--card-2); }
+.problem-op { font-size: var(--fs-sm); font-weight: 600; }
+.problem-meta { font-size: var(--fs-sm); color: var(--muted); overflow-wrap: anywhere; }
+
 /* ------------------------------------------------------------ lists in messages */
 
 .item-list { margin: var(--s2) 0 0; padding-left: var(--s5); font-size: var(--fs-sm); color: var(--muted); }

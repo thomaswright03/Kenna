@@ -13,6 +13,7 @@
 //   core/backup-format.js  the backup file, and backup reminders
 //   core/charts.js         chart periods, averages and axes
 //   core/photos.js         image types and base64
+//   core/problems.js       the problem log kept on the device
 
 /**
  * @typedef {import('./core/entries.js').Entry} Entry
@@ -32,6 +33,7 @@ const input = require('./core/input.js');
 const backup = require('./core/backup-format.js');
 const charts = require('./core/charts.js');
 const photos = require('./core/photos.js');
+const problems = require('./core/problems.js');
 
 // Frozen: nothing may replace these rules at run time, and it lets the
 // type checker flag a misspelt name.
@@ -104,4 +106,9 @@ module.exports = Object.freeze({
   dateAxisLabels: charts.dateAxisLabels,
   sniffImageType: photos.sniffImageType,
   blobToBase64: photos.blobToBase64,
+  PROBLEM_LOG_LIMIT: problems.PROBLEM_LOG_LIMIT,
+  problemEvent: problems.problemEvent,
+  addProblem: problems.addProblem,
+  parseProblemLog: problems.parseProblemLog,
+  problemReport: problems.problemReport,
 });

@@ -2,7 +2,8 @@
 // the viewer (photo-viewer.js); Compare photos puts two side by side
 // (photo-compare.js).
 
-import { core, h, uid, BACKEND, today, errorText } from './dom.js';
+import { core, h, uid, BACKEND, today } from './dom.js';
+import { failureText } from './problems.js';
 import { toast, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
@@ -59,7 +60,7 @@ function buildAddCard() {
       toast(viewable ? added : `${added}. It's saved, but this browser can't show this kind of photo, so it can't be previewed here.`);
       render();
     } catch (err) {
-      status.set('error', `Photo not saved. ${errorText(err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
+      status.set('error', `Photo not saved. ${failureText('Add a photo', err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
     } finally {
       busy(false);
     }

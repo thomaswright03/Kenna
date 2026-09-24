@@ -517,3 +517,73 @@ test("a month's averages leave out today, like every other average", () => {
   assert.equal(all.weight, 170);
   assert.equal(all.total, 1000);
 });
+
+test('a problem event names what failed and the kind of error, never its message', () => {
+  const quota = new Error('Setting the value of "kenna:entries" exceeded the quota: {"2026-09-24":{"weight":181.2}}');
+  quota.name = 'QuotaExceededError';
+  const err = new core.KennaError('Not saved. There is no room left.', { cause: quota });
+  const e = core.problemEvent('Save a meal', err, { now: new Date('2026-09-24T15:04:05Z') });
+  assert.equal(e.at, '2026-09-24T15:04:05.000Z');
+  assert.equal(e.op, 'Save a meal');
+  assert.equal(e.error, 'KennaError ← QuotaExceededError');
+  assert.doesNotMatch(JSON.stringify(e), /181|room|exceeded the quota/i, 'no message and no logged value');
+  // Where in the code, from the stack: a file name and position only.
+  const thrown = new TypeError("Cannot read properties of null (reading '181.2')");
+  thrown.stack = "TypeError: Cannot read properties of null (reading 'data.js:9:9')\n    at x (https://example.com/Kenna/build/app.js:1:2345)";
+  assert.deepEqual(core.problemEvent('Unexpected error', thrown, { now: new Date(0) }), {
+    at: '1970-01-01T00:00:00.000Z',
+    op: 'Unexpected error',
+    error: 'TypeError',
+    where: 'app.js:1:2345',
+  });
+  // Safari writes frames only.
+  const safari = new TypeError('x');
+  safari.stack = 'draw@https://example.com/Kenna/build/app.js:1:999\nglobal code@https://example.com/Kenna/build/app.js:1:5';
+  assert.equal(core.problemEvent('x', safari).where, 'app.js:1:999');
+  // Whatever was thrown, a name comes out.
+  assert.equal(core.problemEvent('x', 'a string').error, 'string');
+  assert.equal(core.problemEvent('x', undefined).error, 'undefined');
+  assert.equal(core.problemEvent('x', null).error, 'null');
+  assert.equal(core.problemEvent('x', { name: 'has spaces and "quotes"' }).error, 'object');
+  assert.equal(core.problemEvent('x', { name: 'StorageBlocked' }, { where: null }).where, undefined);
+});
+
+test('the problem log keeps the newest events, counting a failure repeated in a row once', () => {
+  let list = [];
+  for (let i = 0; i < 100; i += 1) list = core.addProblem(list, core.problemEvent(`Op ${i}`, new Error('x'), { now: new Date(i * 1000), where: null }));
+  assert.equal(list.length, core.PROBLEM_LOG_LIMIT);
+  assert.equal(list[0].op, `Op ${100 - core.PROBLEM_LOG_LIMIT}`);
+  assert.equal(list[list.length - 1].op, 'Op 99');
+
+  const again = core.addProblem(core.addProblem(list, list[list.length - 1]), list[list.length - 1]);
+  assert.equal(again.length, core.PROBLEM_LOG_LIMIT);
+  assert.equal(again[again.length - 1].count, 3);
+  assert.equal(core.addProblem([], list[0], 5).length, 1);
+});
+
+test('a stored problem log is read back tolerantly, and copied as plain text, newest first', () => {
+  assert.deepEqual(core.parseProblemLog(null), []);
+  assert.deepEqual(core.parseProblemLog('not json'), []);
+  assert.deepEqual(core.parseProblemLog('{"at":1}'), []);
+  const good = { at: '2026-09-24T10:00:00.000Z', op: 'Save a meal', error: 'KennaError ← QuotaExceededError' };
+  const later = { at: '2026-09-24T11:00:00.000Z', op: 'Add a photo', error: 'KennaError', where: 'app.js:1:2', count: 2 };
+  const text = JSON.stringify([good, { at: 'yesterday', op: 'x', error: 'y' }, { op: 'x' }, 7, later]);
+  assert.deepEqual(core.parseProblemLog(text), [good, later]);
+  const many = JSON.stringify(Array.from({ length: 80 }, () => good));
+  assert.equal(core.parseProblemLog(many).length, core.PROBLEM_LOG_LIMIT);
+
+  const report = core.problemReport([good, later], { app: 'phone app', browser: 'Test/1.0', copiedAt: new Date('2026-09-24T12:00:00Z') });
+  assert.equal(
+    report,
+    [
+      'Kenna problem log (phone app)',
+      'Browser: Test/1.0',
+      'Copied: 2026-09-24T12:00:00.000Z',
+      '',
+      '2026-09-24T11:00:00.000Z  Add a photo: KennaError at app.js:1:2 (2 times in a row)',
+      '2026-09-24T10:00:00.000Z  Save a meal: KennaError ← QuotaExceededError',
+      '',
+    ].join('\n')
+  );
+  assert.match(core.problemReport([], { app: 'server version', browser: 'B' }), /Nothing recorded\./);
+});
