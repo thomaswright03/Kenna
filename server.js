@@ -2,175 +2,277 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const core = require('./docs/core.js');
 
-const DATA_DIR = path.join(__dirname, 'data');
-const ENTRIES_FILE = path.join(DATA_DIR, 'entries.json');
-const PHOTOS_DIR = path.join(DATA_DIR, 'photos');
-const PHOTOS_FILE = path.join(DATA_DIR, 'photos.json');
+const APP_DIR = path.join(__dirname, 'docs');
 
-const MEAL_KEYS = ['breakfast', 'snack1', 'lunch', 'snack2', 'dinner', 'snack3'];
-
-function ensureDataFiles() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(ENTRIES_FILE)) fs.writeFileSync(ENTRIES_FILE, '{}');
-  if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
-  if (!fs.existsSync(PHOTOS_FILE)) fs.writeFileSync(PHOTOS_FILE, '[]');
+class ApiError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
 }
 
-// Every write keeps the previous file content in a ".bak" sibling first. If
-// the primary file is ever found corrupted, readJson recovers from that
-// one-generation-behind backup instead of throwing — a thrown error inside a
-// synchronous route handler already fails safe (no write happens), but the
-// backup lets the app keep working instead of returning 500s until someone
-// fixes the file by hand.
-function readJson(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (e) {
-    const bakFile = `${file}.bak`;
-    if (fs.existsSync(bakFile)) {
-      const recovered = JSON.parse(fs.readFileSync(bakFile, 'utf8'));
-      fs.writeFileSync(file, JSON.stringify(recovered, null, 2));
-      return recovered;
+// ---------------------------------------------------------------- data files
+//
+// Every write copies the previous file to a ".bak" sibling, then writes the
+// new content to a temporary file and renames it into place, so a crash
+// mid-write can never leave a half-written data file. If a data file is ever
+// unreadable, it's restored from the ".bak" copy (keeping the damaged file
+// aside); if that's impossible the request fails with a clear message and
+// nothing is written, so the damaged file is never overwritten.
+
+function createDataStore(dataDir) {
+  const entriesFile = path.join(dataDir, 'entries.json');
+  const photosFile = path.join(dataDir, 'photos.json');
+  const photosDir = path.join(dataDir, 'photos');
+
+  fs.mkdirSync(photosDir, { recursive: true });
+  if (!fs.existsSync(entriesFile)) fs.writeFileSync(entriesFile, '{}');
+  if (!fs.existsSync(photosFile)) fs.writeFileSync(photosFile, '[]');
+
+  const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+  function parseFile(file, isValidShape) {
+    try {
+      const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return isValidShape(value) ? { ok: true, value } : { ok: false };
+    } catch {
+      return { ok: false };
     }
-    throw e;
   }
-}
 
-function writeJson(file, data) {
-  if (fs.existsSync(file)) {
-    fs.copyFileSync(file, `${file}.bak`);
+  function readJson(file, isValidShape) {
+    const primary = parseFile(file, isValidShape);
+    if (primary.ok) return primary.value;
+    const bakFile = `${file}.bak`;
+    const backup = fs.existsSync(bakFile) ? parseFile(bakFile, isValidShape) : { ok: false };
+    if (backup.ok) {
+      fs.copyFileSync(file, `${file}.damaged-${Date.now()}`);
+      fs.copyFileSync(bakFile, file);
+      console.warn(`${path.basename(file)} was unreadable; restored it from ${path.basename(bakFile)}.`);
+      return backup.value;
+    }
+    throw new ApiError(
+      500,
+      `Kenna's data file (${path.basename(file)}) is damaged and there's no backup copy to restore it from. It has been left untouched so it can be repaired.`
+    );
   }
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
-}
 
-function emptyEntry(date) {
-  const meals = {};
-  for (const key of MEAL_KEYS) meals[key] = null;
-  return { date, weight: null, meals };
-}
-
-// A meal's value is a single calorie total (number) or null if not logged.
-// Older data logged individual foods per meal as an array; normalizing here
-// means old entry files keep working (as a summed total) without a
-// migration step.
-function normalizeMealValue(raw) {
-  if (raw === null || raw === undefined || raw === '') return null;
-  if (Array.isArray(raw)) {
-    if (raw.length === 0) return null;
-    const total = raw.reduce((sum, f) => sum + ((Number(f.calories) || 0) * (Number(f.percent) || 0)) / 100, 0);
-    return Math.round(total);
+  function writeJson(file, data) {
+    if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.bak`);
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+    fs.renameSync(tmp, file);
   }
-  const num = Number(raw);
-  return Number.isNaN(num) ? null : Math.round(num);
+
+  return {
+    photosDir,
+    readEntries: () => readJson(entriesFile, isObject),
+    writeEntries: (data) => writeJson(entriesFile, data),
+    readPhotos: () => readJson(photosFile, Array.isArray),
+    writePhotos: (data) => writeJson(photosFile, data),
+  };
 }
 
-function totalCaloriesForMeals(meals) {
-  let total = 0;
-  for (const key of MEAL_KEYS) {
-    const v = normalizeMealValue(meals[key]);
-    if (v !== null) total += v;
+// ---------------------------------------------------------------- validation
+
+function requireDate(date) {
+  if (!core.isValidDateStr(date)) throw new ApiError(400, `"${String(date).slice(0, 40)}" isn't a real date. Use YYYY-MM-DD.`);
+}
+
+function validatePatch(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400, 'Send the fields to change as a JSON object.');
+  const patch = {};
+  for (const key of Object.keys(body)) {
+    if (key !== 'weight' && key !== 'meals') throw new ApiError(400, `Unknown field "${key}".`);
   }
-  return Math.round(total);
+  if (Object.prototype.hasOwnProperty.call(body, 'weight')) {
+    const w = body.weight;
+    if (w !== null && !(typeof w === 'number' && w >= core.LIMITS.weightMin && w <= core.LIMITS.weightMax)) {
+      throw new ApiError(400, `Weight must be between ${core.LIMITS.weightMin} and ${core.LIMITS.weightMax} lbs.`);
+    }
+    patch.weight = w;
+  }
+  if (body.meals !== undefined) {
+    if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) throw new ApiError(400, 'Meals must be an object.');
+    patch.meals = {};
+    for (const key of Object.keys(body.meals)) {
+      const step = core.MEAL_STEPS.find((m) => m.key === key);
+      if (!step) throw new ApiError(400, `Unknown meal "${key}".`);
+      const v = body.meals[key];
+      if (v !== null && !(Number.isInteger(v) && v >= core.LIMITS.caloriesMin && v <= core.LIMITS.caloriesMax)) {
+        throw new ApiError(400, `${step.label} must be a whole number of calories from 0 to ${core.LIMITS.caloriesMax}.`);
+      }
+      patch.meals[key] = v;
+    }
+  }
+  return patch;
 }
 
-function isValidDate(str) {
-  return typeof str === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(str);
+function publicEntry(entry) {
+  return { date: entry.date, weight: entry.weight, meals: entry.meals, totalCalories: core.totalCalories(entry.meals) };
 }
 
-ensureDataFiles();
+// ---------------------------------------------------------------- app
 
-const app = express();
-app.use(express.json({ limit: '20mb' })); // photo uploads arrive as base64 JSON
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/photos', express.static(PHOTOS_DIR));
+function createApp(options) {
+  const opts = options || {};
+  const dataDir = opts.dataDir || process.env.KENNA_DATA_DIR || path.join(__dirname, 'data');
+  const store = createDataStore(dataDir);
 
-// List every logged date with a quick summary, newest first.
-app.get('/api/entries', (req, res) => {
-  const entries = readJson(ENTRIES_FILE);
-  const list = Object.values(entries)
-    .map((entry) => {
-      const meals = {};
-      for (const key of MEAL_KEYS) meals[key] = normalizeMealValue(entry.meals[key]);
-      return { date: entry.date, weight: entry.weight, totalCalories: totalCaloriesForMeals(entry.meals), meals };
-    })
-    .sort((a, b) => (a.date < b.date ? 1 : -1));
-  res.json(list);
-});
+  const app = express();
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '25mb' })); // photo uploads arrive as base64 JSON
 
-app.get('/api/entries/:date', (req, res) => {
-  const { date } = req.params;
-  if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
-  const entries = readJson(ENTRIES_FILE);
-  const entry = entries[date] || emptyEntry(date);
-  const meals = {};
-  for (const key of MEAL_KEYS) meals[key] = normalizeMealValue(entry.meals[key]);
-  res.json({ date: entry.date, weight: entry.weight, meals });
-});
+  // The UI is the same app as the installable version in docs/; this one
+  // file tells it to store data through this server's API.
+  app.get('/backend.js', (req, res) => {
+    res.type('application/javascript').set('Cache-Control', 'no-store').send("window.KENNA_BACKEND = 'server';\n");
+  });
+  app.use(express.static(APP_DIR));
+  app.use('/photos', express.static(store.photosDir, { fallthrough: false }));
 
-app.post('/api/entries', (req, res) => {
-  const { date, weight, meals } = req.body || {};
-  if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
-  if (!meals || typeof meals !== 'object') return res.status(400).json({ error: 'Invalid meals' });
+  // List every readable day, newest first. Unreadable days are skipped (and
+  // left in the file untouched) instead of failing the whole list.
+  app.get('/api/entries', (req, res) => {
+    const { entries } = core.sanitizeEntries(store.readEntries());
+    const list = Object.values(entries)
+      .filter((e) => !core.isEntryEmpty(e))
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .map(publicEntry);
+    res.json(list);
+  });
 
-  const entry = emptyEntry(date);
-  entry.weight = weight === '' || weight === undefined || weight === null ? null : Number(weight);
-  for (const key of MEAL_KEYS) entry.meals[key] = normalizeMealValue(meals[key]);
+  app.get('/api/entries/:date', (req, res) => {
+    requireDate(req.params.date);
+    const entry = core.normalizeEntry(req.params.date, store.readEntries()[req.params.date]) || core.applyPatch(req.params.date, null, {});
+    res.json(publicEntry(entry));
+  });
 
-  const entries = readJson(ENTRIES_FILE);
-  entries[date] = entry;
-  writeJson(ENTRIES_FILE, entries);
+  // Change only the given fields of one day.
+  app.patch('/api/entries/:date', (req, res) => {
+    const { date } = req.params;
+    requireDate(date);
+    const patch = validatePatch(req.body);
+    const entries = store.readEntries();
+    const next = core.applyPatch(date, entries[date], patch);
+    if (core.isEntryEmpty(next)) delete entries[date];
+    else entries[date] = next;
+    store.writeEntries(entries);
+    res.json(publicEntry(next));
+  });
 
-  res.json(entry);
-});
+  // Replace one whole day.
+  app.post('/api/entries', (req, res) => {
+    const body = req.body || {};
+    requireDate(body.date);
+    const result = core.validateIncomingEntry(body.date, { meals: body.meals, weight: body.weight === '' ? null : body.weight });
+    if (!result.ok) throw new ApiError(400, result.error);
+    const entries = store.readEntries();
+    if (core.isEntryEmpty(result.entry)) delete entries[body.date];
+    else entries[body.date] = result.entry;
+    store.writeEntries(entries);
+    res.json(publicEntry(result.entry));
+  });
 
-// Progress photos live as real files under data/photos/, with metadata (date,
-// filename, upload time) in photos.json — durable the same way entries.json
-// is, including the .bak self-healing from readJson/writeJson above.
+  // Restore days from a backup file. Everything is checked first; if any
+  // day is invalid, nothing is changed.
+  app.post('/api/import', (req, res) => {
+    const parsed = core.parseBackup({ entries: req.body && req.body.entries });
+    if (!parsed.ok) throw new ApiError(400, parsed.error);
+    const entries = store.readEntries();
+    for (const date of Object.keys(parsed.entries)) entries[date] = parsed.entries[date];
+    store.writeEntries(entries);
+    res.json({ restored: parsed.dayCount });
+  });
 
-app.get('/api/photos', (req, res) => {
-  const photos = readJson(PHOTOS_FILE);
-  res.json([...photos].sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1)));
-});
+  // Progress photos are real files under data/photos/, with their date and
+  // upload time in photos.json.
+  const photoRecord = (p) => ({
+    id: p.id,
+    date: p.date,
+    createdAt: p.createdAt || p.uploadedAt,
+    filename: p.filename,
+    type: p.type || 'image/jpeg',
+  });
 
-app.post('/api/photos', (req, res) => {
-  const { date, dataUrl } = req.body || {};
-  if (!isValidDate(date)) return res.status(400).json({ error: 'Invalid date' });
-  // Usually "data:image/heic;base64,..." from the client's downscale step,
-  // but its fallback path (when the browser can't decode/re-encode a format
-  // in canvas, which can happen with HEIC photos from an iPhone library) reads
-  // the original file as-is, which can carry an empty or generic MIME type —
-  // so the MIME segment here is optional and defaults to a plain ".jpg".
-  const match = typeof dataUrl === 'string' && dataUrl.match(/^data:(?:([\w.+-]+)\/([\w.+-]+))?;base64,([A-Za-z0-9+/=]+)$/);
-  if (!match) return res.status(400).json({ error: 'Invalid image data' });
+  app.get('/api/photos', (req, res) => {
+    const photos = store
+      .readPhotos()
+      .filter((p) => p && typeof p.filename === 'string' && core.isValidDateStr(p.date))
+      .map(photoRecord)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+    res.json(photos);
+  });
 
-  const [, type, subtype, base64] = match;
-  const looksLikeImage = type === 'image' && /^[a-z0-9]+$/i.test(subtype);
-  const ext = looksLikeImage ? (subtype === 'jpeg' ? 'jpg' : subtype) : 'jpg';
-  const id = crypto.randomUUID();
-  const filename = `${id}.${ext}`;
-  fs.writeFileSync(path.join(PHOTOS_DIR, filename), Buffer.from(base64, 'base64'));
+  app.post('/api/photos', (req, res) => {
+    const { date, dataUrl, createdAt } = req.body || {};
+    requireDate(date);
+    if (createdAt !== undefined && (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)))) {
+      throw new ApiError(400, 'The photo upload time is not a valid time.');
+    }
+    const match = typeof dataUrl === 'string' && /^data:[^;,]*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+    if (!match) throw new ApiError(400, "That file isn't a photo we can show.");
+    const bytes = Buffer.from(match[1], 'base64');
+    const type = core.sniffImageType(bytes);
+    if (!type) throw new ApiError(400, "That file isn't a photo we can show.");
 
-  const photos = readJson(PHOTOS_FILE);
-  const record = { id, date, filename, uploadedAt: new Date().toISOString() };
-  photos.push(record);
-  writeJson(PHOTOS_FILE, photos);
+    const photos = store.readPhotos();
+    const when = createdAt || new Date().toISOString();
+    const existing = photos.find((p) => p.date === date && (p.createdAt || p.uploadedAt) === when);
+    if (existing) return res.json({ ...photoRecord(existing), duplicate: true });
 
-  res.json(record);
-});
+    const id = crypto.randomUUID();
+    const filename = `${id}.${core.IMAGE_EXTENSIONS[type]}`;
+    fs.writeFileSync(path.join(store.photosDir, filename), bytes);
+    const record = { id, date, filename, type, createdAt: when };
+    photos.push(record);
+    try {
+      store.writePhotos(photos);
+    } catch (err) {
+      fs.rmSync(path.join(store.photosDir, filename), { force: true });
+      throw err;
+    }
+    return res.json(photoRecord(record));
+  });
 
-app.delete('/api/photos/:id', (req, res) => {
-  const photos = readJson(PHOTOS_FILE);
-  const idx = photos.findIndex((p) => p.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  const [removed] = photos.splice(idx, 1);
-  writeJson(PHOTOS_FILE, photos);
-  const filePath = path.join(PHOTOS_DIR, removed.filename);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  res.json({ ok: true });
-});
+  app.delete('/api/photos/:id', (req, res) => {
+    const photos = store.readPhotos();
+    const idx = photos.findIndex((p) => p && p.id === req.params.id);
+    if (idx === -1) throw new ApiError(404, 'That photo no longer exists.');
+    const [removed] = photos.splice(idx, 1);
+    store.writePhotos(photos);
+    fs.rmSync(path.join(store.photosDir, path.basename(removed.filename)), { force: true });
+    res.json({ ok: true });
+  });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Kenna calorie tracker running at http://localhost:${PORT}`);
-});
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: 'There is no such Kenna API endpoint.' });
+  });
+
+  // Every error becomes a short JSON message: no stack traces or file paths.
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    let status = err.status || err.statusCode || 500;
+    let message = err instanceof ApiError ? err.message : 'Something went wrong on the Kenna server. Please try again.';
+    if (err.type === 'entity.parse.failed') message = "The request wasn't valid JSON.";
+    else if (err.type === 'entity.too.large') message = 'That upload is too large.';
+    else if (status === 404 && !(err instanceof ApiError)) message = 'Not found.';
+    if (status < 400 || status > 599) status = 500;
+    if (status >= 500) console.error(err);
+    res.status(status).json({ error: message });
+  });
+
+  return app;
+}
+
+if (require.main === module) {
+  const PORT = Number(process.env.PORT) || 3000;
+  const HOST = process.env.HOST || '0.0.0.0';
+  createApp().listen(PORT, HOST, () => {
+    console.log(`Kenna calorie tracker running at http://localhost:${PORT}`);
+  });
+}
+
+module.exports = { createApp };
