@@ -7,6 +7,7 @@ const core = require('./docs/core.js');
 const APP_DIR = path.join(__dirname, 'docs');
 
 class ApiError extends Error {
+  /** @param {number} status @param {string} message */
   constructor(status, message) {
     super(message);
     this.status = status;
@@ -22,6 +23,13 @@ class ApiError extends Error {
 // aside); if that's impossible the request fails with a clear message and
 // nothing is written, so the damaged file is never overwritten.
 
+/**
+ * A photo as photos.json stores it. Older versions wrote `uploadedAt`
+ * instead of `createdAt`.
+ * @typedef {{ id: string, date: string, filename: string, type?: string, createdAt?: string, uploadedAt?: string, thumbFilename?: string }} StoredPhoto
+ */
+
+/** @param {string} dataDir */
 function createDataStore(dataDir) {
   const entriesFile = path.join(dataDir, 'entries.json');
   const photosFile = path.join(dataDir, 'photos.json');
@@ -31,8 +39,14 @@ function createDataStore(dataDir) {
   if (!fs.existsSync(entriesFile)) fs.writeFileSync(entriesFile, '{}');
   if (!fs.existsSync(photosFile)) fs.writeFileSync(photosFile, '[]');
 
+  /** @param {unknown} v */
   const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+  /**
+   * @param {string} file
+   * @param {(value: unknown) => boolean} isValidShape
+   * @returns {{ ok: true, value: any } | { ok: false }}
+   */
   function parseFile(file, isValidShape) {
     try {
       const value = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -42,10 +56,16 @@ function createDataStore(dataDir) {
     }
   }
 
+  /**
+   * @param {string} file
+   * @param {(value: unknown) => boolean} isValidShape
+   * @returns {any} the file's parsed JSON, which callers check
+   */
   function readJson(file, isValidShape) {
     const primary = parseFile(file, isValidShape);
     if (primary.ok) return primary.value;
     const bakFile = `${file}.bak`;
+    /** @type {ReturnType<typeof parseFile>} */
     const backup = fs.existsSync(bakFile) ? parseFile(bakFile, isValidShape) : { ok: false };
     if (backup.ok) {
       fs.copyFileSync(file, `${file}.damaged-${Date.now()}`);
@@ -59,6 +79,7 @@ function createDataStore(dataDir) {
     );
   }
 
+  /** @param {string} file @param {unknown} data */
   function writeJson(file, data) {
     if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.bak`);
     const tmp = `${file}.tmp`;
@@ -68,15 +89,20 @@ function createDataStore(dataDir) {
 
   return {
     photosDir,
+    /** @returns {Record<string, unknown>} */
     readEntries: () => readJson(entriesFile, isObject),
+    /** @param {Record<string, unknown>} data */
     writeEntries: (data) => writeJson(entriesFile, data),
+    /** @returns {StoredPhoto[]} */
     readPhotos: () => readJson(photosFile, Array.isArray),
+    /** @param {StoredPhoto[]} data */
     writePhotos: (data) => writeJson(photosFile, data),
   };
 }
 
 // ---------------------------------------------------------------- validation
 
+/** @param {unknown} date @returns {asserts date is string} */
 function requireDate(date) {
   if (!core.isValidDateStr(date)) throw new ApiError(400, `"${String(date).slice(0, 40)}" isn't a real date. Use YYYY-MM-DD.`);
 }
@@ -87,10 +113,12 @@ const latestDay = () => core.shiftDate(core.todayStr(), 1);
 
 const FUTURE_PHOTO = "A photo can't be filed under a day that hasn't happened yet.";
 
+/** @param {string} date @param {string} message */
 function requireNotFuture(date, message) {
   if (core.isFutureDate(date, latestDay())) throw new ApiError(400, message);
 }
 
+/** @param {any} body the request's unvalidated JSON */
 function validatePatch(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400, 'Send the fields to change as a JSON object.');
   /** @type {import('./docs/core.js').EntryPatch} */
@@ -123,6 +151,7 @@ function validatePatch(body) {
   return patch;
 }
 
+/** @param {import('./docs/core.js').Entry} entry */
 function publicEntry(entry) {
   return { date: entry.date, weight: entry.weight, meals: entry.meals, totalCalories: core.totalCalories(entry.meals) };
 }
@@ -150,6 +179,7 @@ const NOT_FOUND_PAGE = `<!DOCTYPE html>
 </html>
 `;
 
+/** @param {{ dataDir?: string }} [options] */
 function createApp(options) {
   const opts = options || {};
   const dataDir = opts.dataDir || process.env.KENNA_DATA_DIR || path.join(__dirname, 'data');
@@ -213,6 +243,7 @@ function createApp(options) {
   // upload time in photos.json.
   // A photo can also have a small preview for the Photos screen
   // (thumbFilename), made by the app when the photo is added or first shown.
+  /** @param {StoredPhoto} p */
   const photoRecord = (p) => ({
     id: p.id,
     date: p.date,
@@ -225,6 +256,7 @@ function createApp(options) {
   const MAX_THUMB_BYTES = 512 * 1024;
 
   // The image in a data: URL, checked to really be a photo.
+  /** @param {unknown} dataUrl @param {number} [maxBytes] */
   function imageFromDataUrl(dataUrl, maxBytes) {
     const match = typeof dataUrl === 'string' && /^data:[^;,]*;base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
     if (!match) throw new ApiError(400, "That file isn't a photo we can show.");
@@ -235,6 +267,7 @@ function createApp(options) {
     return { bytes, type };
   }
 
+  /** @param {unknown} dataUrl */
   function writeThumb(dataUrl) {
     const thumb = imageFromDataUrl(dataUrl, MAX_THUMB_BYTES);
     const filename = `${crypto.randomUUID()}.thumb.${core.IMAGE_EXTENSIONS[thumb.type]}`;
@@ -247,7 +280,7 @@ function createApp(options) {
       .readPhotos()
       .filter((p) => p && typeof p.filename === 'string' && core.isValidDateStr(p.date))
       .map(photoRecord)
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+      .sort((a, b) => (String(a.createdAt) < String(b.createdAt) ? 1 : -1));
     res.json(photos);
   });
 
@@ -339,7 +372,7 @@ function createApp(options) {
 
   // Every error becomes a short JSON message: no stack traces or file paths.
   // eslint-disable-next-line no-unused-vars
-  app.use((err, req, res, next) => {
+  app.use((/** @type {any} */ err, /** @type {express.Request} */ req, /** @type {express.Response} */ res, /** @type {express.NextFunction} */ next) => {
     let status = err.status || err.statusCode || 500;
     let message =
       err instanceof ApiError ? err.message : 'Something went wrong on the Kenna server. Try again, and if it keeps happening, restart the server.';

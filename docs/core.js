@@ -43,16 +43,20 @@
   // arithmetic goes through UTC so daylight-saving changes can never make a
   // "day" 23 or 25 hours long and skip or repeat a date.
 
+  /** @param {number} n */
   const pad = (n) => String(n).padStart(2, '0');
 
+  /** @param {Date} d */
   function localDateStr(d) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   }
 
+  /** @param {Date} [now] */
   function todayStr(now) {
     return localDateStr(now || new Date());
   }
 
+  /** @param {unknown} str @returns {{ y: number, m: number, d: number } | null} */
   function parseDateStr(str) {
     if (typeof str !== 'string') return null;
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
@@ -66,16 +70,19 @@
     return { y, m: mo, d };
   }
 
+  /** @param {unknown} str @returns {str is string} */
   function isValidDateStr(str) {
     return parseDateStr(str) !== null;
   }
 
+  /** @param {string} str */
   function dayNumber(str) {
     const p = parseDateStr(str);
     if (!p) return NaN;
     return Date.UTC(p.y, p.m - 1, p.d) / DAY_MS;
   }
 
+  /** @param {number} n */
   function dateFromDayNumber(n) {
     const d = new Date(n * DAY_MS);
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
@@ -95,6 +102,7 @@
     return dateFromDayNumber(dayNumber(str) + days);
   }
 
+  /** @param {string} a @param {string} b */
   function daysBetween(a, b) {
     return dayNumber(b) - dayNumber(a);
   }
@@ -110,11 +118,13 @@
   const monthDayFmt = new Intl.DateTimeFormat(LOCALE, { month: 'short', day: 'numeric', timeZone: 'UTC' });
   const monthDayYearFmt = new Intl.DateTimeFormat(LOCALE, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
+  /** @param {string} str */
   function utcDate(str) {
     return new Date(dayNumber(str) * DAY_MS);
   }
 
   // "Thu, Sep 24" (with the year when it isn't the current one).
+  /** @param {string} str @param {string} [today] */
   function formatDate(str, today) {
     if (!isValidDateStr(str)) return 'Unknown date';
     const ref = today || todayStr();
@@ -123,6 +133,7 @@
   }
 
   // "Today", "Yesterday" or "Thu, Sep 24".
+  /** @param {string} str @param {string} [today] */
   function formatRelativeDate(str, today) {
     const ref = today || todayStr();
     if (str === ref) return 'Today';
@@ -131,6 +142,7 @@
   }
 
   // "Sep 24" — for chart axes, where space is tight.
+  /** @param {string} str @param {boolean} [withYear] */
   function formatMonthDay(str, withYear) {
     if (!isValidDateStr(str)) return '';
     return (withYear ? monthDayYearFmt : monthDayFmt).format(utcDate(str));
@@ -164,7 +176,9 @@
 
   // ---------------------------------------------------------------- numbers
 
+  /** @type {Record<number, Intl.NumberFormat>} */
   const numberFormats = {};
+  /** @param {number} value @param {number} [maxDecimals] */
   function formatNumber(value, maxDecimals) {
     const digits = maxDecimals || 0;
     if (!numberFormats[digits]) {
@@ -173,6 +187,7 @@
     return numberFormats[digits].format(value);
   }
 
+  /** @param {number} value */
   function formatCalories(value) {
     return `${formatNumber(Math.round(value))} cal`;
   }
@@ -318,6 +333,7 @@
     return stats;
   }
 
+  /** @param {number[]} vals @returns {number | null} */
   const mean = (vals) => (vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
 
   // All-time averages of the days before `today`: today itself is left out
@@ -450,10 +466,12 @@
     return { ok: true, value };
   }
 
+  /** @param {unknown} v */
   function isCaloriesInRange(v) {
     return typeof v === 'number' && Number.isFinite(v) && v >= LIMITS.caloriesMin && v <= LIMITS.caloriesMax;
   }
 
+  /** @param {unknown} v */
   function isWeightInRange(v) {
     return typeof v === 'number' && Number.isFinite(v) && v >= LIMITS.weightMin && v <= LIMITS.weightMax;
   }
@@ -660,6 +678,7 @@
 
   // ---------------------------------------------------------------- charts
 
+  /** @param {number} range @param {boolean} round */
   function niceNum(range, round) {
     const exponent = Math.floor(Math.log10(range));
     const fraction = range / Math.pow(10, exponent);
@@ -741,12 +760,14 @@
 
   // Recognises the image formats a phone camera or browser produces from the
   // first bytes of the file, independent of its name or claimed type.
+  /** @param {Uint8Array | null | undefined} bytes @returns {string | null} */
   function sniffImageType(bytes) {
     if (!bytes || bytes.length < 12) return null;
     const b = bytes;
     if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
     if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
     if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+    /** @param {number} from @param {number} to */
     const ascii = (from, to) => String.fromCharCode(...Array.from(b.slice(from, to)));
     if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
     if (ascii(4, 8) === 'ftyp') {
@@ -758,6 +779,7 @@
     return null;
   }
 
+  /** @type {Record<string, string>} */
   const IMAGE_EXTENSIONS = {
     'image/jpeg': 'jpg',
     'image/png': 'png',

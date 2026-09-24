@@ -115,6 +115,7 @@
       return entries;
     }
 
+    /** @param {string} date */
     async function getEntry(date) {
       const item = await request('GET', `/api/entries/${encodeURIComponent(date)}`);
       const entry = core.normalizeEntry(date, item);

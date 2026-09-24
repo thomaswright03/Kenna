@@ -96,10 +96,12 @@
     // treating the history as empty; if both are unreadable, the damaged text
     // is kept under ":corrupt" so the next save can't erase what's left.
 
+    /** @param {unknown} v @returns {v is Record<string, unknown>} */
     function isPlainObject(v) {
       return v !== null && typeof v === 'object' && !Array.isArray(v);
     }
 
+    /** @param {string} text @returns {Record<string, unknown> | null} */
     function parseObject(text) {
       try {
         const value = JSON.parse(text);
@@ -109,6 +111,7 @@
       }
     }
 
+    /** @param {string} text */
     function keepCorruptCopy(text) {
       try {
         const kept = storage.getItem(CORRUPT_KEY);
@@ -154,6 +157,7 @@
       return {};
     }
 
+    /** @param {Record<string, unknown>} obj */
     function writeRaw(obj) {
       try {
         const previous = storage.getItem(ENTRIES_KEY);
@@ -185,6 +189,7 @@
       return core.sanitizeEntries(readRaw()).entries;
     }
 
+    /** @param {string} date */
     async function getEntry(date) {
       const raw = readRaw();
       return core.normalizeEntry(date, raw[date]);
@@ -193,6 +198,7 @@
     // Applies only the fields in `patch` to the stored day, so edits made
     // elsewhere (another tab) to other fields are kept. Malformed days that
     // can't be displayed are left in storage untouched rather than dropped.
+    /** @param {string} date @param {EntryPatch} patch */
     async function updateEntry(date, patch) {
       if (!core.isValidDateStr(date)) throw new Error('Not saved: pick a valid date first.');
       if (core.isFutureDate(date)) throw new Error(`Not saved. ${core.FUTURE_DAY}`);
@@ -204,6 +210,7 @@
       return next;
     }
 
+    /** @param {Record<string, Entry>} entries */
     async function importEntries(entries) {
       const raw = readRaw();
       let count = 0;
@@ -523,6 +530,7 @@
       }
     }
 
+    /** @param {() => void} callback */
     function onExternalChange(callback) {
       if (!win) return;
       win.addEventListener('storage', (event) => {

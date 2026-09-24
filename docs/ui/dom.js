@@ -7,13 +7,18 @@ export const { MEAL_STEPS } = core;
 export const BACKEND = window.KENNA_BACKEND === 'server' ? 'server' : 'local';
 
 /**
+ * @typedef {Node | string | null | undefined | false} Child
+ * @typedef {Child | Child[] | Child[][]} Children
+ */
+
+/**
  * Creates an element. `props` sets attributes, except `class`, `text`
  * (textContent) and `onX` functions (event listeners); null, undefined and
  * false props and children are skipped.
  * @template {keyof HTMLElementTagNameMap} K
  * @param {K} tag
- * @param {Record<string, any> | null} [props]
- * @param {...any} children
+ * @param {Record<string, unknown> | null} [props]
+ * @param {...Children} children
  * @returns {HTMLElementTagNameMap[K]}
  */
 export function h(tag, props, ...children) {
@@ -22,13 +27,13 @@ export function h(tag, props, ...children) {
     for (const key of Object.keys(props)) {
       const v = props[key];
       if (v === null || v === undefined || v === false) continue;
-      if (key === 'class') el.className = v;
-      else if (key === 'text') el.textContent = v;
-      else if (key.startsWith('on') && typeof v === 'function') el.addEventListener(key.slice(2).toLowerCase(), v);
+      if (key === 'class') el.className = String(v);
+      else if (key === 'text') el.textContent = String(v);
+      else if (key.startsWith('on') && typeof v === 'function') el.addEventListener(key.slice(2).toLowerCase(), /** @type {EventListener} */ (v));
       else el.setAttribute(key, v === true ? '' : String(v));
     }
   }
-  for (const child of children.flat(Infinity)) {
+  for (const child of /** @type {Child[]} */ (children.flat(Infinity))) {
     if (child !== null && child !== undefined && child !== false) el.append(child);
   }
   return el;
