@@ -642,6 +642,16 @@ test('over years of data, All plots weekly averages that stay readable', async (
   await expect(page.locator('.chart-sub').nth(1)).toHaveText('Weight each day');
 });
 
+test('on a past day, the Calories graph subtitle does not talk about today', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-10': day('2026-09-10', { lunch: 600 }, 180), [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await page.goto(`${appURL}/#/day/2026-09-10`);
+  await expect(page.getByRole('heading', { name: 'Thu, Sep 10' })).toBeVisible();
+  await expect(page.locator('.chart-sub').nth(0)).toHaveText('Total intake each day');
+  await page.goto(appURL);
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(page.locator('.chart-sub').nth(0)).toHaveText('Total intake each day; today’s is so far');
+});
+
 test("today's calories so far are a lone marker, never a line diving from yesterday", async ({ page, appURL, data }) => {
   const entries = {};
   for (let i = 1; i <= 30; i += 1) {

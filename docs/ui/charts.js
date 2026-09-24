@@ -30,10 +30,12 @@ window.addEventListener('resize', () => {
 /**
  * A card with the Calories and Weight charts and a shared range picker.
  * `smoothing` plots the 7-day rolling average instead of daily values.
- * @param {{ title: string, entries: Record<string, import('../core.js').Entry>, smoothing: boolean, footer?: HTMLElement }} options
+ * `viewing` is the day the screen shows, when it isn't today: the
+ * subtitles then don't talk about today.
+ * @param {{ title: string, entries: Record<string, import('../core.js').Entry>, smoothing: boolean, footer?: HTMLElement, viewing?: string }} options
  * @returns {{ root: HTMLElement, draw: () => void }}
  */
-export function buildChartsCard({ title, entries, smoothing, footer }) {
+export function buildChartsCard({ title, entries, smoothing, footer, viewing }) {
   const rows = core.buildDailyRows(entries);
   const now = today();
   let rangeKey = prefs.get('chartRange', '30');
@@ -45,7 +47,7 @@ export function buildChartsCard({ title, entries, smoothing, footer }) {
       field: 'calories',
       title: 'Calories',
       unit: 'cal',
-      sub: smoothing ? '7-day average of daily intake, not counting today until it’s over' : 'Total intake each day; today’s is so far',
+      sub: smoothing ? '7-day average of daily intake, not counting today until it’s over' : viewing && viewing !== now ? 'Total intake each day' : 'Total intake each day; today’s is so far',
       partialDay: smoothing ? null : now,
     },
     { field: 'weight', title: 'Weight', unit: 'lbs', sub: smoothing ? '7-day average weight' : 'Weight each day', averaged: smoothing },

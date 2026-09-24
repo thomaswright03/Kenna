@@ -253,6 +253,7 @@ export async function buildToday(ctx) {
     title: 'Graphs',
     entries: allEntries,
     smoothing: false,
+    viewing: date,
     footer: h('p', { class: 'card-foot' }, h('a', { class: 'btn-text', href: '#/history', text: 'See exact numbers in History' })),
   });
 
