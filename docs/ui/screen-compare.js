@@ -12,24 +12,30 @@ import { buildChartsCard } from './charts.js';
 const cal = (n) => core.formatCalories(n);
 /** A weight as entered. @param {number} n */
 const lbs = (n) => core.formatWeight(n);
-/** An average weight, or a difference from one: always one decimal. @param {number} n */
+/** An average weight, or any difference between weights: always one decimal. @param {number} n */
 const avgLbs = (n) => core.formatAverageWeight(n);
 
 /**
  * "500 cal more than", "the same as": today against a reference value.
- * Calories compare in whole calories, weight to one decimal.
+ * Calories compare in whole calories; every weight difference is written
+ * to one decimal ("12.0 lbs", "0.4 lbs"), and one too small to show at
+ * that is "less than 0.1 lbs" rather than "the same".
  * @param {number} diff
  * @param {'cal' | 'lbs'} unit
  * @param {[string, string]} words above/below words, e.g. ['more than', 'less than']
- * @param {number} [decimals] for weight: 1 against an average, 2 between two days as entered
  */
-function difference(diff, unit, words, decimals = 1) {
-  const scale = 10 ** decimals;
+function difference(diff, unit, words) {
+  const scale = unit === 'lbs' ? 10 : 1;
   // Rounded the same way above and below (0.75 is 0.8 either way).
-  const rounded = (Math.sign(diff) * Math.round(Math.abs(diff) * (unit === 'lbs' ? scale : 1))) / (unit === 'lbs' ? scale : 1);
-  if (rounded === 0) return { amount: '', text: 'the same as', direction: 'same' };
-  const amount = unit === 'cal' ? cal(Math.abs(rounded)) : decimals === 1 ? avgLbs(Math.abs(rounded)) : core.formatWeight(Math.abs(rounded), decimals);
-  return { amount, text: rounded > 0 ? words[0] : words[1], direction: rounded > 0 ? 'above' : 'below' };
+  const rounded = (Math.sign(diff) * Math.round(Math.abs(diff) * scale)) / scale;
+  const direction = diff > 0 ? 'above' : 'below';
+  if (rounded === 0) {
+    // Weights are kept to two decimals, so anything smaller is the same.
+    if (unit === 'cal' || Math.abs(diff) < 0.005) return { amount: '', text: 'the same as', direction: 'same' };
+    return { amount: 'less than 0.1 lbs', text: diff > 0 ? words[0] : words[1], direction };
+  }
+  const amount = unit === 'cal' ? cal(Math.abs(rounded)) : avgLbs(Math.abs(rounded));
+  return { amount, text: rounded > 0 ? words[0] : words[1], direction };
 }
 
 /**
@@ -131,16 +137,26 @@ function calorieAnswer(t, y, avg, earlier) {
   // The average for today's meals, and the average whole day when that's
   // different (it is until the day's usual meals are all logged).
   const usual = same && avg.total !== null ? same.average : null;
+  const averageDay = usual !== null && Math.round(usual) === Math.round(Number(avg.total)) ? null : avg.total;
   const bars =
     t.total !== null && avg.total !== null
       ? calorieBars([
         { label: 'Today so far', value: t.total, today: true },
         { label: 'Usual for these meals', value: usual },
-        { label: 'Average day', value: usual !== null && Math.round(usual) === Math.round(avg.total) ? null : avg.total },
+        { label: 'Average day', value: averageDay },
         { label: 'Yesterday', value: y.total },
       ])
     : null;
-  return answer({ id: 'calories', label: 'Calories', sentence, details, extra: bars });
+  // Two averages side by side: say which one the sentence used.
+  const note =
+    bars && usual !== null && averageDay !== null
+      ? h('p', {
+        class: 'compare-caption',
+        'data-baseline-note': '',
+        text: 'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today. “Average day” covers whole days, so it’s a fair match only once today is finished.',
+      })
+      : null;
+  return answer({ id: 'calories', label: 'Calories', sentence, details, extra: bars ? h('div', null, bars, note) : null });
 }
 
 /**
@@ -167,7 +183,7 @@ function weightAnswer(t, y, avg) {
     ].filter((n) => n !== null);
     details.push(`average ${avgLbs(avg.weight)}`);
     if (y.weight !== null) {
-      const dy = difference(t.weight - y.weight, 'lbs', ['up', 'down'], 2);
+      const dy = difference(t.weight - y.weight, 'lbs', ['up', 'down']);
       details.push(dy.direction === 'same' ? `same as yesterday (${lbs(y.weight)})` : `${dy.amount} ${dy.text} from yesterday (${lbs(y.weight)})`);
     }
   }

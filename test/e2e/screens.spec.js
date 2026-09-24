@@ -174,7 +174,23 @@ test('a weight is shown everywhere as it was entered, to two decimals', async ({
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
   await expect(weight).toContainText('165.25 lbs today: 0.8 lbs below your average.');
-  await expect(weight).toContainText('average 166.0 lbs · 0.75 lbs down from yesterday (166 lbs)');
+  // A difference is always to one decimal, whatever the weights' own.
+  await expect(weight).toContainText('average 166.0 lbs · 0.8 lbs down from yesterday (166 lbs)');
+});
+
+test('every weight difference on Compare has one decimal, however the weights were entered', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-23': day('2026-09-23', {}, 185.2), [TODAY]: day(TODAY, {}, 173.2) });
+  await page.goto(`${appURL}/#/compare`);
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('173.2 lbs today: 12.0 lbs below your average.');
+  await expect(weight).toContainText('average 185.2 lbs · 12.0 lbs down from yesterday (185.2 lbs)');
+
+  // Too small to show at one decimal, but not the same.
+  await data.seed({ '2026-09-23': day('2026-09-23', {}, 180), [TODAY]: day(TODAY, {}, 180.04) });
+  await page.goto(appURL);
+  await page.goto(`${appURL}/#/compare`);
+  await expect(weight).toContainText('less than 0.1 lbs up from yesterday (180 lbs)');
+  await expect(weight.locator('.compare-answer-text')).toHaveText('180.04 lbs today: less than 0.1 lbs above your average.');
 });
 
 test('Compare answers how today stands in plain sentences, within the first screenful', async ({ page, appURL, data }) => {
@@ -201,6 +217,8 @@ test('Compare answers how today stands in plain sentences, within the first scre
   // The average day is the same as the usual breakfast and lunch here, so
   // it isn't shown twice.
   await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
+  // With one average there's nothing to tell apart.
+  await expect(calories.locator('[data-baseline-note]')).toHaveCount(0);
   const widths = await rows.locator('.amount-bar').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
   expect(widths[0]).toBeGreaterThan(widths[2]);
   expect(widths[2]).toBeGreaterThan(widths[1]);
@@ -251,6 +269,10 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal less than your average breakfast.');
   await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/, /^Average day\s*1,900 cal$/, /^Yesterday\s*1,900 cal$/]);
   await expect(calories.locator('.amount-row').first()).toContainText('Today so far');
+  // Two averages: which one the sentence used is said in words.
+  await expect(calories.locator('[data-baseline-note]')).toHaveText(
+    'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today. “Average day” covers whole days, so it’s a fair match only once today is finished.'
+  );
   await expect(page.locator('[data-answer="weight"]')).not.toContainText('So far');
 
   // The daily chart on Today shows the running total, marked as unfinished.
