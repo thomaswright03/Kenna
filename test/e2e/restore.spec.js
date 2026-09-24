@@ -23,10 +23,10 @@ test('a backup from the first version, with a weight to three decimals, restores
     })
   );
   const dialog = await importFile(page, appURL, file);
-  await expect(dialog).toContainText('It has 2 days and 0 photos');
+  await expect(dialog).toContainText('It has 2 days and no photos');
   await expect(dialog).toContainText('2 days will be added');
   await dialog.getByRole('button', { name: 'Restore', exact: true }).click();
-  await expect(page.getByText('Restored 2 days and 0 photos.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Restored 2 days.', { exact: true })).toBeVisible();
   expect((await data.entry('2026-09-16')).weight).toBe(165.33);
 });
 
@@ -45,11 +45,11 @@ test('a backup with one day outside the rules offers to restore the rest, then n
     })
   );
   const dialog = await importFile(page, appURL, file);
-  await expect(dialog).toContainText('It has 2 days and 0 photos');
+  await expect(dialog).toContainText('It has 2 days and no photos');
   await expect(dialog).toContainText('These can’t be restored and will be left out:');
   await expect(dialog.getByRole('listitem')).toHaveText(["Breakfast on Tue, Sep 1 (-5): Calories can't be negative. Enter 0 or more."]);
   await dialog.getByRole('button', { name: 'Restore the rest' }).click();
-  await expect(page.getByText('Restored 2 days and 0 photos.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Restored 2 days.', { exact: true })).toBeVisible();
   const result = page.locator('.import-result');
   await expect(result).toContainText('Left out, because it can’t be restored:');
   await expect(result.getByRole('listitem')).toHaveText(["Breakfast on Tue, Sep 1 (-5): Calories can't be negative. Enter 0 or more."]);
@@ -103,4 +103,26 @@ test('the restore dialog says when nothing already here will change', async ({ p
   await expect(dialog).toContainText('Every day in it is already');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
+
+  // Restoring it anyway changes nothing, and says so.
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.getByRole('dialog').getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByText('Nothing new to restore. 1 day was already here.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Undo restore' })).toHaveCount(0);
+});
+
+test('a backup with photos and no days is described as such, before and after', async ({ page, appURL, data }, testInfo) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 500 }) });
+  const file = testInfo.outputPath('photos-only.json');
+  fs.writeFileSync(
+    file,
+    JSON.stringify({ app: 'kenna', version: 2, entries: {}, photos: [{ date: '2026-09-20', createdAt: '2026-09-20T08:00:00.000Z', type: 'image/png', data: PNG }] })
+  );
+  const dialog = await importFile(page, appURL, file);
+  await expect(dialog).toContainText('It has 1 photo and no days (');
+  await expect(dialog).toContainText('will change, and photos already here aren’t added again. You can undo the restore afterwards.');
+  await expect(dialog).not.toContainText('Every day');
+  await dialog.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByText('Restored 1 photo.', { exact: true })).toBeVisible();
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(500);
 });

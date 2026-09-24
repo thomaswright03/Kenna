@@ -25,7 +25,7 @@ test('Today reminds to back up until a backup is confirmed saved, and again once
   expect(download.suggestedFilename()).toBe('kenna-backup-2026-09-24.json');
   await expect(page.getByRole('region', { name: 'Backup file not saved yet' })).toBeVisible();
   await expect(note).toContainText('Backup file created');
-  await expect(note).toContainText('2 days and 0 photos');
+  await expect(note).toContainText('kenna-backup-2026-09-24.json, with 2 days and no photos');
   await expect(note).not.toContainText('Backup saved');
   expect(await page.evaluate(() => localStorage.getItem('kenna:backupConfirmedAt'))).toBeNull();
   await page.reload();

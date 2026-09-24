@@ -1,9 +1,9 @@
 // Backup file export and import (Settings).
 
-import { core, h, uid, prefs, today, visibleEntries, plural, formatBytes, errorText, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today, visibleEntries, formatBytes, errorText, BACKEND } from './dom.js';
 import { createStatusLine } from './feedback.js';
 import { store } from './store.js';
-import { importBackupFile } from './backup-import.js';
+import { importBackupFile, daysAndPhotos } from './backup-import.js';
 
 /** @param {Blob} blob @param {string} filename */
 export function downloadBlob(blob, filename) {
@@ -77,15 +77,15 @@ function recordBackupSaved() {
 }
 
 /** Where to keep a backup file, worded for the version in use. */
-export function backupAdvice() {
+function backupAdvice() {
   return BACKEND === 'server'
     ? 'Keep a copy somewhere other than the computer running Kenna, like cloud storage, a USB drive or email.'
     : 'Keep it off this device, so it survives losing or replacing it: in iCloud Drive or another cloud folder, or emailed to yourself.';
 }
 
-/** @param {BackupResult} result */
-export function backupSummary(result) {
-  return `${result.filename}: ${plural(result.dayCount, 'day')} and ${plural(result.photoCount, 'photo')} (${formatBytes(result.file.size)})`;
+/** "kenna-backup-2026-09-24.json, with 3 days and 2 photos (29 KB)" @param {BackupResult} result */
+function backupSummary(result) {
+  return `${result.filename}, with ${daysAndPhotos(result.dayCount, result.photoCount)} (${formatBytes(result.file.size)})`;
 }
 
 /**

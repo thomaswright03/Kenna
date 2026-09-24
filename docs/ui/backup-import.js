@@ -18,8 +18,18 @@ import { store } from './store.js';
 
 /**
  * @typedef {{ ok: true, entries: Record<string, import('../core.js').Entry>, dayCount: number, photoCount: number, futureDays: number, skipped: string[] }} CheckedBackup
- * @typedef {{ days: number, daysReplaced: boolean, photos: import('../store-local.js').Photo[], alreadyHere: number, futurePhotos: number }} Restored
+ * @typedef {{ days: number, daysReplaced: boolean, unchangedDays: number, photos: import('../store-local.js').Photo[], alreadyHere: number, futurePhotos: number }} Restored
  */
+
+/**
+ * "3 days and 2 photos", "2 photos and no days", "3 days and no photos".
+ * @param {number} days
+ * @param {number} photos
+ */
+export function daysAndPhotos(days, photos) {
+  if (days === 0 && photos > 0) return `${plural(photos, 'photo')} and no days`;
+  return `${plural(days, 'day')} and ${photos === 0 ? 'no photos' : plural(photos, 'photo')}`;
+}
 
 const WHERE = BACKEND === 'server' ? 'in Kenna' : 'on this device';
 
@@ -60,10 +70,14 @@ async function changeSummary(checked) {
  * @param {CheckedBackup} checked
  */
 async function confirmRestore(file, checked) {
-  const contents = `It has ${plural(checked.dayCount, 'day')} and ${plural(checked.photoCount, 'photo')} (${formatBytes(file.size)}).`;
+  const contents = `It has ${daysAndPhotos(checked.dayCount, checked.photoCount)} (${formatBytes(file.size)}).`;
+  const effect =
+    checked.dayCount > 0
+      ? `${await changeSummary(checked)} Other days and photos stay as they are, and you can undo the restore afterwards.`
+      : `No day ${WHERE} will change, and photos already here aren’t added again. You can undo the restore afterwards.`;
   return confirmDialog({
     title: 'Restore from this backup?',
-    message: `${contents} ${await changeSummary(checked)} Other days and photos stay as they are, and you can undo the restore afterwards.`,
+    message: `${contents} ${effect}`,
     details: checked.skipped.length ? { intro: 'These can’t be restored and will be left out:', items: checked.skipped } : null,
     confirmLabel: checked.skipped.length ? 'Restore the rest' : 'Restore',
   });
@@ -81,8 +95,17 @@ async function confirmRestore(file, checked) {
 async function restore(file, checked, ui, done) {
   if (checked.dayCount > 0) {
     ui.status.set('pending', 'Restoring days…');
-    done.daysReplaced = true;
-    done.days = await store.importEntries(checked.entries);
+    // Only days that are new or different are written; a day already here
+    // exactly as in the file is left alone and counted as unchanged.
+    const { replaced, added, unchanged } = core.compareWithStored(await store.loadEntries(), checked.entries);
+    done.unchangedDays = unchanged;
+    /** @type {Record<string, import('../core.js').Entry>} */
+    const changed = {};
+    for (const date of [...replaced, ...added]) changed[date] = checked.entries[date];
+    if (replaced.length + added.length > 0) {
+      done.daysReplaced = true;
+      done.days = await store.importEntries(changed);
+    }
   }
   if (checked.photoCount === 0) return;
   ui.setProgress(0, checked.photoCount);
@@ -103,16 +126,24 @@ async function restore(file, checked, ui, done) {
 }
 
 /**
- * "Restored 3 days and 2 photos. 1 photo was already here. …"
+ * "Restored 3 days and 2 photos. 1 day and 1 photo were already here. …"
  * @param {Restored} done
  * @param {CheckedBackup} checked
  */
 function restoredText(done, checked) {
-  const already = done.alreadyHere ? ` ${plural(done.alreadyHere, 'photo')} ${done.alreadyHere === 1 ? 'was' : 'were'} already here.` : '';
+  /** @param {string[]} parts @param {number} count */
+  const were = (parts, count) => `${parts.join(' and ')} ${count === 1 ? 'was' : 'were'}`;
+  const restored = [done.days ? plural(done.days, 'day') : '', done.photos.length ? plural(done.photos.length, 'photo') : ''].filter(Boolean);
+  const already = [done.unchangedDays ? plural(done.unchangedDays, 'day') : '', done.alreadyHere ? plural(done.alreadyHere, 'photo') : ''].filter(Boolean);
   const leftOut = [checked.futureDays ? plural(checked.futureDays, 'day') : '', done.futurePhotos ? plural(done.futurePhotos, 'photo') : ''].filter(Boolean);
   const leftOutCount = checked.futureDays + done.futurePhotos;
-  const future = leftOut.length ? ` ${leftOut.join(' and ')} dated after today ${leftOutCount === 1 ? 'was' : 'were'} left out.` : '';
-  return `Restored ${plural(done.days, 'day')} and ${plural(done.photos.length, 'photo')}.${already}${future}`;
+  return [
+    restored.length ? `Restored ${restored.join(' and ')}.` : 'Nothing new to restore.',
+    already.length ? `${were(already, done.unchangedDays + done.alreadyHere)} already here.` : '',
+    leftOut.length ? `${leftOut.join(' and ')} dated after today ${leftOutCount === 1 ? 'was' : 'were'} left out.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 /**
@@ -172,7 +203,7 @@ export async function importBackupFile(file, ui) {
   ui.deliverySlot.replaceChildren();
   ui.resultSlot.replaceChildren();
   /** @type {Restored} */
-  const done = { days: 0, daysReplaced: false, photos: [], alreadyHere: 0, futurePhotos: 0 };
+  const done = { days: 0, daysReplaced: false, unchangedDays: 0, photos: [], alreadyHere: 0, futurePhotos: 0 };
   /** @type {CheckedBackup | null} */
   let checked = null;
   try {

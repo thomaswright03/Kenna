@@ -80,7 +80,7 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
   expect(Object.keys(backup.entries).sort()).toEqual(['2026-09-20', TODAY]);
   expect(backup.photos.map((p) => p.date).sort()).toEqual(['2026-09-20', TODAY]);
-  const created = page.getByText(/Backup file created: kenna-backup-2026-09-24\.json: 2 days and 2 photos/);
+  const created = page.getByText(/Backup file created: kenna-backup-2026-09-24\.json, with 2 days and 2 photos/);
   await expect(created).toBeVisible();
   await expect(created).not.toContainText('phone');
   await expect(created).toContainText(backend === 'server' ? 'somewhere other than the computer running Kenna' : 'Keep it off this device');
@@ -105,7 +105,7 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   await fresh.goto(`${freshURL}/#/settings`);
   await fresh.locator('input[type=file]').setInputFiles(file);
   await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText('Restored 2 days and 0 photos. 2 photos were already here.', { exact: true })).toBeVisible();
+  await expect(fresh.getByText('Nothing new to restore. 2 days and 2 photos were already here.', { exact: true })).toBeVisible();
   await fresh.goto(`${freshURL}/#/photos`);
   await expect(fresh.locator('.photo-thumb')).toHaveCount(2);
   await ctx.close();
@@ -215,7 +215,7 @@ test('a photo can be filed under an earlier day and moved to another day later',
   await fresh.goto(`${freshURL}/#/settings`);
   await fresh.locator('input[type=file]').setInputFiles(afterFile);
   await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText(/and 1 photo\./)).toBeVisible();
+  await expect(fresh.getByText('Restored 1 photo.', { exact: true })).toBeVisible();
   await fresh.goto(`${freshURL}/#/photos`);
   await expect(fresh.getByRole('button', { name: 'Progress photo, Mon, Sep 21' })).toBeVisible();
   await ctx.close();

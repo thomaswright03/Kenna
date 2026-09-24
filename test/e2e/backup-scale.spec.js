@@ -128,7 +128,7 @@ test('a year of photos opens, backs up and restores a photo at a time', async ({
     const download = await downloadPromise;
     file = testInfo.outputPath('year.json');
     await download.saveAs(file);
-    await expect(page.getByText(/Backup file created: .*: 0 days and 365 photos/)).toBeVisible({ timeout: 60000 });
+    await expect(page.getByText(/Backup file created: .*, with 365 photos and no days/)).toBeVisible({ timeout: 60000 });
   });
   const size = fs.statSync(file).size;
   expect(size).toBeGreaterThan(library);
@@ -142,13 +142,13 @@ test('a year of photos opens, backs up and restores a photo at a time', async ({
     await fresh.locator('input[type=file]').setInputFiles(file);
     await expect(fresh.getByRole('dialog')).toContainText('365 photos', { timeout: 60000 });
     await fresh.getByRole('button', { name: 'Restore' }).click();
-    await expect(fresh.getByText('Restored 0 days and 365 photos.', { exact: true })).toBeVisible({ timeout: 180000 });
+    await expect(fresh.getByText('Restored 365 photos.', { exact: true })).toBeVisible({ timeout: 180000 });
   });
   expect(await countPhotos(fresh)).toBe(PHOTOS);
 
   await fresh.locator('input[type=file]').setInputFiles(file);
   await fresh.getByRole('button', { name: 'Restore' }).click();
-  await expect(fresh.getByText('Restored 0 days and 0 photos. 365 photos were already here.', { exact: true })).toBeVisible({ timeout: 180000 });
+  await expect(fresh.getByText('Nothing new to restore. 365 photos were already here.', { exact: true })).toBeVisible({ timeout: 180000 });
   expect(await countPhotos(fresh)).toBe(PHOTOS);
   await ctx.close();
 
