@@ -3,7 +3,8 @@
 
 import { prefs } from './dom.js';
 
-const THEME_COLORS = { light: '#f8fafc', dark: '#0f172a' };
+// The page background (--bg in style.css) of each theme.
+const THEME_COLORS = { light: '#f1f5f9', dark: '#0f172a' };
 const darkQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 /** @param {string} pref 'system', 'light' or 'dark' */

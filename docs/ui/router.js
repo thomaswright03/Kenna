@@ -9,8 +9,11 @@ import { toast, clearToastsOnNavigation } from './feedback.js';
 
 /**
  * @typedef {'today' | 'log' | 'history' | 'compare' | 'photos' | 'settings'} ScreenName
- * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean }} Route
+ * @typedef {{ screen: ScreenName, date: string | null, meal?: string | null, future?: boolean, noSuchDate?: boolean }} Route
+ *   future: the address named a day after today; noSuchDate: it named a date that doesn't exist (Feb 30)
  */
+
+const NO_SUCH_DATE = "That date doesn't exist, so Today is shown.";
 
 /** @type {ScreenName[]} */
 const SCREENS = ['history', 'compare', 'photos', 'settings'];
@@ -33,6 +36,7 @@ export function parseRoute(hash) {
     if (parts[2] === 'log') return { screen: 'log', date: parts[1], meal: mealKey(parts[3]) };
     return { screen: 'today', date: parts[1] };
   }
+  if (parts[0] === 'day' && parts.length > 1) return { screen: 'today', date: null, noSuchDate: true };
   const screen = SCREENS.find((s) => s === parts[0]);
   if (screen) return { screen, date: null };
   return { screen: 'today', date: null };
@@ -60,7 +64,7 @@ export const currentHash = () => routeHash(parseRoute(window.location.hash));
 
 /**
  * An address that doesn't lead anywhere valid (mistyped, an old bookmark,
- * a day that hasn't happened yet) is replaced by the address of what's
+ * a day in the future) is replaced by the address of what's
  * actually shown, without adding a history entry, so refreshing or
  * bookmarking doesn't bring the bad address back.
  * @param {Route} r the route parsed from the current address
@@ -72,6 +76,7 @@ function settleAddress(r) {
     window.history.replaceState(window.history.state, '', canonical);
   }
   if (r.future) toast(core.FUTURE_DAY);
+  else if (r.noSuchDate) toast(NO_SUCH_DATE);
 }
 
 /** The screen being shown. */

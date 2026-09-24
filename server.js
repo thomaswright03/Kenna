@@ -145,26 +145,8 @@ function publicEntry(entry) {
 
 // ---------------------------------------------------------------- app
 
-const NOT_FOUND_PAGE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>Page not found · Kenna</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 48px 16px; text-align: center; background: #f1f5f9; color: #0f172a; }
-  a { color: #15803d; font-weight: 600; }
-  @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #f1f5f9; } a { color: #4ade80; } }
-</style>
-</head>
-<body>
-<h1>Page not found</h1>
-<p>There's nothing at this address in Kenna.</p>
-<p><a href="/">Open Kenna</a></p>
-</body>
-</html>
-`;
+// The same "Page not found" page the published phone app shows (docs/404.html).
+const NOT_FOUND_PAGE = fs.readFileSync(path.join(APP_DIR, '404.html'), 'utf8');
 
 /** @param {{ dataDir?: string }} [options] */
 function createApp(options) {

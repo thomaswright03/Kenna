@@ -280,7 +280,7 @@ test('unknown pages get a plain "Page not found" page that links back to the app
   assert.match(res.headers.get('content-type'), /html/);
   const html = await res.text();
   assert.match(html, /Page not found/);
-  assert.match(html, /<a href="\/">Open Kenna<\/a>/);
+  assert.match(html, /<a class="btn" id="open-kenna" href="[^"]+">Open Kenna<\/a>/);
   assert.doesNotMatch(html, /Cannot GET/);
 });
 

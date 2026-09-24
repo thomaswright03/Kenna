@@ -1,9 +1,11 @@
-// Serves the installable app in docs/ exactly as GitHub Pages would: plain
-// static files, no server-side storage. Usage: npm run serve:docs
+// Serves the installable app in docs/ as GitHub Pages would: plain static
+// files (compressed when the browser accepts it), docs/404.html for a
+// missing address, and no server-side storage. Usage: npm run serve:docs
 // (PORT defaults to 8080).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 const ROOT = path.join(__dirname, '..', 'docs');
 /** @type {Record<string, string>} */
@@ -34,11 +36,18 @@ function createStaticServer() {
     }
     fs.readFile(file, (err, data) => {
       if (err) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+        // Like Pages: any missing address gets docs/404.html.
+        fs.readFile(path.join(ROOT, '404.html'), (err404, page) => {
+          if (err404) res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+          else res.writeHead(404, { 'Content-Type': TYPES['.html'] }).end(page);
+        });
         return;
       }
-      res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
-      res.end(data);
+      const type = TYPES[path.extname(file)] || 'application/octet-stream';
+      // Pages compresses text files for browsers that accept it; so does this.
+      const compress = /^(text|application\/(javascript|json|manifest))/.test(type) && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''));
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-cache', Vary: 'Accept-Encoding', ...(compress ? { 'Content-Encoding': 'gzip' } : {}) });
+      res.end(compress ? zlib.gzipSync(data) : data);
     });
   });
 }
