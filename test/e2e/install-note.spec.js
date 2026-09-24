@@ -31,6 +31,25 @@ test.describe('phone version in a Safari tab', () => {
     expect(results.violations.map((v) => v.id)).toEqual([]);
   });
 
+  test('the card’s rows are evenly spaced, with no gap before its buttons', async ({ page, appURL }) => {
+    await page.goto(appURL);
+    await expect(note(page)).toBeVisible();
+    const gaps = await note(page).evaluate((card) => {
+      const textBox = (el) => {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return range.getBoundingClientRect();
+      };
+      const why = textBox(card.querySelectorAll('.notice-text')[0]);
+      const how = textBox(card.querySelector('summary'));
+      const button = card.querySelector('.notice-actions .btn').getBoundingClientRect();
+      return { above: how.top - why.bottom, below: button.top - how.bottom };
+    });
+    // The space under "How to add it" matches the space above it.
+    expect(gaps.below).toBeLessThanOrEqual(24);
+    expect(Math.abs(gaps.below - gaps.above)).toBeLessThanOrEqual(6);
+  });
+
   test('with days logged it says to back up first, since the Home Screen app starts separately', async ({ page, appURL, data }) => {
     await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
     await page.goto(appURL);

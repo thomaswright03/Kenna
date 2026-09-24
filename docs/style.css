@@ -9,8 +9,9 @@
   --s5: 24px;
   --s6: 32px;
 
-  /* type scale */
-  --fs-xs: 12px;
+  /* type scale: 14px is the smallest for anything to read; only the
+     labels drawn inside a chart are smaller */
+  --fs-chart: 12px;
   --fs-sm: 14px;
   --fs-md: 16px;
   --fs-lg: 20px;
@@ -169,7 +170,7 @@ h2[tabindex='-1']:focus { outline: none; }
 
 .tagline {
   margin: 0;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--muted);
 }
@@ -213,7 +214,7 @@ h2[tabindex='-1']:focus { outline: none; }
 .storage-note {
   text-align: center;
   color: var(--muted);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   padding: 0 var(--s4) var(--s4);
   margin: 0;
 }
@@ -515,13 +516,15 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
   cursor: pointer;
 }
 
-.meal-pill .pill-value { font-size: var(--fs-xs); font-weight: 500; font-variant-numeric: tabular-nums; }
+.meal-pill .pill-value { font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; }
 .meal-pill .pill-value:empty { display: none; }
 .meal-pill.filled { border-color: var(--accent); color: var(--text); }
 .meal-pill.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-/* Back (secondary) beside Save and close. */
-.log-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
+/* Back (secondary) beside Save and close, or, when both labels don't fit
+   on one line side by side, Save and close above Back, each full width. */
+.log-actions { display: flex; flex-wrap: wrap-reverse; gap: 0 var(--s3); }
+.log-actions > .btn { flex: 1 1 0; min-width: max-content; white-space: nowrap; }
 
 .running-total {
   margin: 0 0 var(--s2);
@@ -585,7 +588,7 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
 
 .compare-answer-label {
   margin: 0;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -600,10 +603,10 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
 .amount-bars { list-style: none; margin: var(--s3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1); }
 .amount-row {
   display: grid;
-  grid-template-columns: 96px 1fr auto;
+  grid-template-columns: minmax(0, 8.5rem) 1fr auto;
   align-items: center;
   gap: var(--s2);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   color: var(--muted);
 }
 .amount-row.is-today { color: var(--text); font-weight: 600; }
@@ -631,10 +634,10 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
 .meal-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .meal-table th, .meal-table td { padding: var(--s2) var(--s1); text-align: right; border-bottom: 1px solid var(--border); }
 .meal-table th:first-child { text-align: left; }
-.meal-table thead th { font-size: var(--fs-xs); color: var(--muted); font-weight: 600; }
+.meal-table thead th { font-size: var(--fs-sm); color: var(--muted); font-weight: 600; }
 .meal-table tbody th { font-weight: 600; }
 
-.compare-caption { font-size: var(--fs-xs); color: var(--muted); margin: var(--s2) 0 0; }
+.compare-caption { font-size: var(--fs-sm); color: var(--muted); margin: var(--s2) 0 0; }
 
 .compare-first { color: var(--muted); font-size: var(--fs-sm); margin: var(--s2) 0 var(--s3); }
 
@@ -665,7 +668,7 @@ select:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; borde
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 600;
   cursor: pointer;
 }
@@ -692,12 +695,12 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 }
 
 .chart-title { font-size: var(--fs-md); font-weight: 600; margin: 0; }
-.chart-sub { font-size: var(--fs-xs); color: var(--muted); margin: 0; }
+.chart-sub { font-size: var(--fs-sm); color: var(--muted); margin: 0; }
 
 .chart-head > :first-child { flex: 1; min-width: 0; }
 /* The latest value and its date each stay on one line. */
 .chart-latest { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.chart-latest-date { font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.chart-latest-date { font-size: var(--fs-sm); font-weight: 500; color: var(--muted); }
 .chart-latest.series-calories { color: var(--chart-calories); }
 .chart-latest.series-weight { color: var(--chart-weight); }
 
@@ -707,12 +710,12 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .chart-svg.series-calories { --series: var(--chart-calories); }
 .chart-svg.series-weight { --series: var(--chart-weight); }
 .chart-svg .gridline { stroke: var(--border); stroke-width: 1; }
-.chart-svg .axis-label { fill: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.chart-svg .axis-label { fill: var(--muted); font-size: var(--fs-chart); font-variant-numeric: tabular-nums; }
 .chart-svg .line { fill: none; stroke: var(--series); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .chart-svg .line-gap { stroke: var(--series); stroke-width: 1.5; stroke-dasharray: 3 5; opacity: 0.6; }
 .chart-svg .dot { fill: var(--series); stroke: var(--card); stroke-width: 2; }
 .chart-svg .dot-partial { fill: var(--card); stroke: var(--series); stroke-width: 2; }
-.chart-svg .partial-label { fill: var(--muted); font-size: var(--fs-xs); font-weight: 600; }
+.chart-svg .partial-label { fill: var(--muted); font-size: var(--fs-chart); font-weight: 600; }
 .chart-svg .crosshair { stroke: var(--muted); stroke-width: 1; }
 
 .chart-tooltip {
@@ -732,7 +735,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 
 .chart-tooltip.visible { opacity: 1; }
 .chart-tooltip .tt-value { font-weight: 700; }
-.chart-tooltip .tt-date { color: var(--muted); font-size: var(--fs-xs); }
+.chart-tooltip .tt-date { color: var(--muted); font-size: var(--fs-sm); }
 
 /* ------------------------------------------------------------ photos */
 
@@ -750,7 +753,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.photo-missing { display: block; padding: var(--s2); font-size: var(--fs-xs); color: var(--muted); }
+.photo-missing { display: block; padding: var(--s2); font-size: var(--fs-sm); color: var(--muted); }
 .photo-unviewable {
   display: flex;
   flex-direction: column;
@@ -872,7 +875,11 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .notice-actions > :only-child { grid-column: 1 / -1; }
 .notice-card .field-status { color: inherit; }
 
-.notice-more { margin: var(--s1) 0 var(--s2); }
+.notice-more { margin: var(--s1) 0 0; }
+/* The summary is a full-height tap target, so the row already has air
+   below its text; the buttons follow at the card's usual rhythm. */
+.notice-more + .notice-actions > .btn { margin-top: var(--s1); }
+.notice-more[open] + .notice-actions > .btn { margin-top: var(--s3); }
 .notice-more summary {
   display: flex;
   align-items: center;
@@ -986,15 +993,10 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 
 /* ------------------------------------------------------------ wide screens */
 
-/* On a laptop or tablet the screens use the width: the day's entry or the
+/* On a tablet or laptop the screens use the width: the day's entry or the
    answers on the left, charts and the rest on the right. */
-@media (min-width: 900px) {
+@media (min-width: 700px) {
   .app { max-width: 1120px; }
-  /* Brand, tabs and Settings in one row, their outer edges lined up with
-     the columns below. */
-  .topbar { flex-wrap: nowrap; column-gap: var(--s4); padding-top: var(--s4); padding-bottom: var(--s4); }
-  .tabs { order: 2; flex: 0 1 560px; }
-  .topbar > .icon-btn { order: 3; }
   /* History: the months' averages beside the list (and in place of Go to
      month), staying in view while the list scrolls. */
   .months-overview { display: block; }
@@ -1007,6 +1009,16 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
     align-items: start;
   }
   .screen-stack.two-col > .notice-card { grid-column: 1 / -1; }
+  .photo-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* On a laptop the tabs join the brand and Settings in one row. */
+@media (min-width: 900px) {
+  /* Brand, tabs and Settings in one row, their outer edges lined up with
+     the columns below. */
+  .topbar { flex-wrap: nowrap; column-gap: var(--s4); padding-top: var(--s4); padding-bottom: var(--s4); }
+  .tabs { order: 2; flex: 0 1 560px; }
+  .topbar > .icon-btn { order: 3; }
   .main > section.card { max-width: 560px; }
   .photo-grid { grid-template-columns: repeat(5, 1fr); }
 }

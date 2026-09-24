@@ -127,7 +127,7 @@ async function copyText(text) {
 export function buildProblemLogCard(download) {
   const status = createStatusLine();
   const body = h('div', { class: 'problem-log' });
-  const copyBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Copy problem log' });
+  const copyBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Copy log' });
   const clearBtn = h('button', { type: 'button', class: 'btn btn-danger-outline', text: 'Clear…' });
   const actions = h('div', { class: 'notice-actions' }, clearBtn, copyBtn);
 

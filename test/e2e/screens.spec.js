@@ -326,6 +326,96 @@ test('every control is at least 44 by 44 pixels', async ({ page, appURL, data })
   expect(small).toEqual([]);
 });
 
+test('every piece of text outside the charts is at least 14px', async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-09-22': day('2026-09-22', { breakfast: 400, lunch: 1500 }, 174.7),
+    '2026-09-23': day('2026-09-23', { breakfast: 500, lunch: 1600, dinner: 700 }, 180.3),
+    [TODAY]: day(TODAY, { breakfast: 450 }, 179),
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const small = [];
+  for (const hash of ['#/', '#/log', '#/history', '#/compare', '#/photos', '#/settings']) {
+    await page.goto(`${appURL}/${hash}`);
+    await page.locator('main h2').first().waitFor();
+    await page.locator('details').evaluateAll((els) => els.forEach((d) => (d.open = true)));
+    const found = await page.evaluate(() => {
+      const out = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const el = n.parentElement;
+        if (!el || !n.textContent.trim() || el.closest('svg, .visually-hidden, script, style')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        const size = parseFloat(getComputedStyle(el).fontSize);
+        if (size < 14) out.push(`"${n.textContent.trim().slice(0, 40)}" ${size}px`);
+      }
+      return out;
+    });
+    small.push(...found.map((f) => `${hash} ${f}`));
+  }
+  expect(small).toEqual([]);
+  // The explanation under each chart included.
+  await page.goto(appURL);
+  const sub = await page.locator('.chart-sub').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(sub).toBeGreaterThanOrEqual(14);
+});
+
+test('on a tablet the screens use its width, in two columns', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-08-23': day('2026-08-23', { lunch: 1500 }, 181), '2026-09-23': day('2026-09-23', { lunch: 1600 }, 180), [TODAY]: day(TODAY, { breakfast: 400 }, 179) });
+  await page.setViewportSize({ width: 768, height: 1024 });
+  for (const [hash, heading] of [['#/', 'Today'], ['#/compare', 'Compare'], ['#/history', 'History']]) {
+    await page.goto(`${appURL}/${hash}`);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    const cards = await page.locator('main .two-col > *').evaluateAll((els) =>
+      els.filter((el) => !el.classList.contains('notice-card')).map((el) => el.getBoundingClientRect().toJSON())
+    );
+    expect(cards.length).toBeGreaterThanOrEqual(2);
+    const [left, right] = cards;
+    expect(right.x).toBeGreaterThan(left.x + left.width - 1);
+    expect(Math.abs(right.y - left.y)).toBeLessThan(2);
+    // Even margins, and most of the width used.
+    const leftMargin = left.x;
+    const rightMargin = 768 - (right.x + right.width);
+    expect(Math.abs(leftMargin - rightMargin)).toBeLessThan(2);
+    expect(right.x + right.width - left.x).toBeGreaterThan(700);
+  }
+  // The months' averages sit beside History's list.
+  await expect(page.locator('.months-overview')).toBeVisible();
+});
+
+test('Log Meal’s two buttons never wrap their labels: side by side, or stacked when there isn’t room', async ({ page, appURL }) => {
+  const layout = () =>
+    page.locator('.log-actions .btn').evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        return { text: el.textContent, x: r.x, y: r.y, width: r.width, lines: range.getClientRects().length };
+      })
+    );
+  for (const width of [320, 360, 375, 390, 430]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`${appURL}/#/day/2026-09-20/log`);
+    await expect(page.getByRole('button', { name: 'Save and close' })).toBeVisible();
+    const [back, save] = await layout();
+    expect(back.lines, `${width}px`).toBe(1);
+    expect(save.lines, `${width}px`).toBe(1);
+    if (back.y === save.y) {
+      expect(save.x).toBeGreaterThan(back.x);
+    } else {
+      // Stacked: Save and close first, both full width.
+      expect(save.y).toBeLessThan(back.y);
+      expect(Math.abs(save.width - back.width)).toBeLessThan(1);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  // At 375px, "Back to Today" and "Save and close" share a row.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`${appURL}/#/log`);
+  const [back, save] = await layout();
+  expect(back.y).toBe(save.y);
+});
+
 test('the header says what the app is, and each screen has its own title', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }) });
   await page.setViewportSize({ width: 375, height: 667 });

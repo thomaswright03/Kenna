@@ -20,7 +20,7 @@ test('Settings says when nothing has gone wrong', async ({ page, appURL }) => {
   const card = page.locator('[data-problem-log]');
   await expect(card).toContainText('Nothing has gone wrong on this device.');
   await expect(card).toContainText('never your weights, meals or photos');
-  await expect(card.getByRole('button', { name: 'Copy problem log' })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'Copy log' })).toHaveCount(0);
 });
 
 test('a failed save is noted in the problem log, which Settings shows, copies and clears', async ({ page, appURL, backend, data }) => {
@@ -50,7 +50,7 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   await page.evaluate(() => {
     Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t) => (window.copied = t) }, configurable: true });
   });
-  await card.getByRole('button', { name: 'Copy problem log' }).click();
+  await card.getByRole('button', { name: 'Copy log' }).click();
   await expect(card).toContainText('Copied. Paste it into a message');
   const copied = await page.evaluate(() => window.copied);
   expect(copied).toContain('Kenna problem log');

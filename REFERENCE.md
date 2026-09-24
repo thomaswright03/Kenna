@@ -86,10 +86,10 @@ run, test and release it.
   backup export and import, where your data is stored, and the **Problem
   log** (see [Where your data lives](#where-your-data-lives-and-backups)).
 
-On a screen wider than about 900 pixels (a laptop or tablet), the tabs
-move up beside the Kenna name and Settings, and Today, Compare, History
-and Settings use two columns: the day's entry or the answers on the left,
-charts and the rest on the right. History's right column lists every
+On a screen at least 700 pixels wide (a tablet, or a laptop), Today,
+Compare, History and Settings use two columns: the day's entry or the
+answers on the left, charts and the rest on the right; from about 900
+pixels the tabs also move up beside the Kenna name and Settings. History's right column lists every
 month's average calories and weight (**Month by month**, in place of Go
 to month); tapping a month goes to it.
 
@@ -206,7 +206,7 @@ the place in the built script where they happened. It never holds a
 logged value, a photo or an error's message, keeps the last 30 events (a
 failure repeated straight after itself is counted, not listed again), and
 is never sent anywhere. **Settings → Problem log** shows the latest,
-**Copy problem log** copies the whole list as text to paste into a
+**Copy log** copies the whole list as text to paste into a
 message (or downloads it as a file where the browser won't copy), and
 **Clear…** empties it. When the browser's storage is full the event is
 still shown and copied for that visit.
