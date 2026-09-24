@@ -81,6 +81,16 @@
     return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
   }
 
+  /**
+   * True when `date` is after `today` (both YYYY-MM-DD).
+   * @param {string} date
+   * @param {string} [today]
+   */
+  function isFutureDate(date, today) {
+    return date > (today || todayStr());
+  }
+
+  /** @param {string} str @param {number} days */
   function shiftDate(str, days) {
     return dateFromDayNumber(dayNumber(str) + days);
   }
@@ -448,8 +458,12 @@
   const BACKUP_VERSION = 2;
   const MAX_BACKUP_ISSUES_SHOWN = 1;
 
+  // A photo's identity across devices and backups is the time it was first
+  // added, which never changes (its day can be changed later), so a backup
+  // made before a photo was moved to another day still matches it.
+  /** @param {{ createdAt: string }} p */
   function photoKey(p) {
-    return `${p.date}|${p.createdAt}`;
+    return String(p.createdAt);
   }
 
   // Returns the backup as an array of string chunks (for a Blob), so a
@@ -644,6 +658,7 @@
     dayNumber,
     dateFromDayNumber,
     shiftDate,
+    isFutureDate,
     daysBetween,
     formatDate,
     formatRelativeDate,

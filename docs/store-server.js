@@ -142,6 +142,11 @@
       return serial(async () => toPhoto(await postPhoto(photo)));
     }
 
+    /** @param {Photo['id']} id @param {{ date: string }} changes */
+    function updatePhoto(id, changes) {
+      return serial(async () => toPhoto(await request('PATCH', `/api/photos/${encodeURIComponent(id)}`, { date: changes.date })));
+    }
+
     /** @param {Photo['id']} id */
     function deletePhoto(id) {
       return serial(() => request('DELETE', `/api/photos/${encodeURIComponent(id)}`));
@@ -192,6 +197,7 @@
       listPhotos,
       countPhotos,
       addPhoto,
+      updatePhoto,
       deletePhoto,
       getPhotoBlob,
       photoSrc,

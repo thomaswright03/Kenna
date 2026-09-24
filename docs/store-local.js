@@ -34,6 +34,7 @@
  * @property {() => Promise<number>} countPhotos
  * @property {(photo: { date: string, blob: Blob, createdAt?: string }) => Promise<Photo>} addPhoto
  * @property {(id: Photo['id']) => Promise<unknown>} deletePhoto
+ * @property {(id: Photo['id'], changes: { date: string }) => Promise<Photo>} updatePhoto changes the day a photo is filed under
  * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob
  * @property {(photo: Photo) => { url: string, release: () => void }} photoSrc
  * @property {(photos: BackupPhoto[], onProgress?: (done: number, total: number) => void) => Promise<{ added: number, skipped: number }>} importPhotos
@@ -268,6 +269,26 @@
       return toPhoto({ ...record, id });
     }
 
+    /** @param {Photo['id']} id @param {{ date: string }} changes */
+    async function updatePhoto(id, changes) {
+      const date = changes && changes.date;
+      if (!core.isValidDateStr(date)) throw new Error('Pick a valid day for this photo.');
+      if (core.isFutureDate(date)) throw new Error("A photo can't be filed under a day that hasn't happened yet.");
+      /** @type {any} */
+      let updated = null;
+      await tx('readwrite', (s) => {
+        const req = s.get(id);
+        req.onsuccess = () => {
+          if (!req.result) return;
+          updated = { ...req.result, date };
+          s.put(updated);
+        };
+        return null;
+      });
+      if (!updated) throw new Error('That photo no longer exists.');
+      return toPhoto(updated);
+    }
+
     async function deletePhoto(id) {
       await tx('readwrite', (s) => s.delete(id));
     }
@@ -292,8 +313,8 @@
     }
 
     // Adds backup photos ({ date, createdAt, type, data: base64 }) that
-    // aren't already here (matched by date + upload time), so importing the
-    // same backup twice never duplicates anything.
+    // aren't already here (matched by the time each was first added), so
+    // importing the same backup twice never duplicates anything.
     async function importPhotos(photos, onProgress) {
       const existing = await listPhotos();
       const seen = new Set(existing.map(core.photoKey));
@@ -359,6 +380,7 @@
       listPhotos,
       countPhotos,
       addPhoto,
+      updatePhoto,
       deletePhoto,
       getPhotoBlob,
       photoSrc,

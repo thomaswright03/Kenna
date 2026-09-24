@@ -24,8 +24,10 @@ data never leaves your device.
 - **Compare** puts today's weight, total calories and each meal next to
   yesterday and your all-time average, followed by 7-day rolling averages of
   calories and weight.
-- **Photos** stores progress pictures, filed under the day you add them.
-  Deleting one asks for confirmation first.
+- **Photos** stores progress pictures, filed under the day they were taken:
+  pick the day before adding one (it starts at today, and future days aren't
+  allowed), and change it later from the photo viewer. Deleting one asks for
+  confirmation first.
 - **Settings** (gear icon) has the light/dark theme (or follow the system),
   backup export and import, and where your data is stored.
 
@@ -84,8 +86,9 @@ saves one straight away, and **Not now** hides the reminder for three days.
 - **Settings → Import Backup** checks the whole file first. If anything in it
   is invalid, nothing is imported and you're told what's wrong. Otherwise days
   in the file replace the same days on the device (other days are kept), and
-  photos are added unless they're already there, so importing the same file
-  twice never creates duplicates. Backups made by older versions (days only)
+  photos are added unless they're already there (a photo is recognised by
+  the time it was first added, so moving it to another day doesn't make it
+  look new), so importing the same file twice never creates duplicates. Backups made by older versions (days only)
   still import.
 
 The file does not contain settings such as the theme or chart range.

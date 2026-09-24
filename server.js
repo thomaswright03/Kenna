@@ -81,6 +81,14 @@ function requireDate(date) {
   if (!core.isValidDateStr(date)) throw new ApiError(400, `"${String(date).slice(0, 40)}" isn't a real date. Use YYYY-MM-DD.`);
 }
 
+// The server may be in a different time zone from the phone using it, so a
+// day is "in the future" only once it's after tomorrow on the server's clock.
+function requireNotFuture(date, what) {
+  if (core.isFutureDate(date, core.shiftDate(core.todayStr(), 1))) {
+    throw new ApiError(400, `${what} can't be dated ${core.formatDate(date)}: that day hasn't happened yet.`);
+  }
+}
+
 function validatePatch(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ApiError(400, 'Send the fields to change as a JSON object.');
   /** @type {import('./docs/core.js').EntryPatch} */
@@ -210,7 +218,7 @@ function createApp(options) {
 
     const photos = store.readPhotos();
     const when = createdAt || new Date().toISOString();
-    const existing = photos.find((p) => p.date === date && (p.createdAt || p.uploadedAt) === when);
+    const existing = photos.find((p) => (p.createdAt || p.uploadedAt) === when);
     if (existing) return res.json({ ...photoRecord(existing), duplicate: true });
 
     const id = crypto.randomUUID();
@@ -225,6 +233,19 @@ function createApp(options) {
       throw err;
     }
     return res.json(photoRecord(record));
+  });
+
+  // Move a photo to another day.
+  app.patch('/api/photos/:id', (req, res) => {
+    const date = req.body && req.body.date;
+    requireDate(date);
+    requireNotFuture(date, 'A photo');
+    const photos = store.readPhotos();
+    const photo = photos.find((p) => p && p.id === req.params.id);
+    if (!photo) throw new ApiError(404, 'That photo no longer exists.');
+    photo.date = date;
+    store.writePhotos(photos);
+    res.json(photoRecord(photo));
   });
 
   app.delete('/api/photos/:id', (req, res) => {

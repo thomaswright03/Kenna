@@ -186,3 +186,24 @@ test('only the endpoints the app uses exist', async (t) => {
   const res = await call('POST', '/api/entries', { date: '2026-09-24', meals: {} });
   assert.equal(res.status, 404);
 });
+
+test('a photo can be moved to another day, but not to a day that has not happened', async (t) => {
+  const { call } = await startServer(t);
+  const photo = { date: '2026-09-23', createdAt: '2026-09-23T08:00:00.000Z', dataUrl: `data:image/png;base64,${PNG_1PX}` };
+  const { json: added } = await call('POST', '/api/photos', photo);
+  const moved = await call('PATCH', `/api/photos/${added.id}`, { date: '2026-09-20' });
+  assert.equal(moved.status, 200);
+  assert.equal(moved.json.date, '2026-09-20');
+  assert.equal((await call('GET', '/api/photos')).json[0].date, '2026-09-20');
+
+  assert.equal((await call('PATCH', `/api/photos/${added.id}`, { date: '2026-02-30' })).status, 400);
+  const future = await call('PATCH', `/api/photos/${added.id}`, { date: '2999-01-01' });
+  assert.equal(future.status, 400);
+  assert.match(future.json.error, /hasn't happened yet/);
+  assert.equal((await call('PATCH', '/api/photos/nope', { date: '2026-09-20' })).status, 404);
+
+  // Re-importing the photo as it was before the move is recognised as the same photo.
+  const again = await call('POST', '/api/photos', photo);
+  assert.equal(again.json.duplicate, true);
+  assert.equal((await call('GET', '/api/photos')).json.length, 1);
+});

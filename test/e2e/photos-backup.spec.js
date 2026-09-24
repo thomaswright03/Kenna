@@ -121,3 +121,66 @@ test('a malformed backup is rejected and changes nothing', async ({ page, appURL
   await expect(page.locator('.history-item')).toHaveCount(1);
   await expect(page.locator('.history-item')).toContainText('700 cal');
 });
+
+test('a photo can be filed under an earlier day and moved to another day later', async ({ page, appURL, startApp, browser }, testInfo) => {
+  await page.goto(`${appURL}/#/photos`);
+  const day = page.getByLabel('Day this photo was taken');
+  await expect(day).toHaveValue(TODAY);
+  await expect(day).toHaveAttribute('max', TODAY);
+  await day.fill('2026-09-30');
+  await day.dispatchEvent('change');
+  await expect(page.getByText("A photo can't be filed under a day that hasn't happened yet.")).toBeVisible();
+  await expect(day).toHaveValue(TODAY);
+
+  await day.fill('2026-09-23');
+  await page.locator('input[type=file]').setInputFiles(photoFile());
+  await expect(page.getByRole('status').filter({ hasText: 'Photo added to Yesterday' })).toBeVisible();
+  const yesterday = page.locator('.card', { has: page.getByRole('heading', { name: 'Yesterday' }) });
+  await expect(yesterday.getByRole('button', { name: 'Progress photo, Wed, Sep 23' })).toBeVisible();
+
+  // A backup made before the photo is moved.
+  await page.goto(`${appURL}/#/settings`);
+  const before = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Backup' }).click();
+  const beforeFile = testInfo.outputPath('before.json');
+  await (await before).saveAs(beforeFile);
+
+  await page.goto(`${appURL}/#/photos`);
+  await page.getByRole('button', { name: 'Progress photo, Wed, Sep 23' }).click();
+  const viewer = page.getByRole('dialog');
+  await viewer.getByLabel('Day this photo was taken').fill('2026-09-21');
+  await viewer.getByLabel('Day this photo was taken').dispatchEvent('change');
+  await expect(viewer.getByText('Moved to Mon, Sep 21')).toBeVisible();
+  await expect(viewer.getByRole('heading', { name: 'Progress photo, Mon, Sep 21' })).toBeVisible();
+  await viewer.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('heading', { name: 'Mon, Sep 21' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Yesterday' })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Progress photo, Mon, Sep 21' })).toBeVisible();
+
+  // Importing the older backup doesn't bring the photo back as a duplicate.
+  await page.goto(`${appURL}/#/settings`);
+  await page.locator('input[type=file]').setInputFiles(beforeFile);
+  await page.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByText(/1 photo was already here/)).toBeVisible();
+  await page.goto(`${appURL}/#/photos`);
+  await expect(page.locator('.photo-thumb')).toHaveCount(1);
+
+  // A new backup carries the new day into a fresh app.
+  await page.goto(`${appURL}/#/settings`);
+  const after = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export Backup' }).click();
+  const afterFile = testInfo.outputPath('after.json');
+  await (await after).saveAs(afterFile);
+  const freshURL = await startApp();
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', timezoneId: 'America/Chicago' });
+  const fresh = await ctx.newPage();
+  await fresh.clock.setFixedTime(new Date('2026-09-24T10:00:00-05:00'));
+  await fresh.goto(`${freshURL}/#/settings`);
+  await fresh.locator('input[type=file]').setInputFiles(afterFile);
+  await fresh.getByRole('button', { name: 'Restore' }).click();
+  await expect(fresh.getByText(/and 1 photo\./)).toBeVisible();
+  await fresh.goto(`${freshURL}/#/photos`);
+  await expect(fresh.getByRole('button', { name: 'Progress photo, Mon, Sep 21' })).toBeVisible();
+  await ctx.close();
+});
