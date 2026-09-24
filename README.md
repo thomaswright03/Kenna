@@ -82,7 +82,9 @@ How the numbers work:
 - Charts use a real time axis: days you didn't log are gaps (a dashed line
   bridges them), and each chart ends at today. When a chart spans more
   than one calendar year, every date on its axis shows the year. The
-  calorie axis never goes below 0.
+  calorie axis never goes below 0. The value axis always covers at least
+  2 lbs, or 200 cal (a fifth of the value, when that's more), so a single
+  day or a tiny change doesn't look like a dramatic one.
 - A weight is shown as it was entered, to up to two decimals (165.25);
   averages are shown to one.
 - Weight is in pounds (lbs) and dates and numbers are written the US English

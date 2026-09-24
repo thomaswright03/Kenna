@@ -263,6 +263,19 @@ test('axis ticks are unique and carry the precision of the step', () => {
   assert.equal(big.decimals, 0);
 });
 
+test('one day, or days that barely differ, get an axis in proportion to the values', () => {
+  const oneDay = core.niceTicks(1300, 1300, 5, 10, 0, core.axisMinSpan('cal', 1300));
+  assert.ok(oneDay.ticks[0] <= 1170 && oneDay.ticks[oneDay.ticks.length - 1] >= 1430, oneDay.ticks.join());
+  assert.equal(new Set(oneDay.ticks).size, oneDay.ticks.length);
+  const small = core.niceTicks(150, 180, 5, 10, 0, core.axisMinSpan('cal', 180));
+  assert.ok(small.ticks.every((t) => t >= 0));
+  assert.ok(small.ticks[small.ticks.length - 1] - small.ticks[0] >= 200);
+  const weight = core.niceTicks(180, 180, 5, 0.1, undefined, core.axisMinSpan('lbs', 180));
+  assert.ok(weight.ticks[0] <= 179 && weight.ticks[weight.ticks.length - 1] >= 181, weight.ticks.join());
+  const wide = core.niceTicks(1200, 2600, 5, 10, 0, core.axisMinSpan('cal', 2600));
+  assert.deepEqual(wide.ticks, core.niceTicks(1200, 2600, 5, 10, 0).ticks, 'a real spread is left as it is');
+});
+
 test('a calorie axis never goes below zero', () => {
   const zero = core.niceTicks(0, 0, 5, 10, 0);
   assert.equal(zero.ticks[0], 0);

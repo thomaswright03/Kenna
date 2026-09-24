@@ -757,6 +757,13 @@
 
   // ---------------------------------------------------------------- charts
 
+  // The least a chart's value axis covers: 2 lbs of weight, and 200 cal
+  // or a fifth of the value of calories, whichever is more.
+  /** @param {'cal' | 'lbs'} unit @param {number} max the largest value shown */
+  function axisMinSpan(unit, max) {
+    return unit === 'lbs' ? 2 : Math.max(200, Math.abs(max) * 0.2);
+  }
+
   /** @param {number} range @param {boolean} round */
   function niceNum(range, round) {
     const exponent = Math.floor(Math.log10(range));
@@ -777,18 +784,26 @@
   // Evenly spaced, unique axis ticks covering [min, max], plus how many
   // decimals the step needs (a 0.5 step shows 149.5, 150, 150.5, ...).
   // `floor` is the lowest value the axis may show (0 for calories, which
-  // can't be negative).
+  // can't be negative). `minSpan` is the least the axis covers, centred on
+  // the data, so one day, or days that barely differ, don't fill the chart
+  // as if they were a dramatic change.
   /**
    * @param {number} min
    * @param {number} max
    * @param {number} [count]
    * @param {number} [minStep]
    * @param {number} [floor]
+   * @param {number} [minSpan]
    * @returns {{ ticks: number[], decimals: number }}
    */
-  function niceTicks(min, max, count, minStep, floor) {
+  function niceTicks(min, max, count, minStep, floor, minSpan) {
     let lo = min;
     let hi = max;
+    if (minSpan && hi - lo < minSpan) {
+      const mid = (lo + hi) / 2;
+      lo = mid - minSpan / 2;
+      hi = mid + minSpan / 2;
+    }
     const floorStep = minStep || 0;
     if (hi - lo < floorStep * 2 || lo === hi) {
       const mid = (lo + hi) / 2;
@@ -928,6 +943,7 @@
     FUTURE_DAY,
     parseBackup,
     niceTicks,
+    axisMinSpan,
     dateAxisLabels,
     sniffImageType,
   });

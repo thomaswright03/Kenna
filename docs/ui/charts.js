@@ -156,10 +156,10 @@ function drawChart(host, points, opts) {
   const height = 220;
   const values = visible.map((p) => p.value);
   // Calories can't go below zero, so neither does their axis.
-  const { ticks, decimals } =
-    opts.unit === 'lbs'
-      ? core.niceTicks(Math.min(...values), Math.max(...values), 5, 0.1)
-      : core.niceTicks(Math.min(...values), Math.max(...values), 5, 10, 0);
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const minSpan = core.axisMinSpan(opts.unit, hi);
+  const { ticks, decimals } = opts.unit === 'lbs' ? core.niceTicks(lo, hi, 5, 0.1, undefined, minSpan) : core.niceTicks(lo, hi, 5, 10, 0, minSpan);
   const tickText = ticks.map((t) => core.formatNumber(t, decimals));
   const leftPad = 12 + Math.max(...tickText.map((t) => t.length)) * 7.5;
   const rightPad = 12;

@@ -327,3 +327,30 @@ test('Compare explains once that there is nothing to compare with yet', async ({
   await expect(page.locator('.compare-answer-detail')).toHaveCount(0);
   await expect(page.getByText('No weight logged')).toHaveCount(0);
 });
+
+test('a single day gets a proportionate axis, and the latest value never wraps', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { lunch: 1300 }, 180) });
+  await page.goto(appURL);
+  const numbers = async (series) =>
+    (await page.locator(`.chart-svg.series-${series} .axis-label`).allTextContents()).filter((t) => /^[\d,.]+$/.test(t)).map((t) => Number(t.replace(/,/g, '')));
+  const cal = await numbers('calories');
+  expect(cal[cal.length - 1] - cal[0]).toBeGreaterThanOrEqual(200);
+  const lbs = await numbers('weight');
+  expect(lbs[lbs.length - 1] - lbs[0]).toBeGreaterThanOrEqual(2);
+
+  const entries = {};
+  for (let i = 1; i <= 10; i += 1) {
+    const d = new Date(Date.UTC(2026, 8, 24 - i)).toISOString().slice(0, 10);
+    entries[d] = day(d, { breakfast: 1000, dinner: 917 }, 180.25);
+  }
+  await data.seed(entries);
+  for (const width of [375, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`${appURL}/#/compare`);
+    for (const series of ['calories', 'weight']) {
+      const spans = page.locator(`.chart-latest.series-${series} span`);
+      await expect(spans.first()).toBeVisible();
+      for (const box of await spans.evaluateAll((els) => els.map((el) => el.getClientRects().length))) expect(box).toBe(1);
+    }
+  }
+});
