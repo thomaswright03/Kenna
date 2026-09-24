@@ -4,3 +4,4 @@ data/*.json.*
 data/photos/
 test-results/
 playwright-report/
+coverage/

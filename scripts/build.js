@@ -13,6 +13,10 @@
 //
 // Usage: npm run build            build once
 //        npm run build:watch       rebuild whenever a source file changes
+//        node scripts/build.js --no-minify
+//                                  the same files unminified, which npm run
+//                                  coverage measures (line by line), then
+//                                  replaces with the minified build
 const fs = require('fs');
 const path = require('path');
 const esbuild = require('esbuild');
@@ -22,6 +26,7 @@ const OUT_DIR = path.join(DOCS, 'build');
 const CLASSIC_SCRIPTS = ['core.js', 'store-local.js', 'store-server.js', 'backup-file.js'];
 // The syntax the sources are written in (see tsconfig.json), left as it is.
 const TARGET = 'es2022';
+const MINIFY = !process.argv.includes('--no-minify');
 
 /** @param {string} text */
 const lineCount = (text) => text.split('\n').length - 1;
@@ -37,7 +42,7 @@ async function buildClassic() {
   for (const name of CLASSIC_SCRIPTS) {
     const source = fs.readFileSync(path.join(DOCS, name), 'utf8');
     const result = await esbuild.transform(source, {
-      minify: true,
+      minify: MINIFY,
       target: TARGET,
       charset: 'utf8',
       legalComments: 'none',
@@ -62,7 +67,7 @@ async function buildApp() {
     outfile: path.join(OUT_DIR, 'app.js'),
     bundle: true,
     format: 'esm',
-    minify: true,
+    minify: MINIFY,
     target: TARGET,
     charset: 'utf8',
     legalComments: 'none',
