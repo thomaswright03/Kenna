@@ -44,6 +44,12 @@ const test = base.test.extend({
 
   page: async ({ page }, use) => {
     await page.clock.setFixedTime(NOW);
+    // Backups go through the download path unless a test stands in a share
+    // sheet (whether a desktop test browser can share files differs by engine).
+    await page.addInitScript(() => {
+      delete Navigator.prototype.share;
+      delete Navigator.prototype.canShare;
+    });
     page.on('dialog', (d) => {
       throw new Error(`Unexpected native dialog: ${d.message()}`);
     });
