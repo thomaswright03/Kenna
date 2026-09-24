@@ -333,15 +333,15 @@ test('every way out of Log Meal saves the number in the box, and the next screen
     await page.keyboard.type(String(n));
   };
 
-  // The on-screen Back button, tapped with the number still in the box.
+  // The tab bar, tapped with the number still in the box.
   await open(222);
-  await page.getByRole('button', { name: 'Back to Today' }).tap();
+  await nav.getByRole('link', { name: 'Today' }).tap();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(saved(222)).toBeVisible();
   await expect.poll(lunch).toBe(222);
   await expect(page.locator('.total-num')).toHaveText('222');
 
-  // The tab bar.
+  // Another tab.
   await open(333);
   await nav.getByRole('link', { name: 'History' }).click();
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
@@ -376,7 +376,7 @@ test('leaving Log Meal with a number that can’t be saved keeps it, says why, a
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
   await page.goto(`${appURL}/#/log/lunch`);
   await page.getByLabel('Lunch calories').fill('22x');
-  await page.getByRole('button', { name: 'Back to Today' }).click();
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   const message = page.locator('.toast').filter({ hasText: 'Lunch not saved (“22x”). Enter calories using digits only, like 450.' });
   await expect(message).toBeVisible();
@@ -473,7 +473,7 @@ test('a number whose save fails as the page closes comes back in its box on the 
   await expect.poll(async () => (await data.entry(TODAY)).meals.dinner).toBe(640);
 });
 
-test('Back from a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {
+test('Save and close on a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { breakfast: 300 }) });
   await page.goto(`${appURL}/#/day/2026-09-20/log/breakfast`);
   const cal = page.getByLabel('Breakfast calories');
@@ -484,13 +484,10 @@ test('Back from a past day’s Log Meal returns to that day, and Escape puts bac
   await expect(cal).toHaveValue('300');
   await expect(page.getByText('Breakfast not saved yet')).toHaveCount(0);
   await expect(page.locator('.dialog[open]')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Back to Sep 20' }).click();
+  await page.getByRole('button', { name: 'Save and close' }).click();
   await expect(page.getByRole('heading', { name: 'Sun, Sep 20' })).toBeVisible();
-  await expect(page.locator('.toast')).toHaveCount(0);
+  await expect(page.locator('.toast').filter({ hasText: 'Saved for Sun, Sep 20: 300 cal' })).toBeVisible();
   expect((await data.entry('2026-09-20')).meals.breakfast).toBe(300);
-
-  await page.goto(`${appURL}/#/day/2026-09-23/log`);
-  await expect(page.getByRole('button', { name: 'Back to Yesterday' })).toBeVisible();
 });
 
 test('the Weight box says how it saves before anything is typed', async ({ page, appURL, data }) => {

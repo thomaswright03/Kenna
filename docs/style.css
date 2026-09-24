@@ -539,11 +539,6 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .meal-pill.filled { border-color: var(--accent); color: var(--text); }
 .meal-pill.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-/* Back (secondary) beside Save and close, or, when both labels don't fit
-   on one line side by side, Save and close above Back, each full width. */
-.log-actions { display: flex; flex-wrap: wrap-reverse; gap: 0 var(--s3); }
-.log-actions > .btn { flex: 1 1 0; min-width: max-content; white-space: nowrap; }
-
 .running-total {
   margin: 0 0 var(--s2);
   font-size: var(--fs-sm);

@@ -243,19 +243,6 @@ function doneButton(state, commit, input, routeDate, onClose) {
 }
 
 /**
- * Back to the day. Like every other way out, it saves what's in the box on
- * the way (see mealSaver's leave), and the day's screen says so.
- * @param {LogState} state
- * @param {string | null} routeDate
- */
-function backButton(state, routeDate) {
-  const now = today();
-  const when = core.formatRelativeDate(state.date, now);
-  const label = `Back to ${when === 'Today' || when === 'Yesterday' ? when : core.formatMonthDay(state.date, state.date.slice(0, 4) !== now.slice(0, 4))}`;
-  return h('button', { type: 'button', class: 'btn btn-secondary', text: label, 'data-log-back': '', onClick: () => returnTo(dayHash(routeDate)) });
-}
-
-/**
  * Enter saves the meal and moves to the next one not logged yet, or to
  * Save and close after the last.
  * @param {LogState} state
@@ -352,8 +339,7 @@ export async function buildLog(ctx) {
 
   const forDay = date === now ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now);
   const root = h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'Log Meal' }), h('p', { class: 'card-sub', text: `For ${forDay}. ${HOW_IT_SAVES}` }));
-  const backBtn = backButton(state, ctx.route.date);
-  root.append(picker.el, h('div', { class: 'field' }, label, input, status.el), runningTotal, h('div', { class: 'log-actions' }, backBtn, doneBtn));
+  root.append(picker.el, h('div', { class: 'field' }, label, input, status.el), runningTotal, doneBtn);
   return {
     title: date === now ? 'Log Meal' : `Log Meal, ${core.formatDate(date, now)}`,
     root,

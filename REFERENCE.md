@@ -24,9 +24,8 @@ run, test and release it.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
   value saves as soon as you leave the box or tap another meal, and also
-  however you leave the screen with a number still in the box: **Back to
-  Today** (or **Back to Yesterday**, **Back to Sep 20** for a past day),
-  the tab bar, the phone's Back gesture, switching to another app, locking
+  however you leave the screen with a number still in the box: **Save and
+  close** (the screen's one button), the tab bar, the phone's Back gesture, switching to another app, locking
   the phone or closing the page. Leaving within the app, the next screen
   says what was saved ("Lunch saved: 450 cal"), with **Undo** to put back
   what was there before (unless it has been changed again since). A

@@ -437,50 +437,22 @@ test('on a tablet the screens use its width, in two columns', async ({ page, app
   await expect(page.locator('.months-overview')).toBeVisible();
 });
 
-test('Log Meal’s two buttons never wrap their labels: side by side, or stacked when there isn’t room', async ({ page, appURL }) => {
-  const layout = () =>
-    page.locator('.log-actions .btn').evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        return { text: el.textContent, x: r.x, y: r.y, width: r.width, lines: range.getClientRects().length };
-      })
-    );
-  for (const width of [320, 360, 375, 390, 430]) {
+test('Log Meal has one way out on screen, Save and close, and its label never wraps', async ({ page, appURL }) => {
+  for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto(`${appURL}/#/day/2026-09-20/log`);
-    await expect(page.getByRole('button', { name: 'Save and close' })).toBeVisible();
-    const [back, save] = await layout();
-    expect(back.lines, `${width}px`).toBe(1);
-    expect(save.lines, `${width}px`).toBe(1);
-    if (back.y === save.y) {
-      expect(save.x).toBeGreaterThan(back.x);
-    } else {
-      // Stacked: Save and close first, both full width.
-      expect(save.y).toBeLessThan(back.y);
-      expect(Math.abs(save.width - back.width)).toBeLessThan(1);
-    }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-  }
-  // At 375px, "Back to Today" and "Save and close" share a row whenever
-  // both labels fit side by side in this browser's font.
-  await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto(`${appURL}/#/log`);
-  const [back, save] = await layout();
-  const fits = await page.locator('.log-actions').evaluate((row) => {
-    const natural = [...row.querySelectorAll('.btn')].map((el) => {
-      const cs = getComputedStyle(el);
+    const save = page.getByRole('button', { name: 'Save and close' });
+    await expect(save).toBeVisible();
+    // No second button that also leaves (and also saves) under another name.
+    await expect(page.locator('main .card .btn')).toHaveCount(1);
+    const lines = await save.evaluate((el) => {
       const range = document.createRange();
       range.selectNodeContents(el);
-      const extra = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'].reduce((sum, k) => sum + parseFloat(cs[k]), 0);
-      return range.getBoundingClientRect().width + extra;
+      return range.getClientRects().length;
     });
-    const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
-    return natural[0] + natural[1] + gap <= row.clientWidth;
-  });
-  if (fits) expect(back.y).toBe(save.y);
-  else expect(save.y).toBeLessThan(back.y);
+    expect(lines, `${width}px`).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
 });
 
 test('the header says what the app is, and each screen has its own title', async ({ page, appURL, data }) => {
