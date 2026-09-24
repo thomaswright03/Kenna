@@ -119,6 +119,10 @@ a { color: var(--accent-text); }
 
 h2[tabindex='-1']:focus { outline: none; }
 
+/* An element marked hidden is never shown, whatever its classes say
+   (.btn and others set their own display). */
+[hidden] { display: none !important; }
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;
@@ -813,7 +817,6 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .is-picking .photo-thumb[aria-pressed='true'] { outline: 3px solid var(--accent); outline-offset: 2px; }
 .is-picking .photo-thumb[aria-pressed='false'] img { opacity: 0.8; }
 .viewer-bar .btn { margin-top: 0; }
-.viewer [hidden] { display: none; }
 .viewer-confirm { display: flex; flex-direction: column; gap: var(--s2); }
 .viewer-confirm-title { font-size: var(--fs-md); font-weight: 700; margin: 0; }
 .viewer-confirm .dialog-actions { margin-top: var(--s2); }
@@ -840,8 +843,6 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
   box-shadow: var(--shadow);
   z-index: 15;
 }
-
-.loading[hidden] { display: none; }
 
 .spinner {
   width: 20px;

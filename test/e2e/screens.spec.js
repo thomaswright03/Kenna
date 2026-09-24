@@ -392,6 +392,13 @@ test('History groups days by month and shows older months on request, even with 
   const march = page.getByRole('heading', { name: 'March 2017' });
   await expect(march).toBeFocused();
   await expect(march).toBeInViewport();
+  await expect(more).toBeVisible();
+  // Going to the oldest month shows every month, so nothing earlier is offered.
+  const jump = page.getByLabel('Go to month');
+  await jump.selectOption(await jump.locator('option').last().getAttribute('value'));
+  await expect(more).toHaveCount(0);
+  await expect(page.locator('.history-months + button')).toBeHidden();
+  await page.getByLabel('Go to month').selectOption({ label: 'March 2017 (31 days)' });
   await page.locator('[data-month="2017-03"] .history-item', { hasText: 'Wed, Mar 15, 2017' }).click();
   await expect(page.getByRole('heading', { name: 'Wed, Mar 15, 2017' })).toBeVisible();
 });

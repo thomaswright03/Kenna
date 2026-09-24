@@ -45,6 +45,56 @@ test('Back from a day opened in History returns to the same months and the same 
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
 });
 
+test('Show earlier months is offered only while there are earlier months', async ({ page, appURL, data }) => {
+  // Everything fits on the first page: no button at all.
+  await data.seed({ [TODAY]: day(TODAY, { lunch: 600 }) });
+  await page.goto(`${appURL}/#/history`);
+  await expect(page.locator('.history-item')).toHaveCount(1);
+  const more = page.locator('.history-months + button');
+  await expect(more).toBeHidden();
+  await expect(page.getByRole('button', { name: /Show earlier months/ })).toHaveCount(0);
+
+  // 400 days: pressed until nothing earlier is left, it goes away.
+  await seedDays(data, 400);
+  await page.goto(`${appURL}/#/history`);
+  await page.reload();
+  const button = page.getByRole('button', { name: /^Show earlier months/ });
+  await expect(button).toBeVisible();
+  let presses = 0;
+  while ((await button.count()) > 0 && presses < 20) {
+    await button.click();
+    presses += 1;
+  }
+  await expect(page.locator('.history-month')).toHaveCount(14);
+  await expect(button).toHaveCount(0);
+  await expect(more).toBeHidden();
+  await expect(page.getByText(/0 more days/)).toHaveCount(0);
+  await expect(page.getByText('Show earlier months')).toBeHidden();
+  // Out of the tab order too: Tab from the last day leaves the list.
+  await page.locator('.history-item').last().focus();
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement && document.activeElement.textContent)).not.toMatch(/Show earlier months/);
+});
+
+test('nothing marked hidden is ever drawn, whatever its classes', async ({ page, appURL }) => {
+  await page.goto(appURL);
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  const shown = await page.evaluate(() => {
+    const probes = ['btn btn-secondary', 'btn btn-primary', 'card notice-card', 'loading', 'progress', 'btn-text', 'toast'].map((cls) => {
+      const el = document.createElement('div');
+      el.className = cls;
+      el.hidden = true;
+      el.textContent = 'probe';
+      document.body.append(el);
+      const display = getComputedStyle(el).display;
+      el.remove();
+      return `${cls}: ${display}`;
+    });
+    return probes.filter((p) => !p.endsWith(': none'));
+  });
+  expect(shown).toEqual([]);
+});
+
 test('a day edited from History is still in place on the way back, with its new total', async ({ page, appURL, data }) => {
   await seedDays(data, 400);
   await page.goto(`${appURL}/#/history`);

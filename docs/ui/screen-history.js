@@ -133,8 +133,8 @@ function monthList(months, now, place) {
       shown += 1;
     }
     const left = months.slice(shown).reduce((n, m) => n + m.days.length, 0);
-    moreBtn.hidden = shown >= months.length;
-    moreBtn.textContent = `Show earlier months (${plural(left, 'more day')})`;
+    moreBtn.hidden = left === 0;
+    moreBtn.textContent = left === 0 ? '' : `Show earlier months (${plural(left, 'more day')})`;
   }
 
   moreBtn.addEventListener('click', () => {
