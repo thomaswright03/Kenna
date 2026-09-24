@@ -148,13 +148,16 @@
     // Every day is kept under ENTRIES_KEY, as every version of Kenna has
     // stored it. So that a save doesn't rewrite years of history, a save
     // writes only the days changed since then, under RECENT_KEY
-    // ({ base, days: { date: day or null for removed } }); they're folded
-    // into ENTRIES_KEY when the app is put away or closed (settle), when it
-    // starts, when an import rewrites the days anyway, and once more than
-    // MAX_RECENT_DAYS have piled up. `base` is the length of the
-    // ENTRIES_KEY text the changes were made on top of, so changes left by
-    // a version that knew nothing of them (after a rollback) are never
-    // applied over newer days; they're kept as a damaged copy instead.
+    // ({ base, hash, days: { date: day or null for removed } }); they're
+    // folded into ENTRIES_KEY when the app is put away or closed (settle),
+    // when it starts, when an import rewrites the days anyway, and once
+    // more than MAX_RECENT_DAYS have piled up. `base` and `hash` are the
+    // length and a hash of the ENTRIES_KEY text the changes were made on
+    // top of, so they're applied only on top of exactly that text: changes
+    // left by a version that knew nothing of them (after a rollback) are
+    // never applied over newer days, even of the same length; they're kept
+    // as a damaged copy instead. (The first versions of this wrote `base`
+    // alone; their changes are matched by length.)
     //
     // Each key has an automatic copy (":backup"). If a stored value is
     // ever unreadable, we restore from that copy instead of treating the
@@ -231,25 +234,33 @@
       }
     }
 
-    // The parsed ENTRIES_KEY text, kept while that text is unchanged, so a
-    // save doesn't parse the whole history again. Never changed in place.
-    /** @type {{ text: string | null, raw: Record<string, unknown> }} */
-    let parsedSnapshot = { text: null, raw: {} };
+    // The parsed ENTRIES_KEY text and its hash, kept while that text is
+    // unchanged, so a save doesn't read the whole history again. Never
+    // changed in place.
+    /** @type {{ text: string | null, raw: Record<string, unknown>, hash: string }} */
+    let parsedSnapshot = { text: null, raw: {}, hash: '' };
+
+    /** @param {string} text @param {Record<string, unknown>} raw */
+    function remember(text, raw) {
+      parsedSnapshot = { text, raw, hash: textHash(text) };
+      return parsedSnapshot;
+    }
+
+    /**
+     * @typedef {{ raw: Record<string, unknown>, length: number, hash: string, recovered: boolean }} Snapshot
+     *   length and hash: of the ENTRIES_KEY text (0 and '' when there is none), which recent changes are stamped with
+     */
 
     /**
      * Every day as last folded in (ENTRIES_KEY), recovering from damage.
-     * `length` is that text's length (0 when there is none), for `base`.
-     * @returns {{ raw: Record<string, unknown>, length: number, recovered: boolean }}
+     * @returns {Snapshot}
      */
     function readSnapshot() {
       const text = storage.getItem(ENTRIES_KEY);
-      if (text === null) return { raw: {}, length: 0, recovered: false };
-      if (text === parsedSnapshot.text) return { raw: parsedSnapshot.raw, length: text.length, recovered: false };
+      if (text === null) return { raw: {}, length: 0, hash: '', recovered: false };
+      if (text === parsedSnapshot.text) return { raw: parsedSnapshot.raw, length: text.length, hash: parsedSnapshot.hash, recovered: false };
       const parsed = parseObject(text);
-      if (parsed) {
-        parsedSnapshot = { text, raw: parsed };
-        return { raw: parsed, length: text.length, recovered: false };
-      }
+      if (parsed) return { raw: parsed, length: text.length, hash: remember(text, parsed).hash, recovered: false };
 
       keepCorruptCopy(text);
       const backupText = storage.getItem(BACKUP_KEY);
@@ -265,7 +276,7 @@
           message:
             'Your saved data was damaged, so Kenna restored it from its automatic copy. The last change before that may be missing. Please check recent days.',
         });
-        return { raw: recovered, length: backupText.length, recovered: true };
+        return { raw: recovered, length: backupText.length, hash: textHash(backupText), recovered: true };
       }
       onNotice({
         tone: 'error',
@@ -277,28 +288,58 @@
       } catch {
         // Ignore: the next successful write replaces it anyway.
       }
-      return { raw: {}, length: 2, recovered: true };
+      return { raw: {}, length: 2, hash: textHash('{}'), recovered: true };
     }
 
     /**
+     * A hash of the whole text (53 bits, cyrb53), so recent changes can
+     * tell whether the history under them is still exactly the one they
+     * were made on.
+     * @param {string} text
+     */
+    function textHash(text) {
+      let h1 = 0xdeadbeef;
+      let h2 = 0x41c6ce57;
+      for (let i = 0; i < text.length; i += 1) {
+        const ch = text.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+      }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+    }
+
+    /**
+     * @typedef {{ base: number, hash?: string, days: Record<string, unknown> }} Recent
+     *   hash is missing only from changes the first versions of this wrote
+     */
+
+    /**
      * @param {string | null} text
-     * @returns {{ base: number, days: Record<string, unknown> } | null}
+     * @returns {Recent | null}
      */
     function parseRecent(text) {
       const value = text === null ? null : parseObject(text);
       if (!value || typeof value.base !== 'number' || !isPlainObject(value.days)) return null;
-      return { base: value.base, days: value.days };
+      if (value.hash !== undefined && typeof value.hash !== 'string') return null;
+      return typeof value.hash === 'string' ? { base: value.base, hash: value.hash, days: value.days } : { base: value.base, days: value.days };
+    }
+
+    /** Whether recent changes were made on top of exactly `snapshot`. @param {Recent} recent @param {Snapshot} snapshot */
+    function madeOn(recent, snapshot) {
+      return recent.base === snapshot.length && (recent.hash === undefined || recent.hash === snapshot.hash);
     }
 
     /**
      * The days changed since the last fold (RECENT_KEY), recovering from
-     * damage, for a snapshot `length` long; empty when there are none.
-     * @param {{ length: number, recovered: boolean }} snapshot
-     * @returns {{ base: number, days: Record<string, unknown> }}
+     * damage, stamped for `snapshot`; empty when there are none.
+     * @param {Snapshot} snapshot
+     * @returns {Recent}
      */
     function readRecent(snapshot) {
       const text = storage.getItem(RECENT_KEY);
-      const empty = { base: snapshot.length, days: {} };
+      const empty = { base: snapshot.length, hash: snapshot.hash, days: {} };
       if (text === null) return empty;
       let recent = parseRecent(text);
       if (!recent) {
@@ -317,7 +358,7 @@
       // Changes made on top of other days than these (a version that knew
       // nothing of them saved since) are kept aside, never applied. After
       // recovering the days from their copy, the changes are newer still.
-      if (!snapshot.recovered && recent.base !== snapshot.length) {
+      if (!snapshot.recovered && !madeOn(recent, snapshot)) {
         keepCorruptCopy(text);
         dropRecent();
         onNotice({
@@ -373,11 +414,12 @@
       const raw = withChanges(snapshot.raw, recent.days);
       try {
         writeRaw(raw);
-        return { snapshot: { raw: parsedSnapshot.raw, length: String(parsedSnapshot.text).length, recovered: false }, recent: { base: 0, days: {} } };
+        const folded = { raw: parsedSnapshot.raw, length: String(parsedSnapshot.text).length, hash: parsedSnapshot.hash, recovered: false };
+        return { snapshot: folded, recent: { base: folded.length, hash: folded.hash, days: {} } };
       } catch {
         // The changes stay where they are, now on top of the recovered days.
         try {
-          writeRecent({ base: snapshot.length, days: recent.days });
+          writeRecent({ base: snapshot.length, hash: snapshot.hash, days: recent.days });
         } catch {
           // Read again next time, the same way.
         }
@@ -405,11 +447,11 @@
       } catch (e) {
         throw writeError(e, what);
       }
-      parsedSnapshot = { text, raw: /** @type {Record<string, unknown>} */ (JSON.parse(text)) };
+      remember(text, /** @type {Record<string, unknown>} */ (JSON.parse(text)));
       dropRecent();
     }
 
-    /** @param {{ base: number, days: Record<string, unknown> }} recent */
+    /** @param {Recent} recent */
     function writeRecent(recent) {
       try {
         const previous = storage.getItem(RECENT_KEY);
@@ -481,7 +523,7 @@
       // Only this day is written, with the others changed since the last
       // fold: the cost of a save doesn't grow with the years logged.
       const days = { ...state.recent.days, [date]: core.isEntryEmpty(next) ? null : next };
-      writeRecent({ base: state.snapshot.length, days });
+      writeRecent({ base: state.snapshot.length, hash: state.snapshot.hash, days });
       if (Object.keys(days).length > MAX_RECENT_DAYS) settle();
       return next;
     }

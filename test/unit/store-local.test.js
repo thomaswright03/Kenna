@@ -156,6 +156,41 @@ test('changes left on top of days another version has changed since are set asid
   assert.equal(storage.getItem(RECENT_KEY), null);
 });
 
+test('changes are set aside when every day was replaced by different days of exactly the same length', async () => {
+  const days = history(2);
+  const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(days) });
+  const { store } = makeStore(storage);
+  await store.updateEntry('2026-09-24', { weight: 179 });
+  const left = storage.getItem(RECENT_KEY);
+  // An older version changes one weight for another of the same width.
+  const changed = JSON.stringify(days).replace('"weight":180.1', '"weight":180.9');
+  assert.notEqual(changed, storage.getItem(ENTRIES_KEY));
+  assert.equal(changed.length, storage.getItem(ENTRIES_KEY).length);
+  storage.setItem(ENTRIES_KEY, changed);
+  const again = makeStore(storage);
+  const entries = await again.store.loadEntries();
+  assert.equal(entries['2026-09-23'].weight, 180.9);
+  assert.equal(entries['2026-09-24'], undefined);
+  assert.deepEqual(
+    (await again.store.damagedCopies()).map((c) => c.text),
+    [left]
+  );
+});
+
+test('changes written before they were marked with more than a length still apply', async () => {
+  const days = history(2);
+  const text = JSON.stringify(days);
+  const storage = fakeStorage({
+    [ENTRIES_KEY]: text,
+    [RECENT_KEY]: JSON.stringify({ base: text.length, days: { '2026-09-24': { date: '2026-09-24', weight: 179, meals: {} } } }),
+  });
+  const again = makeStore(storage);
+  const entries = await again.store.loadEntries();
+  assert.equal(entries['2026-09-24'].weight, 179);
+  assert.equal(entries['2026-09-23'].weight, days['2026-09-23'].weight);
+  assert.equal(again.notices.length, 0);
+});
+
 test('days recovered from their copy keep the changes made since', async () => {
   const storage = fakeStorage({ [ENTRIES_KEY]: JSON.stringify(history(2)) });
   const { store } = makeStore(storage);

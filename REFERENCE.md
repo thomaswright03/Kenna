@@ -225,9 +225,11 @@ doesn't rewrite years of history, a save writes only the days changed
 since, under `kenna:entries:recent`; those are folded into `kenna:entries`
 when Kenna is put away (another app, the phone locked, the page closed),
 when it starts, when a backup is restored, and once more than 40 days have
-piled up. Changes left over days that another version of the app has
-changed since (after a rollback) are set aside as damaged data rather than
-applied over newer days. Both keys keep an automatic copy, and if the
+piled up. The changes are marked with the length and a fingerprint of the
+`kenna:entries` they were made on, so changes left over days that another
+version of the app has changed since (after a rollback) are set aside as
+damaged data rather than applied over newer days, even when the days
+changed keep the same length. Both keys keep an automatic copy, and if the
 stored data is ever found damaged the app restores that copy and tells you.
 The damaged data itself is kept aside (the two most recent damaged copies,
 never more), and Settings then shows a card to **Download damaged data**
