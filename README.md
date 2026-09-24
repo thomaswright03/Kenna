@@ -101,6 +101,8 @@ scripts/build.js       builds docs/build/ (esbuild)
 scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
                        404.html for unknown addresses)
 scripts/coverage.js    measures what the unit and browser tests run
+scripts/make-icons.js  draws the app icon (a scale) in every size, from
+                       the drawing in it (then run npm run build)
 test/unit/       Node tests: data rules, browser storage, backup files, build
 test/e2e/        Playwright tests of the app, served as Pages serves it
 ```
