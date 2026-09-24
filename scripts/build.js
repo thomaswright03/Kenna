@@ -1,8 +1,8 @@
 // Builds the two script files the page loads, from the sources in docs/:
 //
-//   docs/build/data.js  the classic scripts (core.js, store-local.js,
-//                       store-server.js, backup-file.js), each minified,
-//                       in that order
+//   docs/build/data.js  the classic scripts (core.js with its modules in
+//                       core/, store-local.js, store-server.js,
+//                       backup-file.js), each minified, in that order
 //   docs/build/app.js   app.js and every ui/ module it imports, as one
 //                       minified ES module
 //
@@ -32,6 +32,52 @@ const MINIFY = !process.argv.includes('--no-minify');
 const lineCount = (text) => text.split('\n').length - 1;
 
 /**
+ * One classic script (it sets its own global), minified.
+ * @param {string} name
+ * @returns {Promise<{ code: string, map: string }>}
+ */
+async function transformClassic(name) {
+  const source = fs.readFileSync(path.join(DOCS, name), 'utf8');
+  return esbuild.transform(source, {
+    minify: MINIFY,
+    target: TARGET,
+    charset: 'utf8',
+    legalComments: 'none',
+    sourcemap: 'external',
+    sourcesContent: false,
+    sourcefile: `../${name}`,
+  });
+}
+
+/**
+ * core.js and the modules in core/ it's made of, as one script that sets
+ * self.KennaCore (Node requires core.js as it is).
+ * @returns {Promise<{ code: string, map: string }>}
+ */
+async function buildCore() {
+  const result = await esbuild.build({
+    entryPoints: [path.join(DOCS, 'core', 'global.js')],
+    outfile: path.join(OUT_DIR, 'data.js'),
+    bundle: true,
+    format: 'iife',
+    minify: MINIFY,
+    target: TARGET,
+    charset: 'utf8',
+    legalComments: 'none',
+    sourcemap: 'external',
+    sourcesContent: false,
+    write: false,
+    logLevel: 'silent',
+  });
+  const file = (/** @type {string} */ ext) => {
+    const found = result.outputFiles.find((f) => f.path.endsWith(ext));
+    if (!found) throw new Error(`esbuild wrote no ${ext} file`);
+    return found.text;
+  };
+  return { code: file('data.js'), map: file('data.js.map') };
+}
+
+/**
  * The classic scripts, minified one by one and joined, with an index source
  * map that has one section per script.
  * @returns {Promise<{ code: string, map: string }>}
@@ -40,16 +86,7 @@ async function buildClassic() {
   let code = '';
   const sections = [];
   for (const name of CLASSIC_SCRIPTS) {
-    const source = fs.readFileSync(path.join(DOCS, name), 'utf8');
-    const result = await esbuild.transform(source, {
-      minify: MINIFY,
-      target: TARGET,
-      charset: 'utf8',
-      legalComments: 'none',
-      sourcemap: 'external',
-      sourcesContent: false,
-      sourcefile: `../${name}`,
-    });
+    const result = name === 'core.js' ? await buildCore() : await transformClassic(name);
     sections.push({ offset: { line: lineCount(code), column: 0 }, map: JSON.parse(result.map) });
     code += result.code.endsWith('\n') ? result.code : `${result.code}\n`;
   }

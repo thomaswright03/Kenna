@@ -27,14 +27,37 @@ test('the interface bundle is built from every ui module, with a source map back
 test('the data bundle holds the classic scripts in the order the page used to load them', async () => {
   const built = await buildFiles();
   const map = JSON.parse(built['build/data.js.map']);
+  // core.js is bundled with its modules in core/; each of the other
+  // scripts is its own section.
   assert.deepEqual(
-    map.sections.map((s) => s.map.sources[0]),
+    map.sections.map((s) => s.map.sources.find((src) => !src.startsWith('../core/'))),
     CLASSIC_SCRIPTS.map((name) => `../${name}`)
   );
+  const coreModules = fs.readdirSync(path.join(docs, 'core')).map((f) => `../core/${f}`);
+  assert.deepEqual([...map.sections[0].map.sources].sort(), ['../core.js', ...coreModules].sort());
   const lines = built['build/data.js'].split('\n');
   for (const section of map.sections) assert.ok(section.offset.line < lines.length);
   // Each script still sets its global when run in a page.
   const window = {};
   new Function('self', 'window', built['build/data.js'])(window, window);
   for (const name of ['KennaCore', 'KennaLocalStore', 'KennaServerStore', 'KennaBackupFile']) assert.ok(name in window, `${name} is set`);
+});
+
+test('the rules shared by the app, the server and the tests are split into modules of a readable size', () => {
+  const files = ['core.js', ...fs.readdirSync(path.join(docs, 'core')).map((f) => `core/${f}`)];
+  assert.ok(files.length >= 8);
+  for (const file of files) {
+    const lines = fs.readFileSync(path.join(docs, file), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${file} has ${lines} lines`);
+  }
+});
+
+test('the page and Node get the same rules', async () => {
+  const built = await buildFiles();
+  const window = {};
+  new Function('self', 'window', built['build/data.js'])(window, window);
+  const core = require('../../docs/core.js');
+  assert.deepEqual(Object.keys(window.KennaCore).sort(), Object.keys(core).sort());
+  assert.ok(Object.isFrozen(window.KennaCore));
+  assert.equal(window.KennaCore.formatWeight(165.25), core.formatWeight(165.25));
 });

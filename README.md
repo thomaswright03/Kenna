@@ -298,7 +298,10 @@ until the server is running, and the browser shows its own error page.
 
 ```
 docs/            the app (also what GitHub Pages serves)
-  core.js        data rules shared by the app, the server and the tests
+  core.js        data rules shared by the app, the server and the tests,
+                 put together from the modules in core/ (dates, numbers,
+                 entries, averages, input rules, backup format, charts,
+                 photos)
   backup-file.js writes and reads backup files a piece at a time
   store-local.js browser storage (localStorage + IndexedDB)
   store-server.js server storage (HTTP API)
@@ -308,7 +311,8 @@ docs/            the app (also what GitHub Pages serves)
                  (routing, rendering, charts, dialogs and messages, backup,
                  photo viewer and comparison)
   build/         what the page loads: the scripts above, minified into
-                 data.js (the classic scripts) and app.js (app.js and ui/),
+                 data.js (core.js with core/, and the other classic
+                 scripts) and app.js (app.js and ui/),
                  with source maps; made by npm run build
   404.html       the "Page not found" page
   sw.js          offline cache
