@@ -40,7 +40,8 @@ export function showBanner(notice) {
 export function toast(message, options) {
   const opts = options || {};
   const toasts = byId('toasts');
-  const el = h('div', { class: `toast${opts.tone === 'error' ? ' toast-error' : ''}`, role: opts.tone === 'error' ? 'alert' : 'status' });
+  const classes = ['toast', opts.tone === 'error' ? 'toast-error' : '', opts.action ? 'toast-actionable' : ''].filter(Boolean).join(' ');
+  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status' });
   el.append(h('span', { class: 'toast-text', text: message }));
   const dismiss = () => {
     clearTimeout(timer);

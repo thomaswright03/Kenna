@@ -2,7 +2,7 @@
 // Calories and Weight charts.
 
 import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry, errorText, visibleEntries } from './dom.js';
-import { toast, createFieldStatus } from './feedback.js';
+import { toast, announce, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, navigate } from './router.js';
 import { render } from './render.js';
@@ -130,8 +130,19 @@ export async function buildToday(ctx) {
       total === null ? `No meals logged ${isToday ? 'yet today' : `for ${when}`}` : `calories logged ${isToday ? 'today' : `on ${when}`}`;
   }
 
-  /** @param {string} key @param {boolean} [focusAfter] */
-  async function removeMeal(key, focusAfter) {
+  // A meal removed here can be put back from its own row (no time limit,
+  // nothing covering the screen) until the user leaves this screen.
+  /** @type {Map<string, number>} */
+  const removed = new Map();
+
+  /** @param {string} key @param {string} selector */
+  function focusInRow(key, selector) {
+    const el = mealsList.querySelector(`[data-meal="${key}"] ${selector}`);
+    if (el instanceof HTMLElement) el.focus();
+  }
+
+  /** @param {string} key */
+  async function removeMeal(key) {
     const previous = view.entry.meals[key];
     try {
       view.entry = await store.updateEntry(saveDateFor(view), { meals: { [key]: null } });
@@ -139,29 +150,49 @@ export async function buildToday(ctx) {
       toast(errorText(err), { tone: 'error' });
       return;
     }
-    refreshMeals(key, focusAfter);
-    toast(`${mealLabel(key)} removed`, {
-      action: {
-        label: 'Undo',
-        onClick: async () => {
-          try {
-            view.entry = await store.updateEntry(view.date, { meals: { [key]: previous } });
-            refreshMeals();
-            toast(`${mealLabel(key)} restored`);
-          } catch (err) {
-            toast(errorText(err), { tone: 'error' });
-          }
-        },
-      },
-    });
+    if (typeof previous === 'number') removed.set(key, previous);
+    refreshMeals();
+    focusInRow(key, '[data-undo]');
+    announce(`${mealLabel(key)} removed. Undo is next to it.`);
+  }
+
+  /** @param {string} key @param {HTMLButtonElement} button */
+  async function undoRemove(key, button) {
+    const previous = removed.get(key);
+    if (previous === undefined || button.disabled) return;
+    button.disabled = true;
+    try {
+      view.entry = await store.updateEntry(view.date, { meals: { [key]: previous } });
+    } catch (err) {
+      button.disabled = false;
+      toast(errorText(err), { tone: 'error' });
+      return;
+    }
+    removed.delete(key);
+    refreshMeals();
+    focusInRow(key, 'a');
+    announce(`${mealLabel(key)} restored: ${core.formatCalories(previous)}.`);
   }
 
   /** @param {{ key: string, label: string }} step */
   function mealRow(step) {
     const value = view.entry.meals[step.key];
     const logged = value !== null;
+    if (logged) removed.delete(step.key);
+    const removedValue = removed.get(step.key);
     const href = logHash(ctx.route.date, step.key);
     const actions = h('div', { class: 'meal-actions' });
+    if (removedValue !== undefined) {
+      const undo = h('button', {
+        type: 'button',
+        class: 'btn-text',
+        'aria-label': `Undo removing ${step.label}`,
+        'data-undo': step.key,
+        text: 'Undo',
+        onClick: () => undoRemove(step.key, undo),
+      });
+      actions.append(undo);
+    }
     actions.append(
       h('a', {
         class: 'btn-text',
@@ -179,7 +210,7 @@ export async function buildToday(ctx) {
             class: 'icon-btn icon-btn-danger',
             'aria-label': `Remove ${step.label}`,
             'data-remove': step.key,
-            onClick: () => removeMeal(step.key, true),
+            onClick: () => removeMeal(step.key),
           },
           h('span', { 'aria-hidden': 'true', text: '×' })
         )
@@ -192,20 +223,17 @@ export async function buildToday(ctx) {
         'div',
         { class: 'meal-info' },
         h('span', { class: 'meal-name', text: step.label }),
-        logged ? h('span', { class: 'meal-value', text: core.formatCalories(value) }) : h('span', { class: 'meal-empty', text: 'Not logged' })
+        logged
+          ? h('span', { class: 'meal-value', text: core.formatCalories(value) })
+          : h('span', { class: 'meal-empty', text: removedValue !== undefined ? `Removed (was ${core.formatCalories(removedValue)})` : 'Not logged' })
       ),
       actions
     );
   }
 
-  /** @param {string} [changedKey] @param {boolean} [focusAfter] */
-  function refreshMeals(changedKey, focusAfter) {
+  function refreshMeals() {
     mealsList.replaceChildren(...MEAL_STEPS.map(mealRow));
     refreshTotal();
-    if (focusAfter && changedKey) {
-      const link = mealsList.querySelector(`[data-meal="${changedKey}"] a`);
-      if (link instanceof HTMLElement) link.focus();
-    }
   }
   refreshMeals();
 

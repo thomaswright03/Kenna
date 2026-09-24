@@ -56,3 +56,12 @@ test('the page allows pinch-zoom', () => {
   const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /maximum-scale|user-scalable=no/);
 });
+
+test('colours are set only in the light and dark theme tokens', () => {
+  const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const tokenBlocks = /^:root(\[data-theme='dark'\])? \{[\s\S]*?^\}/gm;
+  assert.equal((css.match(tokenBlocks) || []).length, 2);
+  const outside = css.replace(tokenBlocks, '');
+  const colours = outside.match(/#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)|hsla?\([^)]*\)/g) || [];
+  assert.deepEqual(colours, []);
+});

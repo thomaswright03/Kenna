@@ -17,8 +17,8 @@ data never leaves your device.
   puts it back in its box and says why). The day total updates as you type,
   marked "not saved yet" until the save is done; **Enter** moves
   to the next meal you haven't logged; **Done** returns to the day you were
-  logging and confirms what was saved. Removing a meal from the Today screen can be
-  undone for a few seconds.
+  logging and confirms what was saved. A meal removed on the Today screen
+  keeps an **Undo** button in its row until you leave that screen.
 - **History** lists every logged day with its total calories and weight. Tap a
   day to open it.
 - **Compare** puts today's weight, total calories and each meal next to

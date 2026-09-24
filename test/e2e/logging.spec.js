@@ -98,9 +98,37 @@ test('removing a meal can be undone', async ({ page, appURL, data }) => {
   await page.getByRole('button', { name: 'Remove Breakfast' }).click();
   await expect(page.locator('.total-num')).toHaveText('650');
   expect((await data.entry(TODAY)).meals.breakfast).toBe(null);
-  await page.getByRole('button', { name: 'Undo' }).click();
+  const row = page.locator('.meal-row[data-meal="breakfast"]');
+  await expect(row).toContainText('Removed (was 400 cal)');
+  // Undo sits in the meal's own row and takes focus; no message covers
+  // anything.
+  const undo = row.getByRole('button', { name: 'Undo removing Breakfast' });
+  await expect(undo).toBeFocused();
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await undo.click();
   await expect(page.locator('.total-num')).toHaveText('1,050');
+  await expect(row).toContainText('400 cal');
+  await expect(row.getByRole('link', { name: 'Edit Breakfast' })).toBeFocused();
   expect((await data.entry(TODAY)).meals.breakfast).toBe(400);
+});
+
+test('a confirmation message never blocks a tap on what is under it', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('400');
+  await page.getByRole('button', { name: 'Done' }).click();
+  const saved = page.locator('.toast').filter({ hasText: 'Saved for Today' });
+  await expect(saved).toBeVisible();
+  // Put the Log Meal button right where the message is.
+  const logMeal = page.getByRole('link', { name: 'Log Meal' });
+  const toastBox = await saved.boundingBox();
+  const buttonBox = await logMeal.boundingBox();
+  await page.evaluate((dy) => window.scrollBy(0, dy), buttonBox.y - toastBox.y);
+  const moved = await logMeal.boundingBox();
+  const now = await saved.boundingBox();
+  expect(Math.abs(moved.y - now.y)).toBeLessThan(now.height);
+  // A tap there reaches the button, not the message.
+  await page.mouse.click(moved.x + moved.width / 2, moved.y + moved.height / 2);
+  await expect(page.getByRole('heading', { name: 'Log Meal' })).toBeVisible();
 });
 
 test('a day left open past midnight moves to the new day', async ({ page, appURL, data }) => {
