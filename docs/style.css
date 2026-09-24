@@ -160,7 +160,7 @@ h2[tabindex='-1']:focus { outline: none; }
 }
 
 .brand-block { flex: 1; order: 1; }
-.topbar > .icon-btn { order: 2; }
+.topbar > .settings-link { order: 2; }
 
 .brand {
   font-size: var(--fs-lg);
@@ -406,6 +406,23 @@ input[aria-invalid='true'] { border-color: var(--danger); }
 }
 
 .icon-btn[aria-current='page'] { color: var(--accent-text); background: var(--card); }
+
+/* Settings (backup, theme) in the header: the gear with its name. */
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 0 var(--s3) 0 var(--s2);
+  border-radius: var(--r-pill);
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.settings-link svg { flex: none; }
+.settings-link[aria-current='page'] { color: var(--accent-text); background: var(--card); }
 .icon-btn-danger { color: var(--danger); }
 
 .file-btn { position: relative; }
@@ -420,6 +437,7 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
   .btn-danger-outline:hover { background: var(--danger-soft); }
   .btn-text:hover { background: var(--card-2); text-decoration: underline; }
   .icon-btn:hover { background: var(--card-2); color: var(--text); }
+  .settings-link:hover:not([aria-current='page']) { background: var(--card-2); color: var(--text); }
   .icon-btn-danger:hover { background: var(--danger-soft); color: var(--danger); }
   .meal-pill:hover:not(.active) { border-color: var(--accent); color: var(--text); }
   .segment:hover { color: var(--text); }
@@ -1028,7 +1046,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
      the columns below. */
   .topbar { flex-wrap: nowrap; column-gap: var(--s4); padding-top: var(--s4); padding-bottom: var(--s4); }
   .tabs { order: 2; flex: 0 1 560px; }
-  .topbar > .icon-btn { order: 3; }
+  .topbar > .settings-link { order: 3; }
   .main > section.card { max-width: 560px; }
   .photo-grid { grid-template-columns: repeat(5, 1fr); }
 }

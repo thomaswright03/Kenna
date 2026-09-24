@@ -81,6 +81,23 @@ test('tapping a History day opens it for editing, with a way back to today', asy
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
 });
 
+test('Settings, where backups are made, is named in the header on a phone, not only shown as a gear', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto(appURL);
+    const label = page.locator('header').getByText('Settings', { exact: true });
+    await expect(label).toBeVisible();
+    const box = await label.boundingBox();
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    expect(box.y + box.height).toBeLessThanOrEqual(700);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+  await page.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Backup', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveAttribute('aria-current', 'page');
+});
+
 test('the header controls are reachable by keyboard', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.keyboard.press('Tab');

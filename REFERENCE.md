@@ -86,7 +86,7 @@ run, test and release it.
   adding one says it can't be previewed in this browser, and the grid, the
   viewer and the comparison say "Can't preview in this browser" in its
   place.
-- **Settings** (gear icon) has the light/dark theme (or follow the system),
+- **Settings** (top right, the gear with the word Settings) has the light/dark theme (or follow the system),
   backup export and import, where your data is stored, and the **Problem
   log** (see [Where your data lives](#where-your-data-lives-and-backups)).
 
