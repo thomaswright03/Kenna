@@ -206,7 +206,7 @@ test('a meal corrected after an error is asked about without the old error besid
   const box = page.getByLabel('Breakfast calories');
   const status = await statusUnder(page, box);
   await box.fill('99999');
-  await box.press('Tab');
+  await box.blur();
   await expect(status).toHaveText("That's over 10,000 calories for one meal. Check the number.");
   await expect(box).toHaveAttribute('aria-invalid', 'true');
 
@@ -232,7 +232,7 @@ test('a weight corrected after an error is asked about without the old error bes
   const weight = page.getByLabel('Weight (lbs)');
   const status = await statusUnder(page, weight);
   await weight.fill('2000');
-  await weight.press('Tab');
+  await weight.blur();
   await expect(status).toHaveText('Enter a weight between 50 and 1,000 lbs.');
   await expect(weight).toHaveAttribute('aria-invalid', 'true');
 
