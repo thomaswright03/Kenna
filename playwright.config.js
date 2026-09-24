@@ -1,13 +1,26 @@
-// End-to-end tests. Each spec runs twice: against the installable app in
-// docs/ (browser storage) and against server.js (server storage).
-const { defineConfig, devices } = require('@playwright/test');
+// End-to-end tests. Each spec runs against the installable app in docs/
+// (browser storage) and against server.js (server storage), in Chromium
+// with an iPhone-sized screen. The installable app also runs in WebKit, the
+// engine of Safari and of Home Screen apps on iPhone.
+const fs = require('node:fs');
+const { defineConfig, devices, webkit } = require('@playwright/test');
 
 const phone = {
   ...devices['iPhone 13'],
-  browserName: 'chromium',
   locale: 'en-US',
   timezoneId: 'America/Chicago',
 };
+
+// CI always runs WebKit (and fails if it's missing). Locally it runs when
+// installed: npx playwright install webkit
+function webkitInstalled() {
+  try {
+    return fs.existsSync(webkit.executablePath());
+  } catch {
+    return false;
+  }
+}
+const withWebKit = !!process.env.CI || webkitInstalled();
 
 module.exports = defineConfig({
   testDir: 'test/e2e',
@@ -18,7 +31,8 @@ module.exports = defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: { trace: 'retain-on-failure' },
   projects: [
-    { name: 'phone-app', use: { ...phone, backend: 'local' } },
-    { name: 'server-app', use: { ...phone, backend: 'server' } },
+    { name: 'phone-app', use: { ...phone, browserName: 'chromium', backend: 'local' } },
+    { name: 'server-app', use: { ...phone, browserName: 'chromium', backend: 'server' } },
+    ...(withWebKit ? [{ name: 'phone-app-webkit', use: { ...phone, browserName: 'webkit', backend: 'local' } }] : []),
   ],
 });

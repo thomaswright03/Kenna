@@ -141,6 +141,7 @@ test.describe('phone version', () => {
   test('asks the browser to keep data persistently on launch', async ({ page, appURL }) => {
     await page.addInitScript(() => {
       window.__persistCalls = 0;
+      if (!navigator.storage || !navigator.storage.persist) return;
       navigator.storage.persisted = async () => false;
       navigator.storage.persist = async () => {
         window.__persistCalls += 1;
@@ -148,6 +149,8 @@ test.describe('phone version', () => {
       };
     });
     await page.goto(appURL);
+    const supported = await page.evaluate(() => !!(navigator.storage && navigator.storage.persist));
+    test.skip(!supported, 'this browser has no way to ask for persistent storage');
     await expect.poll(() => page.evaluate(() => window.__persistCalls)).toBe(1);
   });
 

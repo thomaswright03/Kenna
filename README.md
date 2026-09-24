@@ -177,15 +177,23 @@ npm run serve:docs          # http://localhost:8080 (set PORT to change)
 Tests:
 
 ```bash
-npx playwright install chromium   # once
-npm test                          # lint, type check, unit/API tests, then browser tests
+npx playwright install chromium webkit   # once
+npm test                                 # lint, type check, unit/API tests, then browser tests
 ```
 
-`npm run test:unit` and `npm run test:e2e` run the parts separately. GitHub
-Actions (`.github/workflows/test.yml`) runs the same checks on every push and
-pull request. To block merging when they fail, turn on branch protection for
-the published branch in **Settings → Branches** and mark the **Tests / test**
-check as required.
+`npm run test:unit` and `npm run test:e2e` run the parts separately. The
+browser tests run every scenario against both versions in Chromium with an
+iPhone-sized screen (projects `phone-app` and `server-app`), and the phone
+app again in WebKit, the engine behind Safari and iPhone Home Screen apps
+(project `phone-app-webkit`). Locally the WebKit project is included when
+WebKit is installed; on CI it always runs.
+
+GitHub Actions (`.github/workflows/test.yml`) runs on every push and pull
+request, as two checks: **Tests / test** (lint, type check, unit tests,
+Chromium) and **Tests / webkit**. GitHub only blocks merging a failing
+change once branch protection is on: in **Settings → Branches**, add a rule
+for the published branch (see below), tick *Require status checks to pass
+before merging*, and select both checks.
 
 ## Deploying the phone app (GitHub Pages)
 
