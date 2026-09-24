@@ -1,6 +1,6 @@
 // Backups on the Today screen. Once anything is logged, a line under the
 // day says how old the last saved backup is, with Back up now. Once a few
-// days are logged, a card above the day asks for a backup while there is
+// days are logged, a card under the day asks for a backup while there is
 // none, or the last one is more than a week old; "Not now" puts the
 // question off for a few days, and the line still shows the age meanwhile.
 

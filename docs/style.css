@@ -1129,7 +1129,6 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
-  .screen-stack.two-col > .notice-card { grid-column: 1 / -1; }
   .photo-grid { grid-template-columns: repeat(4, 1fr); }
 }
 

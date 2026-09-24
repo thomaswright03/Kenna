@@ -272,10 +272,10 @@ On iPhone and iPad, Safari may delete a website's data when it hasn't
 been used for about a week, unless the site is on the Home Screen. So when
 Kenna runs in a Safari tab there (not opened from the Home Screen), Today
 shows a card saying so, with the steps one tap away (**How to add it**:
-Share → Add to Home Screen → open Kenna from that icon). Before anything
-is logged the card sits under the day, so a first visit starts with the
-day itself; once anything is logged it moves above the day and also says
-to save a backup first, because the Home Screen app starts with its own,
+Share → Add to Home Screen → open Kenna from that icon). The card sits
+under the day, so every visit starts with the day itself (its heading,
+the Weight box and Log Meal); once anything is logged it also says to
+save a backup first, because the Home Screen app starts with its own,
 empty storage. **Not now** hides the card for a
 week; it never appears when Kenna is opened from the Home Screen, and
 Settings explains the same risk.
@@ -285,15 +285,15 @@ phones or losing the phone, so save a backup file regularly. Once anything is
 logged, a line under the day on Today always says how old the last saved
 backup is, with **Back up now**, which makes the file and leads straight to
 saving it. Once three days have something logged (a weight, a meal or a
-photo), a card above the day asks for a backup when none has been saved from
+photo), a card under the day asks for a backup when none has been saved from
 this device yet, or when the last one is more than a week old; **Back up
 now** makes one straight away, and **Not now** puts the question off for
 three days, while the line under the day keeps showing the backup's age,
 marked as overdue. (While the card shows, it says the age itself, so the
 line waits until the card is gone.) Today shows at most one of these cards
-above the day, so the Weight box stays in view: the Home Screen card first
-(it already says to back up), then the backup reminder once that card is
-hidden or doesn't apply.
+at a time, always under the day, so the Weight box and Log Meal come first:
+the Home Screen card first (it already says to back up), then the backup
+reminder once that card is hidden or doesn't apply.
 
 - **Settings → Export Backup** makes one `.json` file containing every day
   (weight and each meal's calories) and every progress photo with the date

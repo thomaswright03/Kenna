@@ -257,35 +257,32 @@ export async function buildToday(ctx) {
   });
 
   // How old the last backup is, under the day, once there's anything to
-  // lose; hidden while a card above the day asks for a backup.
+  // lose; hidden while a card asks for a backup.
   const backupStatus = hasData ? buildBackupStatus(loggedDays) : null;
   const showBackupStatus = () => backupStatus && backupStatus.show();
-  // At most one card above the day, so logging stays in reach, and none
-  // before anything is logged: the day comes first. The Home Screen note
-  // wins (it already says to back up first); before anything is logged it
-  // sits under the day instead. The backup reminder shows once the note is
-  // hidden or doesn't apply.
+  // The day always comes first, so logging is the first thing on screen
+  // on every visit; advice goes right under it, one card at a time. The
+  // Home Screen note wins (it already says to back up first); the backup
+  // reminder shows once the note is hidden or doesn't apply.
   const installNote = buildInstallNote(hasData, () => {
     const next = buildBackupReminder(loggedDays, showBackupStatus);
     if (!next) return;
     if (backupStatus) backupStatus.root.hidden = true;
-    root.prepend(next.root);
+    dayCard.after(next.root);
     next.root.setAttribute('tabindex', '-1');
     next.root.focus();
   });
-  const reminder = installNote ? null : buildBackupReminder(loggedDays, showBackupStatus);
-  if (backupStatus && reminder) backupStatus.root.hidden = true;
-  const above = hasData ? installNote || reminder : reminder;
-  const below = hasData ? null : installNote;
-  const dayColumn = h('div', { class: 'screen-stack' }, dayCard, backupStatus ? backupStatus.root : null, below ? below.root : null);
-  const root = h('div', { class: 'screen-stack two-col' }, above ? above.root : null, dayColumn, charts.root);
+  const notice = installNote || buildBackupReminder(loggedDays, showBackupStatus);
+  if (backupStatus && notice && notice !== installNote) backupStatus.root.hidden = true;
+  const dayColumn = h('div', { class: 'screen-stack' }, dayCard, notice ? notice.root : null, backupStatus ? backupStatus.root : null);
+  const root = h('div', { class: 'screen-stack two-col' }, dayColumn, charts.root);
 
   return {
     title: isToday ? 'Today' : core.formatDate(date, now),
     root,
     mounted: () => {
       charts.draw();
-      if (above) above.mounted();
+      if (notice) notice.mounted();
       if (weight) weight.mounted();
     },
     flush: weight ? weight.flush : undefined,
