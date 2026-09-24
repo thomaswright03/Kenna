@@ -43,6 +43,7 @@ backup). [REFERENCE.md](REFERENCE.md#screens) describes each.
 |---|---|
 | Calories per meal | whole numbers, 0 to 10,000 |
 | Weight | 50 to 1,000 lbs, at most two decimal places |
+| Far from your usual | asked about before saving (a meal over 3× its usual, a weight over 5 lbs from the day before) |
 | Days that can be logged | today and earlier |
 | Averages | leave out today; calories count only days with meals |
 | Units and language | pounds, US English only |

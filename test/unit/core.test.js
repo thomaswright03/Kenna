@@ -647,3 +647,52 @@ test('a stored problem log is read back tolerantly, and copied as plain text, ne
   );
   assert.match(core.problemReport([], { app: 'phone app', browser: 'B' }), /Nothing recorded\./);
 });
+
+test('a meal far above its own usual size is asked about; a normal one never is', () => {
+  const week = {};
+  for (let d = 17; d <= 23; d += 1) week[`2026-09-${d}`] = entry(`2026-09-${d}`, { breakfast: 440 + d, dinner: 800 }, 180);
+  const ask = (key, value, entries = week) => core.unusualValue(entries, '2026-09-24', key, value, '2026-09-24');
+  // A week of ~450 cal breakfasts: 4500 is asked about, 480 isn't.
+  const big = ask('breakfast', 4500);
+  assert.equal(big.title, 'Keep 4,500 cal for breakfast?');
+  assert.equal(big.reason, "That's far more than your usual breakfast (460 cal).");
+  assert.equal(ask('breakfast', 480), null);
+  // Above 3× the usual, and at least 1,000 above it.
+  assert.equal(ask('breakfast', 1460), null);
+  assert.ok(ask('breakfast', 1461));
+  assert.equal(ask('dinner', 2400), null);
+  assert.ok(ask('dinner', 2401));
+  // Before a meal has been logged a few times, only a very large one asks.
+  assert.equal(ask('snack1', 3000), null);
+  assert.equal(ask('snack1', 3001).reason, "That's more than 3,000 cal for one meal.");
+  assert.equal(ask('snack1', 3001, {}).title, 'Keep 3,001 cal for snack 1?');
+  // The day's own value isn't its history, and an empty box is never asked about.
+  const today = { ...week, '2026-09-24': entry('2026-09-24', { breakfast: 5000 }) };
+  assert.equal(ask('breakfast', 480, today), null);
+  assert.equal(ask('breakfast', null), null);
+});
+
+test('a weight far from the nearest other day is asked about, allowing more the further apart they are', () => {
+  const ask = (entries, date, value) => core.unusualValue(entries, date, 'weight', value, '2026-09-24');
+  const days = { '2026-09-23': entry('2026-09-23', {}, 180.4), '2026-08-24': entry('2026-08-24', {}, 190) };
+  // With yesterday at 180.4: 108.4 is asked about, 180.8 isn't.
+  const slip = ask(days, '2026-09-24', 108.4);
+  assert.equal(slip.title, 'Keep 108.4 lbs?');
+  assert.equal(slip.reason, "That's 72.0 lbs less than your weight yesterday (180.4 lbs).");
+  assert.equal(ask(days, '2026-09-24', 180.8), null);
+  assert.equal(ask(days, '2026-09-24', 185.4), null, 'up to 5 lbs a day apart');
+  assert.equal(ask(days, '2026-09-24', 185.45).reason, "That's 5.05 lbs more than your weight yesterday (180.40 lbs).");
+  // Ten days after the last weight, 9.5 lbs is allowed.
+  const later = { '2026-09-14': entry('2026-09-14', {}, 180) };
+  assert.equal(ask(later, '2026-09-24', 189.5), null);
+  assert.equal(ask(later, '2026-09-24', 189.6).reason, "That's 9.6 lbs more than your weight on Mon, Sep 14 (180.0 lbs).");
+  // Never more than a quarter of the other weight, however long ago.
+  const longAgo = { '2016-09-24': entry('2016-09-24', {}, 100) };
+  assert.equal(ask(longAgo, '2026-09-24', 125), null);
+  assert.ok(ask(longAgo, '2026-09-24', 125.5));
+  // Fixing a past day compares with the nearest day either side.
+  assert.equal(ask(days, '2026-08-25', 190.5), null);
+  assert.ok(ask(days, '2026-08-25', 150));
+  // The first weight ever logged has nothing to compare with.
+  assert.equal(ask({}, '2026-09-24', 999.99), null);
+});

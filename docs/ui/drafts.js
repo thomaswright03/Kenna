@@ -1,14 +1,19 @@
-// Typed-but-unsaved input that can't be saved because it isn't valid. If
-// the page is hidden or closed while the Weight or a Calories box holds
-// such a value, it is kept here, and the next visit puts it back in its box
-// with the reason it wasn't saved (or, on another screen, says so in a
-// banner). The same goes for leaving the screen with such a value in the
-// box. Valid values are simply saved instead.
+// Typed-but-unsaved input that can't be saved because it isn't valid, or
+// that is far from the user's usual and waits for them to say whether to
+// keep it. If the page is hidden or closed while the Weight or a Calories
+// box holds such a value, it is kept here, and the next visit puts it back
+// in its box with the reason it wasn't saved (and asks again), or, on
+// another screen, says so in a banner. The same goes for leaving the screen
+// with such a value in the box. Other valid values are simply saved.
 
 import { core, prefs, mealLabel, notSavedReason } from './dom.js';
 import { showBanner } from './feedback.js';
 
-/** @typedef {{ field: string, date: string, text: string, error: string }} Draft field is 'weight' or a meal key */
+/**
+ * @typedef {{ field: string, date: string, text: string, error: string, ask?: boolean }} Draft
+ *   field is 'weight' or a meal key; ask: a valid value far from the usual,
+ *   kept until the user answers whether to keep it (see unusual.js)
+ */
 
 const KEY = 'unsavedInput';
 
@@ -47,7 +52,7 @@ export function loadDraftFromLastVisit() {
   try {
     const d = JSON.parse(text);
     if (d && typeof d.field === 'string' && core.isValidDateStr(d.date) && typeof d.text === 'string' && typeof d.error === 'string') {
-      pending = { field: d.field, date: d.date, text: d.text, error: d.error };
+      pending = { field: d.field, date: d.date, text: d.text, error: d.error, ask: d.ask === true };
     }
   } catch {
     pending = null;

@@ -161,14 +161,14 @@ export function closeAllDialogs() {
 }
 
 /**
- * @param {{ title: string, message?: string, details?: { intro: string, items: string[] } | null, confirmLabel: string, danger?: boolean }} options
+ * @param {{ title: string, message?: string, details?: { intro: string, items: string[] } | null, confirmLabel: string, cancelLabel?: string, danger?: boolean }} options
  *   details: a short list under the message (what a restore will leave out)
  * @returns {Promise<boolean>}
  */
-export function confirmDialog({ title, message, details, confirmLabel, danger }) {
+export function confirmDialog({ title, message, details, confirmLabel, cancelLabel, danger }) {
   return new Promise((resolve) => {
     const labelId = uid('dlg');
-    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
+    const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: cancelLabel || 'Cancel' });
     const okBtn = h('button', { type: 'button', class: `btn ${danger ? 'btn-danger' : 'btn-primary'}`, text: confirmLabel });
     const content = h(
       'div',

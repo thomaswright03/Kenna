@@ -225,7 +225,7 @@ export async function buildToday(ctx) {
   // A day long before anything logged asks first; until then only Change
   // day is offered, to fix a mistyped year.
   const gate = farBackGate(date, allEntries, () => render());
-  const weight = gate ? null : buildWeightField(view);
+  const weight = gate ? null : buildWeightField(view, allEntries);
   const meals = gate ? null : buildMealList(view, { routeDate: ctx.route.date, isToday });
   if (meals) ctx.onRelease(meals.offerUndoAfterLeaving);
   const dayCard =

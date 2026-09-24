@@ -150,6 +150,20 @@ to month); tapping a month goes to it.
   lists of foods still import as their total. The first version saved
   weights exactly as typed; a weight with more than two decimals from then
   is shown, written into backups and read from backups rounded to two.
+- A value inside those limits but far from your own history, most likely a
+  typo, is asked about before it's saved ("Keep 4,500 cal for breakfast?",
+  **Keep it** or **Change it**); nothing is saved until you choose, and
+  the number stays in its box. A meal is asked about when it's more than
+  3 times its usual size (the median of its last 30 logs) and more than
+  1,000 cal above it, or, before it has been logged 3 times, when it's
+  over 3,000 cal. A weight is asked about when it's more than 5 lbs from
+  the nearest other day's weight, allowing half a pound more for each
+  further day between them (but never more than a quarter of that
+  weight). Pressing Enter, **Save and close** or picking another meal asks
+  straight away; leaving the box asks once the tap that left it is done.
+  Leaving the screen, or putting the app away, can't wait for an answer,
+  so the number is kept, not saved, and asked about the next time its box
+  is shown. After **Change it**, **Keep it** under the box still saves it.
 - A day after today can't be logged, whether picked or typed into the
   address bar. The same goes for filing a photo. A backup's days and photos dated
   after today are left out on import, and the import says how many. An

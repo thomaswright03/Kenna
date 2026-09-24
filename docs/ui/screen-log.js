@@ -1,20 +1,16 @@
 // Log Meal: one calorie total per meal, picked with the meal buttons.
 
-import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry, notSavedReason } from './dom.js';
-import { failureText } from './problems.js';
+import { core, h, uid, MEAL_STEPS, mealLabel, today, blankEntry } from './dom.js';
 import { toast, createFieldStatus } from './feedback.js';
 import { store } from './store.js';
 import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
 import { render } from './render.js';
-import { saveDateFor, farBackGate } from './day.js';
-import { keepDraft, claimDraft, draftMealFor } from './drafts.js';
-import { sayLeftSaved, keepLeftUnsaved } from './leaving.js';
+import { farBackGate } from './day.js';
+import { claimDraft, draftMealFor } from './drafts.js';
+import { unusualGuard } from './unusual.js';
+import { mealSaver, mealExits } from './log-saving.js';
 
-/**
- * What the screen is working on: the day (see today-weight.js) and the
- * meal whose box is shown.
- * @typedef {import('./today-weight.js').DayView & { activeKey: string }} LogState
- */
+/** @typedef {import('./log-saving.js').LogState} LogState */
 
 const HOW_IT_SAVES = 'Each meal saves as soon as you leave its box, pick another meal or leave this screen; saved meals show a ✓.';
 
@@ -66,149 +62,6 @@ function showRunningTotal(el, state, typedText) {
   const total = core.totalCalories(meals);
   el.replaceChildren(total === null ? 'No meals logged yet' : `Day total: ${core.formatCalories(total)}`);
   if (unsaved) el.append(h('span', { class: 'running-note', text: ` · ${mealLabel(state.activeKey)} not saved yet` }));
-}
-
-/**
- * What the screen's saving and its ways out share: the last save (while
- * its "saved" message shows under the box), why the last save failed,
- * whether the screen is being left (a save finishing after that doesn't
- * draw this screen again) and whether Save and close was used (it says
- * what was saved itself).
- * @typedef {{ lastSave: { key: string, date: string, saved: number | null, previous: number | null } | null, failure: string, left: boolean, closed: boolean }} SaveTrack
- */
-
-/**
- * Saving the box's value for the meal it was typed for. Saving updates the
- * buttons and total in place (nothing the user might be about to tap is
- * replaced), so the next tap always lands.
- * @param {LogState} state
- * @param {HTMLInputElement} input
- * @param {import('./feedback.js').StatusLine} status
- * @param {() => void} onSaved
- */
-function mealSaver(state, input, status, onSaved) {
-  /** @type {{ key: string, value: number | null, promise: Promise<boolean> } | null} */
-  let saving = null;
-  /** @type {SaveTrack} */
-  const track = { lastSave: null, failure: '', left: false, closed: false };
-  /** @param {{ value: number | null }} result */
-  const needsSave = (result) => result.value !== state.entry.meals[state.activeKey] || state.rolledOver;
-
-  /** @param {string} key @param {number | null} value */
-  async function save(key, value) {
-    const target = saveDateFor(state);
-    const previous = state.entry.meals[key];
-    status.set('pending', 'Saving…');
-    try {
-      state.entry = await store.updateEntry(target, { meals: { [key]: value } });
-      track.lastSave = { key, date: target, saved: value, previous };
-      if (state.rolledOver) {
-        if (!track.left) render();
-        return true;
-      }
-      onSaved();
-      if (state.activeKey === key) status.set('saved', value === null ? `${mealLabel(key)} cleared` : `${mealLabel(key)} saved`);
-      return true;
-    } catch (err) {
-      track.failure = failureText('Save a meal', err);
-      if (state.activeKey === key) status.set('error', track.failure, { label: 'Retry', onClick: () => commit() });
-      else toast(`${mealLabel(key)} not saved. ${notSavedReason(track.failure)}`, { tone: 'error' });
-      return false;
-    } finally {
-      if (saving && saving.key === key && saving.value === value) saving = null;
-    }
-  }
-
-  /** @returns {Promise<boolean>} */
-  async function commit() {
-    const key = state.activeKey;
-    const result = core.validateCalories(input.value);
-    if (!result.ok) {
-      status.set('error', result.error);
-      return false;
-    }
-    if (!needsSave(result)) {
-      if (status.el.classList.contains('is-error')) status.set(null);
-      return true;
-    }
-    if (saving && saving.key === key && saving.value === result.value) return saving.promise;
-    const promise = save(key, result.value);
-    saving = { key, value: result.value, promise };
-    return promise;
-  }
-
-  /** True when what's in the box is already saved (or empty and nothing was). */
-  const settled = () => {
-    const result = core.validateCalories(input.value);
-    return result.ok && !needsSave(result);
-  };
-  return { commit, settled, needsSave, track };
-}
-
-/**
- * The ways out of the screen: leaving it, and the page being hidden or
- * closed, each save what's in the box first.
- * @param {LogState} state
- * @param {HTMLInputElement} input
- * @param {import('./feedback.js').StatusLine} status
- * @param {ReturnType<typeof mealSaver>} saver
- */
-function mealExits(state, input, status, saver) {
-  const { track } = saver;
-  /**
-   * The screen is being left. A valid number in the box is saved (or the
-   * save already under way is waited for) and the next screen says so; so
-   * is a save whose "saved" message was still showing, since that message
-   * goes with this screen. An invalid one, or one whose save fails, is
-   * kept for next time.
-   * @param {string} backHash this screen's address, for coming back to fix it
-   * @returns {Promise<void> | undefined}
-   */
-  function leave(backHash) {
-    if (track.left) return;
-    track.left = true;
-    const key = state.activeKey;
-    const text = input.value;
-    const result = core.validateCalories(text);
-    if (!result.ok) {
-      keepLeftUnsaved({ field: key, date: state.date, text, error: result.error }, backHash);
-      return;
-    }
-    if (track.closed) return;
-    const last = track.lastSave;
-    if (!saver.needsSave(result)) {
-      if (last && last.key === key && status.el.classList.contains('is-saved')) sayLeftSaved({ field: key, ...last });
-      return;
-    }
-    return saver.commit().then((ok) => {
-      const saved = track.lastSave;
-      if (ok && saved && saved.key === key) sayLeftSaved({ field: key, ...saved });
-      else if (!ok) keepLeftUnsaved({ field: key, date: state.date, text, error: track.failure }, backHash);
-    });
-  }
-
-  // Saves what's in the box when the page is hidden or closed, exactly as
-  // leaving the box would; a value that can't be saved, or whose save
-  // fails, is kept as a draft.
-  function flush() {
-    if (track.left) return;
-    const key = state.activeKey;
-    const text = input.value;
-    const result = core.validateCalories(text);
-    if (result.ok) {
-      saver.commit().then((ok) => {
-        if (!ok) keepDraft({ field: key, date: state.date, text, error: track.failure });
-      });
-      return;
-    }
-    keepDraft({ field: key, date: state.date, text, error: result.error });
-    status.set('error', result.error);
-  }
-
-  const closedWithSave = () => {
-    track.closed = true;
-  };
-  return { leave, flush, closedWithSave };
 }
 
 /**
@@ -299,7 +152,8 @@ export async function buildLog(ctx) {
     picker.refresh(state);
     showRunningTotal(runningTotal, state, input.value);
   };
-  const saver = mealSaver(state, input, status, refresh);
+  const guard = unusualGuard((field, value) => core.unusualValue(entries, state.date, field, value, today()));
+  const saver = mealSaver(state, input, status, refresh, guard);
   const exits = mealExits(state, input, status, saver);
   const loadInput = () => {
     const v = state.entry.meals[state.activeKey];
@@ -323,7 +177,7 @@ export async function buildLog(ctx) {
     else if (saver.settled() || (await saver.commit())) select(key);
   }
   const doneBtn = doneButton(state, saver.commit, input, ctx.route.date, exits.closedWithSave);
-  input.addEventListener('change', saver.commit);
+  input.addEventListener('change', () => saver.commit({ left: true }));
   input.addEventListener('input', () => showRunningTotal(runningTotal, state, input.value));
   boxKeys(input, {
     enter: () => saveAndMoveOn(state, saver.commit, select, doneBtn),
@@ -345,7 +199,9 @@ export async function buildLog(ctx) {
     root,
     mounted: () => {
       if (draft) status.set('error', `Not saved yet. ${draft.error}`);
-      if (window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
+      // A number kept to be asked about is asked about now.
+      if (draft && draft.ask) saver.commit();
+      else if (window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
     },
     flush: exits.flush,
     leave: () => exits.leave(logHash(ctx.route.date, state.activeKey)),

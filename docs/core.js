@@ -10,6 +10,7 @@
 //   core/entries.js        a day's entry, read from any version's storage
 //   core/stats.js          averages, like-for-like comparison, trends
 //   core/input.js          what can be logged, and the messages when not
+//   core/unusual.js        values far from your own history, asked about first
 //   core/backup-format.js  the backup file, and backup reminders
 //   core/charts.js         chart periods, averages and axes
 //   core/photos.js         image types and base64
@@ -30,6 +31,7 @@ const numbers = require('./core/numbers.js');
 const entries = require('./core/entries.js');
 const stats = require('./core/stats.js');
 const input = require('./core/input.js');
+const unusual = require('./core/unusual.js');
 const backup = require('./core/backup-format.js');
 const charts = require('./core/charts.js');
 const photos = require('./core/photos.js');
@@ -87,6 +89,8 @@ module.exports = Object.freeze({
   validateCaloriesValue: input.validateCaloriesValue,
   validatePatch: input.validatePatch,
   validateWeightValue: input.validateWeightValue,
+  UNUSUAL: unusual.UNUSUAL,
+  unusualValue: unusual.unusualValue,
   photoKey: backup.photoKey,
   entryForBackup: backup.entryForBackup,
   backupReminderDue: backup.backupReminderDue,
