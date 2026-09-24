@@ -57,7 +57,7 @@ test('opens once for someone who had logged days, and lights up each new feature
   const next = () => tour(page).getByRole('button', { name: 'Next' }).click();
   const main = page.locator('main');
   await next();
-  await expectStop(page, 'View or fix any past day', main.locator('.day-switch'));
+  await expectStop(page, 'View or fix any past day', main.locator('.day-switch, .field:has(input[type="date"])').first());
   await next();
   await expectStop(page, 'Tap a meal to log it', main.locator('.meal-list'));
   await next();
@@ -75,7 +75,7 @@ test('opens once for someone who had logged days, and lights up each new feature
   await next();
   await expectStop(page, 'Clearer graphs', main.getByRole('group', { name: 'Chart range' }));
   await next();
-  await expectStop(page, 'Know when you last backed up', main.locator('[data-backup-status], [data-backup-reminder]').first());
+  await expectStop(page, 'Kenna reminds you to back up', main.locator('[data-backup-status], [data-backup-reminder]').first());
   await next();
   await expect(page).toHaveURL(/#\/history$/);
   await expectStop(page, 'History by month', main.locator('.history-month').first());
@@ -136,9 +136,9 @@ test('Close or Escape ends it where it started, and it stays closed', async ({ p
   await expect(tour(page)).toHaveCount(0);
 });
 
-test('a new user gets the welcome instead, and never "what’s new" later', async ({ page, appURL }) => {
+test('a new user isn’t shown it, then or later "what’s new" later', async ({ page, appURL }) => {
   await page.goto(appURL);
-  await expect(page.locator('[data-welcome]')).toBeVisible();
+  await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
   await expect(tour(page)).toHaveCount(0);
   await page.getByLabel('Weight (lbs)').fill('180');
   await page.getByLabel('Weight (lbs)').press('Enter');
@@ -173,7 +173,7 @@ test('Settings starts it again and it ends back on Settings; axe finds no proble
   await expect(tour(page).getByRole('heading', { name: 'What’s new in Kenna' })).toBeFocused();
   await tour(page).getByRole('button', { name: 'Next' }).click();
   await expect(page).toHaveURL(/#\/$/);
-  await expectStop(page, 'View or fix any past day', page.locator('main .day-switch'));
+  await expectStop(page, 'View or fix any past day', page.locator('main .day-switch, main .field:has(input[type="date"])').first());
   for (const theme of ['light', 'dark']) {
     await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
     const results = await new AxeBuilder({ page }).include('[data-tour]').withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();

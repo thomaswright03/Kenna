@@ -42,9 +42,14 @@ export const STOPS = [
     where: 'Today',
     hash: '#/',
     screen: 'today',
-    find: inMain('.day-switch'),
+    find: () => {
+      const main = byId('main');
+      const picker = main.querySelector('.day-switch');
+      const date = main.querySelector('input[type="date"]');
+      return picker || (date ? date.closest('.field') : null);
+    },
     title: 'View or fix any past day',
-    points: ['Tap Change day and pick a date to see or fix it. Back to today brings you home.', 'Tapping a day in History opens it too.'],
+    points: ['Pick a date here to see or fix that day. Back to today brings you home.', 'Tapping a day in History opens it too.'],
   },
   {
     where: 'Today',
@@ -86,9 +91,9 @@ export const STOPS = [
     hash: '#/',
     screen: 'today',
     find: inMain('[data-backup-status], [data-backup-reminder]'),
-    title: 'Know when you last backed up',
-    points: ['Today always shows how old your last backup is, with Back up now.', 'After a week without one, Kenna reminds you.'],
-    notYet: 'It appears here on Today once you’ve logged something.',
+    title: 'Kenna reminds you to back up',
+    points: ['When a backup is due, Today says so, with Back up now.', 'Settings shows when you last saved one.'],
+    notYet: 'The reminder shows up here on Today when a backup is due.',
   },
   {
     where: 'History',
@@ -105,7 +110,7 @@ export const STOPS = [
     screen: 'compare',
     find: inMain('.compare-answer'),
     title: 'How am I doing today?',
-    points: ['Compare answers in plain words: today’s calories against your usual for the same meals, and your weight against your average and yesterday.', 'See each meal, further down, breaks it down meal by meal.'],
+    points: ['Compare answers in plain words: today’s calories against your usual for the same meals, and your weight against your average and yesterday.', 'Each meal’s numbers are one tap further down.'],
     notYet: 'The answers show up here once you’ve logged a day or two.',
   },
   {
@@ -114,7 +119,7 @@ export const STOPS = [
     screen: 'photos',
     find: inMain('.file-btn'),
     title: 'Progress photos, filed by day',
-    points: ['Add Photo picks the picture first, then asks which day it was taken.', 'Compare photos puts two side by side with each day’s weight.'],
+    points: ['Every photo is filed under the day it was taken, and you can change its day later in the viewer.', 'Compare photos puts two side by side with each day’s weight.'],
   },
   {
     where: 'Settings',
@@ -360,8 +365,7 @@ export function showWhatsNew() {
 /**
  * On launch: starts the tour once for someone who used Kenna before this
  * update (they have logged days and haven't seen it). A brand-new user
- * starts with Today's welcome instead, and isn't shown "what's new" later
- * on either.
+ * isn't shown "what's new", then or later on.
  */
 export async function showWhatsNewOnce() {
   if (prefs.get(SEEN_KEY, null) === WHATS_NEW_VERSION) return;

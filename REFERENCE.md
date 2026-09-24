@@ -91,12 +91,12 @@ run, test and release it.
   log** (see [Where your data lives](#where-your-data-lives-and-backups)),
   and **What's new → Take the tour**: a guided tour of what the latest
   update added. It moves through the screens, lights up each new feature
-  (Change day, the meal rows, Log Meal, the Weight box, the graph range,
-  the backup line, History's months, Compare's answers, Add Photo, Export
+  (the day picker, the meal rows, Log Meal, the Weight box, the graph range,
+  the backup reminder, History's months, Compare's answers, Add Photo, Export
   Backup) and explains it in a card beside it, then returns to where it
   started; **Next**, **Back**, **Close** or Escape. It also starts by itself
   once, on Today, the first time Kenna is opened after an update by someone
-  who had already logged days (a new user gets Today's welcome instead).
+  who had already logged days (a new user isn't shown it).
   Starting it again in a later update means changing `WHATS_NEW_VERSION` in
   `docs/ui/whats-new.js` (and in `test/e2e/fixtures.js`).
 
