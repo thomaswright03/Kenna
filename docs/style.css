@@ -915,3 +915,11 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
   * { transition: none !important; }
   .spinner { animation-duration: 2.4s; }
 }
+
+/* ------------------------------------------------------------ lists in messages */
+
+.item-list { margin: var(--s2) 0 0; padding-left: var(--s5); font-size: var(--fs-sm); color: var(--muted); }
+.item-list li { margin-bottom: var(--s1); }
+.dialog-text + .dialog-text { margin-top: var(--s2); }
+.import-result > .btn { margin-top: var(--s3); }
+.import-result .card-sub { margin-top: var(--s3); margin-bottom: 0; }

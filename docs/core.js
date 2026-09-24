@@ -270,6 +270,13 @@
     return Number.isFinite(num) ? num : null;
   }
 
+  // A weight to the two decimals the app shows and accepts (165.333 is
+  // 165.33). Non-finite values are left for validation to refuse.
+  /** @param {number} value */
+  function roundWeight(value) {
+    return Number.isFinite(value) ? Math.round(value * 100) / 100 : value;
+  }
+
   // Turns one stored entry into the clean shape the app works with, or null
   // when it can't be read at all. Tolerant on purpose: stored data may come
   // from any older version of the app.
@@ -594,7 +601,10 @@
     }
     let weight = null;
     if (raw.weight !== null && raw.weight !== undefined) {
-      const checked = validateWeightValue(raw.weight);
+      // The first version saved weights exactly as typed; a backup from
+      // then may hold more than two decimals. They're read as the app shows
+      // them, rounded to two, the same rounding a backup is written with.
+      const checked = validateWeightValue(typeof raw.weight === 'number' ? roundWeight(raw.weight) : raw.weight);
       if (!checked.ok) return { ok: false, error: `The weight on ${when} (${String(raw.weight).slice(0, 20)}): ${checked.error}` };
       weight = checked.value;
     }
@@ -617,8 +627,7 @@
   // for 165.333), so every backup this version makes can be imported again.
   /** @param {Entry} entry @returns {Entry} */
   function entryForBackup(entry) {
-    const weight = entry.weight === null ? null : Math.round(entry.weight * 100) / 100;
-    return { date: entry.date, weight, meals: { ...entry.meals } };
+    return { date: entry.date, weight: entry.weight === null ? null : roundWeight(entry.weight), meals: { ...entry.meals } };
   }
 
   // A photo's identity across devices and backups is the time it was first
@@ -631,15 +640,16 @@
 
   /**
    * Checks everything in a backup except its photos: that it's a Kenna
-   * backup this version can read, and every day in it. Problems are added
-   * to `problems`. Days after `latestDay` (a device clock that was wrong)
-   * are left out and counted in `futureDays` rather than failing the file.
+   * backup this version can read, and every day in it. A day that can't be
+   * restored (a value outside the app's rules) is left out and added to
+   * `skipped` with the reason, naming the day. Days after `latestDay` (a
+   * device clock that was wrong) are left out and counted in `futureDays`.
    * @param {any} payload the backup's top-level object (photos not needed)
-   * @param {string[]} problems
+   * @param {string[]} skipped
    * @param {string} [latestDay] YYYY-MM-DD; no limit when omitted
    * @returns {{ ok: true, entries: Record<string, Entry>, futureDays: number } | { ok: false, error: string }}
    */
-  function checkBackupDays(payload, problems, latestDay) {
+  function checkBackupDays(payload, skipped, latestDay) {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return { ok: false, error: "This file isn't a Kenna backup." };
     }
@@ -657,7 +667,7 @@
     let futureDays = 0;
     for (const date of Object.keys(payload.entries)) {
       const result = validateIncomingEntry(date, payload.entries[date]);
-      if (!result.ok) problems.push(result.error);
+      if (!result.ok) skipped.push(result.error);
       else if (latestDay && isFutureDate(date, latestDay)) futureDays += 1;
       else entries[date] = result.entry;
     }
@@ -692,7 +702,20 @@
     return `Nothing was imported. ${problems[0]}${extra}`;
   }
 
+  /**
+   * Whether a checked backup has to be refused: only when some of it
+   * couldn't be read and nothing else in it can be restored. Otherwise the
+   * readable days and photos are restored and the rest listed as skipped.
+   * @param {string[]} skipped what couldn't be read, and why
+   * @param {number} usable how many days and photos can be restored
+   * @returns {string | null} the message to show, or null to go ahead
+   */
+  function backupRefusal(skipped, usable) {
+    return skipped.length > 0 && usable === 0 ? backupProblemsMessage(skipped) : null;
+  }
+
   const FUTURE_DAY = "You can't log a day that hasn't happened yet.";
+  const FUTURE_PHOTO = "A photo can't be filed under a day that hasn't happened yet.";
 
   const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
 
@@ -703,7 +726,7 @@
   /**
    * @param {unknown} input the file's text, or its parsed JSON
    * @param {string} [latestDay] days after this are left out (see checkBackupDays)
-   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number, futureDays: number } | { ok: false, error: string }}
+   * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number, futureDays: number, skipped: string[] } | { ok: false, error: string }}
    */
   function parseBackup(input, latestDay) {
     /** @type {any} */
@@ -716,33 +739,56 @@
       }
     }
     /** @type {string[]} */
-    const problems = [];
-    const days = checkBackupDays(payload, problems, latestDay);
+    const skipped = [];
+    const days = checkBackupDays(payload, skipped, latestDay);
     if (!days.ok) return days;
 
     /** @type {BackupPhoto[]} */
     const photos = [];
     if (payload.photos !== undefined) {
       if (!Array.isArray(payload.photos)) {
-        problems.push('The photos section is not in the expected format.');
+        skipped.push('The photos section is not in the expected format.');
       } else {
         payload.photos.forEach((/** @type {unknown} */ p, /** @type {number} */ i) => {
           const result = checkBackupPhoto(p, i + 1);
           if (result.ok) photos.push(result.photo);
-          else problems.push(result.error);
+          else skipped.push(result.error);
         });
       }
     }
 
-    if (problems.length > 0) return { ok: false, error: backupProblemsMessage(problems) };
-    return {
-      ok: true,
-      entries: days.entries,
-      photos,
-      dayCount: Object.keys(days.entries).length,
-      photoCount: photos.length,
-      futureDays: days.futureDays,
-    };
+    const dayCount = Object.keys(days.entries).length;
+    const refused = backupRefusal(skipped, dayCount + photos.length);
+    if (refused) return { ok: false, error: refused };
+    return { ok: true, entries: days.entries, photos, dayCount, photoCount: photos.length, futureDays: days.futureDays, skipped };
+  }
+
+  /** @param {Entry} a @param {Entry} b */
+  function sameEntry(a, b) {
+    return a.weight === b.weight && MEAL_KEYS.every((k) => (a.meals[k] ?? null) === (b.meals[k] ?? null));
+  }
+
+  /**
+   * What restoring `incoming` would do to the days already stored: which
+   * differ and would be replaced, which are new, and how many are already
+   * exactly the same.
+   * @param {Record<string, Entry>} stored
+   * @param {Record<string, Entry>} incoming
+   * @returns {{ replaced: string[], added: string[], unchanged: number }}
+   */
+  function compareWithStored(stored, incoming) {
+    /** @type {string[]} */
+    const replaced = [];
+    /** @type {string[]} */
+    const added = [];
+    let unchanged = 0;
+    for (const date of Object.keys(incoming).sort()) {
+      const here = stored[date];
+      if (!here || isEntryEmpty(here)) added.push(date);
+      else if (sameEntry(here, incoming[date])) unchanged += 1;
+      else replaced.push(date);
+    }
+    return { replaced, added, unchanged };
   }
 
   // When the Today screen reminds the user to save a backup file.
@@ -764,6 +810,74 @@
   }
 
   // ---------------------------------------------------------------- charts
+
+  // Over a long range, one point a day turns a line chart into a solid
+  // band, so it plots an average per week (up to about three years, at
+  // most 160 points) or per calendar month beyond that.
+  const CHART_PERIODS = { DAILY_UP_TO_DAYS: 120, WEEKLY_UP_TO_DAYS: 160 * 7 };
+
+  /** @param {number} spanDays days the chart covers @returns {'day' | 'week' | 'month'} */
+  function chartPeriod(spanDays) {
+    if (spanDays <= CHART_PERIODS.DAILY_UP_TO_DAYS) return 'day';
+    return spanDays <= CHART_PERIODS.WEEKLY_UP_TO_DAYS ? 'week' : 'month';
+  }
+
+  /**
+   * The first day (day number) of the week (Sunday to Saturday) or month
+   * that `day` is in.
+   * @param {number} day
+   * @param {'week' | 'month'} period
+   */
+  function periodStart(day, period) {
+    const d = new Date(day * DAY_MS);
+    if (period === 'week') return day - d.getUTCDay();
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / DAY_MS;
+  }
+
+  /** The last day of the period starting on `start`. @param {number} start @param {'week' | 'month'} period */
+  function periodEnd(start, period) {
+    if (period === 'week') return start + 6;
+    const d = new Date(start * DAY_MS);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1) / DAY_MS - 1;
+  }
+
+  /**
+   * The average of the values logged in each week or month (only periods
+   * with at least one value), oldest first. `start` and `end` are day
+   * numbers; `count` is how many days the average is of.
+   * @param {{ date: string, value: number }[]} points oldest first
+   * @param {'week' | 'month'} period
+   * @returns {{ start: number, end: number, value: number, count: number }[]}
+   */
+  function periodAverages(points, period) {
+    /** @type {{ start: number, end: number, value: number, count: number }[]} */
+    const out = [];
+    let sum = 0;
+    for (const p of points) {
+      const start = periodStart(dayNumber(p.date), period);
+      const last = out[out.length - 1];
+      if (last && last.start === start) {
+        sum += p.value;
+        last.count += 1;
+        last.value = sum / last.count;
+      } else {
+        sum = p.value;
+        out.push({ start, end: periodEnd(start, period), value: p.value, count: 1 });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * "Week of Sep 20" or "September 2026".
+   * @param {number} start the period's first day (day number)
+   * @param {'week' | 'month'} period
+   * @param {boolean} [withYear] for a week
+   */
+  function formatPeriod(start, period, withYear) {
+    const date = dateFromDayNumber(start);
+    return period === 'week' ? `Week of ${formatMonthDay(date, withYear)}` : formatMonth(date);
+  }
 
   // The least a chart's value axis covers: 2 lbs of weight, and 200 cal
   // or a fifth of the value of calories, whichever is more.
@@ -956,11 +1070,18 @@
     checkBackupDays,
     checkBackupPhoto,
     backupProblemsMessage,
+    backupRefusal,
+    compareWithStored,
     UNREADABLE_BACKUP,
     FUTURE_DAY,
+    FUTURE_PHOTO,
     parseBackup,
     niceTicks,
     axisMinSpan,
+    CHART_PERIODS,
+    chartPeriod,
+    periodAverages,
+    formatPeriod,
     dateAxisLabels,
     sniffImageType,
     blobToBase64,

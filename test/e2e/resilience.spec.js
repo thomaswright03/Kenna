@@ -300,3 +300,31 @@ test.describe('phone version', () => {
     await expect(status.getByRole('button', { name: 'Retry' })).toBeVisible();
   });
 });
+
+test('damaged data is kept at most twice, and Settings offers it for download or deletion', async ({ page, appURL, backend }) => {
+  test.skip(backend !== 'local', 'browser storage only');
+  await page.goto(appURL);
+  for (const text of ['{broken 1', '{broken 2', '{broken 3']) {
+    await page.evaluate((t) => localStorage.setItem('kenna:entries', t), text);
+    await page.reload();
+    await expect(page.getByRole('alert').filter({ hasText: 'kept the damaged copy' })).toBeVisible();
+  }
+  const kept = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kenna:entries:corrupt')).length);
+  expect(kept).toBe(2);
+
+  await page.goto(`${appURL}/#/settings`);
+  const card = page.locator('[data-damaged-data]');
+  await expect(card).toContainText('kept 2 copies');
+  const download = page.waitForEvent('download');
+  await card.getByRole('button', { name: 'Download damaged data' }).click();
+  const file = await (await download).path();
+  const saved = JSON.parse(require('node:fs').readFileSync(file, 'utf8'));
+  expect(saved.copies.map((c) => c.text)).toEqual(['{broken 3', '{broken 2']);
+
+  await card.getByRole('button', { name: 'Delete damaged data…' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
+  await expect(card).toContainText('The damaged data was deleted.');
+  expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('kenna:entries:corrupt')).length)).toBe(0);
+  await page.reload();
+  await expect(page.locator('[data-damaged-data]')).toHaveCount(0);
+});

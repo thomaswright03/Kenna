@@ -3,7 +3,7 @@
 // last one is more than a week old. "Not now" hides it for a few days.
 
 import { core, h, uid, prefs, BACKEND, errorText } from './dom.js';
-import { announce } from './feedback.js';
+import { announce, createStatusLine } from './feedback.js';
 import { exportBackup, buildBackupDelivery, lastBackup } from './backup.js';
 
 const { SNOOZE_DAYS } = core.BACKUP_REMINDER;
@@ -30,7 +30,7 @@ export function buildBackupReminder(hasData) {
       : 'Your days and photos are stored only on this device. A backup file lets you get them back if it is lost, replaced or cleared.';
   const backupBtn = h('button', { type: 'button', class: 'btn btn-primary', text: 'Back up now' });
   const laterBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Not now' });
-  const status = h('p', { class: 'field-status', role: 'status' });
+  const status = createStatusLine();
   const actions = h('div', { class: 'notice-actions' }, laterBtn, backupBtn);
   const root = h(
     'section',
@@ -38,7 +38,7 @@ export function buildBackupReminder(hasData) {
     h('p', { class: 'notice-title', id: titleId, text: headline }),
     h('p', { class: 'notice-text', text: why }),
     actions,
-    status
+    status.el
   );
 
   laterBtn.addEventListener('click', () => {
@@ -51,11 +51,8 @@ export function buildBackupReminder(hasData) {
     backupBtn.disabled = true;
     laterBtn.disabled = true;
     backupBtn.textContent = 'Backing up…';
-    status.className = 'field-status is-pending';
     try {
-      const result = await exportBackup((text) => {
-        status.textContent = text;
-      });
+      const result = await exportBackup((text) => status.set('pending', text));
       const title = h('p', { class: 'notice-title', id: titleId, text: 'Backup file not saved yet' });
       const delivery = buildBackupDelivery(result, {
         messageClass: 'notice-text',
@@ -79,9 +76,7 @@ export function buildBackupReminder(hasData) {
       backupBtn.disabled = false;
       laterBtn.disabled = false;
       backupBtn.textContent = 'Back up now';
-      status.className = 'field-status is-error';
-      status.setAttribute('role', 'alert');
-      status.textContent = `Backup not saved. ${errorText(err)}`;
+      status.set('error', `Backup not saved. ${errorText(err)}`);
     }
   });
 

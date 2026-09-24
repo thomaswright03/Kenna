@@ -1,9 +1,10 @@
 // Settings: theme, backup export/import and where the data is stored.
 
-import { h, uid, prefs, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today, errorText, BACKEND } from './dom.js';
+import { confirmDialog, createStatusLine } from './feedback.js';
 import { store } from './store.js';
 import { applyTheme } from './theme.js';
-import { buildBackupSection } from './backup.js';
+import { buildBackupSection, downloadBlob } from './backup.js';
 import { inAppleBrowserTab, runningInstalled, installSteps } from './install-note.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
@@ -80,5 +81,56 @@ export async function buildSettings() {
     }
   }
 
-  return { title: 'Settings', root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), storageCard) };
+  const damaged = await buildDamagedDataCard();
+  return {
+    title: 'Settings',
+    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection()), h('div', { class: 'screen-stack' }, damaged, storageCard)),
+  };
+}
+
+/**
+ * When stored days were ever found damaged, Kenna kept a copy of the
+ * damaged data (at most the two newest). This card lets it be downloaded,
+ * to send off for repair, or deleted. Null when there's none.
+ */
+async function buildDamagedDataCard() {
+  const copies = await store.damagedCopies().catch(() => []);
+  if (copies.length === 0) return null;
+  const status = createStatusLine();
+  const newest = copies[0].savedAt;
+  const when = newest ? ` on ${core.formatDate(core.localDateStr(new Date(newest)), today())}` : '';
+  const downloadBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Download damaged data' });
+  const deleteBtn = h('button', { type: 'button', class: 'btn btn-danger-outline', text: 'Delete damaged data…' });
+  const card = h(
+    'section',
+    { class: 'card', 'data-damaged-data': '' },
+    h('h3', { class: 'section-title', text: 'Damaged data' }),
+    h('p', {
+      class: 'card-sub',
+      text: `Kenna found its saved days damaged${when} and kept ${copies.length === 1 ? 'a copy' : `${core.formatNumber(copies.length)} copies`} of what was there. Download it to send off for repair, or delete it once you don’t need it. It takes up some of this browser’s storage.`,
+    }),
+    h('div', { class: 'notice-actions' }, deleteBtn, downloadBtn),
+    status.el
+  );
+  downloadBtn.addEventListener('click', () => {
+    const file = JSON.stringify({ app: 'kenna', kind: 'damaged-data', copies }, null, 2);
+    downloadBlob(new Blob([file], { type: 'application/json' }), `kenna-damaged-data-${today()}.json`);
+    status.set('saved', 'Downloading the damaged data…');
+  });
+  deleteBtn.addEventListener('click', async () => {
+    const ok = await confirmDialog({
+      title: 'Delete the damaged data?',
+      message: 'The kept copy will be removed for good. Your days, photos and backups aren’t affected.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await store.deleteDamagedCopies();
+      card.replaceChildren(h('h3', { class: 'section-title', text: 'Damaged data' }), h('p', { class: 'card-sub', role: 'status', text: 'The damaged data was deleted.' }));
+    } catch (err) {
+      status.set('error', errorText(err));
+    }
+  });
+  return card;
 }

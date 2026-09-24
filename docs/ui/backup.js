@@ -1,11 +1,12 @@
 // Backup file export and import (Settings).
 
 import { core, h, uid, prefs, today, visibleEntries, plural, formatBytes, errorText, BACKEND } from './dom.js';
-import { confirmDialog } from './feedback.js';
+import { createStatusLine } from './feedback.js';
 import { store } from './store.js';
+import { importBackupFile } from './backup-import.js';
 
 /** @param {Blob} blob @param {string} filename */
-function downloadBlob(blob, filename) {
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = h('a', { href: url, download: filename, class: 'visually-hidden' });
   document.body.append(link);
@@ -118,18 +119,11 @@ export function buildBackupDelivery(result, options) {
   const textClass = options.messageClass || 'card-sub';
   const text = h('p', { class: textClass });
   const actions = h('div', { class: 'notice-actions' });
-  const status = h('p', { class: 'field-status', role: 'status' });
-  const root = h('div', { class: 'backup-delivery', 'data-backup-delivery': '' }, text, actions, status);
+  const status = createStatusLine();
+  const root = h('div', { class: 'backup-delivery', 'data-backup-delivery': '' }, text, actions, status.el);
   const file = shareableFile(result);
   /** @type {HTMLElement | null} */
   let focusTarget = null;
-
-  /** @param {'pending' | 'error' | null} tone @param {string} message */
-  function setStatus(tone, message) {
-    status.className = `field-status${tone ? ` is-${tone}` : ''}`;
-    status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-    status.textContent = message;
-  }
 
   /** @param {'shared' | 'confirmed'} how */
   function saved(how) {
@@ -144,14 +138,14 @@ export function buildBackupDelivery(result, options) {
     shareBtn.addEventListener('click', async () => {
       if (!file || shareBtn.disabled) return;
       shareBtn.disabled = true;
-      setStatus(null, '');
+      status.set(null);
       try {
         await navigator.share({ files: [file], title: result.filename });
         saved('shared');
       } catch (err) {
         shareBtn.disabled = false;
         const cancelled = err instanceof Error && err.name === 'AbortError';
-        setStatus(
+        status.set(
           'error',
           cancelled
             ? 'Not saved: sharing was cancelled. Tap Save or share… again and pick where to keep the file.'
@@ -172,10 +166,10 @@ export function buildBackupDelivery(result, options) {
     confirmBtn.addEventListener('click', () => saved('confirmed'));
     againBtn.addEventListener('click', () => {
       downloadBlob(result.file, result.filename);
-      setStatus(null, 'Downloading again…');
+      status.set(null, 'Downloading again…');
     });
     actions.replaceChildren(againBtn, confirmBtn);
-    setStatus(null, '');
+    status.set(null);
     focusTarget = confirmBtn;
     confirmBtn.focus();
   }
@@ -185,125 +179,71 @@ export function buildBackupDelivery(result, options) {
   return { root, focus: () => focusTarget && focusTarget.focus() };
 }
 
+/**
+ * The export half of Settings' backup card: makes the file, then hands it to
+ * the share sheet or the downloads (see buildBackupDelivery).
+ * @param {import('./backup-import.js').BackupCardUI} ui
+ * @param {() => void} onSaved
+ */
+async function runExport(ui, onSaved) {
+  ui.busy(true);
+  ui.deliverySlot.replaceChildren();
+  try {
+    const result = await exportBackup((text, done, total) => {
+      ui.status.set('pending', text);
+      ui.setProgress(done, total);
+    });
+    ui.status.set(null);
+    const delivery = buildBackupDelivery(result, {
+      onSaved: (how) => {
+        onSaved();
+        ui.deliverySlot.replaceChildren();
+        ui.status.set('saved', `${how === 'shared' ? 'Backup shared' : 'Backup saved'}. Kenna will remind you again in a week.`);
+      },
+    });
+    ui.deliverySlot.append(delivery.root);
+    delivery.focus();
+  } catch (err) {
+    ui.status.set('error', `No backup file was made. ${errorText(err)}`);
+  } finally {
+    ui.setProgress(0, 0);
+    ui.busy(false);
+  }
+}
+
 export function buildBackupSection() {
   const progress = h('progress', { class: 'progress', max: '1', value: '0', hidden: true });
-  const message = h('p', { class: 'field-status', role: 'status' });
   const exportBtn = h('button', { type: 'button', class: 'btn btn-primary', text: 'Export Backup' });
   const fileInput = h('input', { type: 'file', accept: 'application/json,.json', class: 'visually-hidden', id: uid('import') });
   const importLabel = h('label', { class: 'btn btn-secondary file-btn', for: fileInput.id, text: 'Import Backup' });
   const lastLine = h('p', { class: 'card-sub', 'data-last-backup': '' });
-  const deliverySlot = h('div');
-
-  function refreshLast() {
+  const refreshLast = () => {
     lastLine.textContent = lastBackupText();
-  }
+  };
   refreshLast();
 
-  /** @param {'pending' | 'saved' | 'error' | null} tone @param {string} text */
-  function setMessage(tone, text) {
-    message.className = `field-status${tone ? ` is-${tone}` : ''}`;
-    message.setAttribute('role', tone === 'error' ? 'alert' : 'status');
-    message.textContent = text;
-  }
-  /** @param {number} done @param {number} total */
-  function setProgress(done, total) {
-    progress.hidden = total === 0;
-    progress.max = Math.max(1, total);
-    progress.value = done;
-  }
-  /** @param {boolean} on */
-  function busy(on) {
-    exportBtn.disabled = on;
-    fileInput.disabled = on;
-    importLabel.classList.toggle('is-disabled', on);
-  }
+  /** @type {import('./backup-import.js').BackupCardUI} */
+  const ui = {
+    status: createStatusLine(),
+    deliverySlot: h('div'),
+    resultSlot: h('div', { class: 'import-result' }),
+    setProgress(done, total) {
+      progress.hidden = total === 0;
+      progress.max = Math.max(1, total);
+      progress.value = done;
+    },
+    busy(on) {
+      exportBtn.disabled = on;
+      fileInput.disabled = on;
+      importLabel.classList.toggle('is-disabled', on);
+    },
+  };
 
-  exportBtn.addEventListener('click', async () => {
-    busy(true);
-    deliverySlot.replaceChildren();
-    try {
-      const result = await exportBackup((text, done, total) => {
-        setMessage('pending', text);
-        setProgress(done, total);
-      });
-      setMessage(null, '');
-      const delivery = buildBackupDelivery(result, {
-        onSaved: (how) => {
-          refreshLast();
-          deliverySlot.replaceChildren();
-          setMessage('saved', `${how === 'shared' ? 'Backup shared' : 'Backup saved'}. Kenna will remind you again in a week.`);
-        },
-      });
-      deliverySlot.append(delivery.root);
-      delivery.focus();
-    } catch (err) {
-      setMessage('error', `No backup file was made. ${errorText(err)}`);
-    } finally {
-      setProgress(0, 0);
-      busy(false);
-    }
-  });
-
-  fileInput.addEventListener('change', async () => {
+  exportBtn.addEventListener('click', () => runExport(ui, refreshLast));
+  fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
     fileInput.value = '';
-    if (!file) return;
-    busy(true);
-    deliverySlot.replaceChildren();
-    const backupFile = window.KennaBackupFile;
-    try {
-      // First pass: check the whole file without changing anything.
-      setMessage('pending', 'Checking backup file…');
-      const checked = await backupFile.checkBackup(file, {
-        onProgress: (n) => setMessage('pending', `Checking backup file: ${plural(n, 'photo')} so far…`),
-        latestDay: today(),
-      });
-      if (!checked.ok) {
-        setMessage('error', checked.error);
-        return;
-      }
-      setMessage(null, '');
-      const ok = await confirmDialog({
-        title: 'Restore from this backup?',
-        message: `It has ${plural(checked.dayCount, 'day')} and ${plural(
-          checked.photoCount,
-          'photo'
-        )} (${formatBytes(file.size)}). Days in the file replace the same days here; other days and photos stay as they are.`,
-        confirmLabel: 'Restore',
-      });
-      if (!ok) return;
-      setMessage('pending', 'Restoring days…');
-      const restored = await store.importEntries(checked.entries);
-      // Second pass: add the photos one at a time.
-      let added = 0;
-      let skipped = 0;
-      let futurePhotos = 0;
-      if (checked.photoCount > 0) {
-        setProgress(0, checked.photoCount);
-        const importer = await store.createPhotoImporter();
-        await backupFile.forEachBackupPhoto(file, async (photo, n) => {
-          // A photo dated after today (a wrong clock) is left out, like such days.
-          if (core.isFutureDate(photo.date, today())) futurePhotos += 1;
-          else if (await importer.add(photo)) added += 1;
-          else skipped += 1;
-          setMessage('pending', `Restoring photos: ${n} of ${checked.photoCount}…`);
-          setProgress(n, checked.photoCount);
-        });
-      }
-      const skippedNote = skipped ? ` ${plural(skipped, 'photo')} ${skipped === 1 ? 'was' : 'were'} already here.` : '';
-      const leftOut = [checked.futureDays ? plural(checked.futureDays, 'day') : '', futurePhotos ? plural(futurePhotos, 'photo') : ''].filter(Boolean);
-      const leftOutCount = checked.futureDays + futurePhotos;
-      const futureNote = leftOut.length ? ` ${leftOut.join(' and ')} dated after today ${leftOutCount === 1 ? 'was' : 'were'} left out.` : '';
-      setMessage('saved', `Restored ${plural(restored, 'day')} and ${plural(added, 'photo')}.${skippedNote}${futureNote}`);
-    } catch (err) {
-      setMessage(
-        'error',
-        `Import stopped. ${errorText(err, "Kenna couldn't read the rest of the backup file.")} Days already restored are kept; importing the file again adds the photos that are missing.`
-      );
-    } finally {
-      setProgress(0, 0);
-      busy(false);
-    }
+    if (file) importBackupFile(file, ui);
   });
 
   return h(
@@ -319,7 +259,8 @@ export function buildBackupSection() {
     fileInput,
     importLabel,
     progress,
-    message,
-    deliverySlot
+    ui.status.el,
+    ui.deliverySlot,
+    ui.resultSlot
   );
 }

@@ -96,22 +96,57 @@ test('the API applies the same number rules as the app, with the same messages, 
   assert.equal(text.status, 400);
 
   await call('PATCH', '/api/entries/2026-09-20', { meals: { lunch: 500 } });
-  const imported = await call('POST', '/api/import', {
-    entries: {
-      '2026-09-20': { date: '2026-09-20', weight: null, meals: { lunch: 600 } },
-      '2026-09-21': { date: '2026-09-21', weight: null, meals: { lunch: 450.7 } },
-    },
-  });
-  assert.equal(imported.status, 400);
-  assert.equal(imported.json.error, 'Nothing was imported. Lunch on Mon, Sep 21 (450.7): Enter calories as a whole number, like 450, without decimals.');
-  const heavy = await call('POST', '/api/import', { entries: { '2026-09-21': { weight: 150.123, meals: {} } } });
-  assert.equal(heavy.status, 400);
-  assert.match(heavy.json.error, /two decimal places/);
+  // Nothing in the file can be restored: nothing changes.
+  const nothing = await call('POST', '/api/import', { entries: { '2026-09-21': { date: '2026-09-21', weight: null, meals: { lunch: 450.7 } } } });
+  assert.equal(nothing.status, 400);
+  assert.equal(nothing.json.error, 'Nothing was imported. Lunch on Mon, Sep 21 (450.7): Enter calories as a whole number, like 450, without decimals.');
   const { json } = await call('GET', '/api/entries');
   assert.deepEqual(
     json.map((e) => [e.date, e.meals.lunch]),
     [['2026-09-20', 500]]
   );
+});
+
+test('a backup import restores the valid days, lists the ones it left out, and rounds old long weights', async (t) => {
+  const { call } = await startServer(t);
+  const imported = await call('POST', '/api/import', {
+    entries: {
+      '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } },
+      '2026-09-20': { date: '2026-09-20', weight: null, meals: { lunch: 600 } },
+      '2026-09-21': { date: '2026-09-21', weight: null, meals: { breakfast: -5 } },
+    },
+  });
+  assert.equal(imported.status, 200);
+  assert.equal(imported.json.restored, 2);
+  assert.deepEqual(imported.json.skipped, ["Breakfast on Mon, Sep 21 (-5): Calories can't be negative. Enter 0 or more."]);
+  assert.equal((await call('GET', '/api/entries/2026-09-16')).json.weight, 165.33);
+  assert.equal((await call('GET', '/api/entries/2026-09-21')).json.totalCalories, null);
+});
+
+test('undoing an import puts the replaced days back exactly and removes the added ones', async (t) => {
+  const { call } = await startServer(t);
+  const none = await call('POST', '/api/import/undo', {});
+  assert.equal(none.status, 400);
+  assert.equal(none.json.error, 'There is no restore to undo.');
+  await call('PATCH', '/api/entries/2026-09-20', { meals: { breakfast: 700 }, weight: 181.4 });
+  await call('POST', '/api/import', {
+    entries: {
+      '2026-09-20': { date: '2026-09-20', weight: null, meals: { breakfast: 500 } },
+      '2026-09-21': { date: '2026-09-21', weight: 180, meals: {} },
+    },
+  });
+  assert.equal((await call('GET', '/api/entries/2026-09-20')).json.meals.breakfast, 500);
+  const undone = await call('POST', '/api/import/undo', {});
+  assert.equal(undone.status, 200);
+  const day = (await call('GET', '/api/entries/2026-09-20')).json;
+  assert.equal(day.meals.breakfast, 700);
+  assert.equal(day.weight, 181.4);
+  const { json } = await call('GET', '/api/entries');
+  assert.deepEqual(
+    json.map((e) => e.date),
+    ['2026-09-20']
+  );
+  assert.equal((await call('POST', '/api/import/undo', {})).status, 400, 'only once');
 });
 
 test('malformed request bodies get a JSON error with no stack trace', async (t) => {

@@ -304,23 +304,25 @@
 
   /**
    * Checks a whole backup file without keeping its photos in memory.
-   * Nothing is changed; importing is a second pass (importBackupPhotos).
+   * Nothing is changed; importing is a second pass (forEachBackupPhoto).
+   * Days and photos that can't be restored are listed in `skipped` (see
+   * core.backupRefusal); the file is refused only when nothing in it can be.
    * @param {Blob} blob
    * @param {{ onProgress?: (photosChecked: number) => void, latestDay?: string }} [options] days after
    *   `latestDay` are left out and counted (see core.checkBackupDays)
-   * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number, futureDays: number } | { ok: false, error: string }>}
+   * @returns {Promise<{ ok: true, entries: Record<string, Entry>, dayCount: number, photoCount: number, futureDays: number, skipped: string[] } | { ok: false, error: string }>}
    */
   async function checkBackup(blob, options) {
     const onProgress = options && options.onProgress;
     /** @type {string[]} */
-    const problems = [];
+    const photoProblems = [];
     let photoCount = 0;
     let scanned;
     try {
       scanned = await scanBackup(blob, (text, n) => {
         const result = parsePhoto(text, n);
         if (result.ok) photoCount += 1;
-        else problems.push(result.error);
+        else photoProblems.push(result.error);
         if (onProgress && n % 25 === 0) onProgress(n);
       });
     } catch (err) {
@@ -328,24 +330,28 @@
       throw err;
     }
     const { top, photosIsArray } = scanned;
-    const days = core.checkBackupDays(top, problems, options && options.latestDay);
+    /** @type {string[]} */
+    const skipped = [];
+    const days = core.checkBackupDays(top, skipped, options && options.latestDay);
     if (!days.ok) return days;
-    if (top.photos !== undefined && !photosIsArray) problems.push('The photos section is not in the expected format.');
-    if (problems.length > 0) return { ok: false, error: core.backupProblemsMessage(problems) };
-    return { ok: true, entries: days.entries, dayCount: Object.keys(days.entries).length, photoCount, futureDays: days.futureDays };
+    skipped.push(...photoProblems);
+    if (top.photos !== undefined && !photosIsArray) skipped.push('The photos section is not in the expected format.');
+    const dayCount = Object.keys(days.entries).length;
+    const refused = core.backupRefusal(skipped, dayCount + photoCount);
+    if (refused) return { ok: false, error: refused };
+    return { ok: true, entries: days.entries, dayCount, photoCount, futureDays: days.futureDays, skipped };
   }
 
   /**
-   * Hands each photo of an already-checked backup file to `add`, one at a
-   * time.
+   * Hands each readable photo of an already-checked backup file to `add`,
+   * one at a time. Photos the check listed as skipped are passed over.
    * @param {Blob} blob
    * @param {(photo: BackupPhoto, n: number) => Promise<void>} add
    */
   async function forEachBackupPhoto(blob, add) {
     await scanBackup(blob, async (text, n) => {
       const result = parsePhoto(text, n);
-      if (!result.ok) throw new core.KennaError(result.error);
-      await add(result.photo, n);
+      if (result.ok) await add(result.photo, n);
     });
   }
 

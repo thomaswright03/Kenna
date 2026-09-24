@@ -150,10 +150,11 @@ export function closeAllDialogs() {
 }
 
 /**
- * @param {{ title: string, message?: string, confirmLabel: string, danger?: boolean }} options
+ * @param {{ title: string, message?: string, details?: { intro: string, items: string[] } | null, confirmLabel: string, danger?: boolean }} options
+ *   details: a short list under the message (what a restore will leave out)
  * @returns {Promise<boolean>}
  */
-export function confirmDialog({ title, message, confirmLabel, danger }) {
+export function confirmDialog({ title, message, details, confirmLabel, danger }) {
   return new Promise((resolve) => {
     const labelId = uid('dlg');
     const cancelBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
@@ -163,6 +164,7 @@ export function confirmDialog({ title, message, confirmLabel, danger }) {
       { class: 'dialog-body' },
       h('h2', { id: labelId, class: 'dialog-title', text: title }),
       message ? h('p', { class: 'dialog-text', text: message }) : null,
+      details ? [h('p', { class: 'dialog-text', text: details.intro }), itemList(details.items)] : null,
       h('div', { class: 'dialog-actions' }, cancelBtn, okBtn)
     );
     const close = openDialog({ labelId, content, initialFocus: cancelBtn, onClose: (v) => resolve(v === true) });
@@ -171,38 +173,70 @@ export function confirmDialog({ title, message, confirmLabel, danger }) {
   });
 }
 
+const LIST_SHOWN = 5;
+
 /**
- * @typedef {'pending' | 'saved' | 'error' | null} FieldState
- * @typedef {{ el: HTMLElement, set: (state: FieldState, text?: string, retry?: () => void) => void }} FieldStatus
+ * A short bulleted list; past a handful of items the rest are counted.
+ * @param {string[]} items
+ */
+export function itemList(items) {
+  const shown = items.slice(0, LIST_SHOWN).map((text) => h('li', { text }));
+  const more = items.length - LIST_SHOWN;
+  if (more > 0) shown.push(h('li', { text: `and ${more} more` }));
+  return h('ul', { class: 'item-list' }, shown);
+}
+
+/**
+ * @typedef {'pending' | 'saved' | 'error' | null} StatusState
+ * @typedef {{ label: string, onClick: () => void }} StatusAction a button after the text (Retry, Undo)
+ * @typedef {{ el: HTMLElement, set: (state: StatusState, text?: string, action?: StatusAction) => void }} StatusLine
  */
 
 /**
- * The status line under an input ("Saving…", "Saved", or an error with a
- * Retry button), announced to screen readers.
- * @param {HTMLInputElement} input
- * @returns {FieldStatus}
+ * A status line ("Saving…", "Saved", or an error), optionally with a
+ * button after it. Under an input (`input` given) it describes that input,
+ * marks it invalid on an error, reads changes out politely and clears a
+ * plain "Saved" after a few seconds. Elsewhere it is a status region that
+ * becomes an alert for an error.
+ * @param {HTMLInputElement} [input]
+ * @returns {StatusLine}
  */
-export function createFieldStatus(input) {
-  const el = h('p', { class: 'field-status', id: uid('status'), 'aria-live': 'polite' });
-  input.setAttribute('aria-describedby', el.id);
+export function createStatusLine(input) {
+  const el = h('p', { class: 'field-status', id: uid('status') });
+  if (input) {
+    el.setAttribute('aria-live', 'polite');
+    input.setAttribute('aria-describedby', el.id);
+  } else {
+    el.setAttribute('role', 'status');
+  }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
-  /** @type {FieldStatus['set']} */
-  function set(state, text, retry) {
+  /** @type {StatusLine['set']} */
+  function set(state, text, action) {
     clearTimeout(timer);
     el.className = `field-status${state ? ` is-${state}` : ''}`;
     el.replaceChildren();
-    if (state === 'error') input.setAttribute('aria-invalid', 'true');
-    else input.removeAttribute('aria-invalid');
+    if (input) {
+      if (state === 'error') input.setAttribute('aria-invalid', 'true');
+      else input.removeAttribute('aria-invalid');
+    } else {
+      el.setAttribute('role', state === 'error' ? 'alert' : 'status');
+    }
     if (!text) return;
     // A save can finish after the user has left the screen; say so there.
-    if (!el.isConnected && state === 'error') {
+    if (input && !el.isConnected && state === 'error') {
       toast(text, { tone: 'error' });
       return;
     }
     el.append(h('span', { text }));
-    if (retry) el.append(h('button', { type: 'button', class: 'btn-text', text: 'Retry', onClick: retry }));
-    if (state === 'saved') timer = setTimeout(() => set(null), 4000);
+    if (action) el.append(h('button', { type: 'button', class: 'btn-text', text: action.label, onClick: action.onClick }));
+    if (input && state === 'saved' && !action) timer = setTimeout(() => set(null), 4000);
   }
   return { el, set };
 }
+
+/**
+ * The status line under an input.
+ * @param {HTMLInputElement} input
+ */
+export const createFieldStatus = (input) => createStatusLine(input);

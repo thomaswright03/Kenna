@@ -32,6 +32,7 @@ class ApiError extends Error {
 /** @param {string} dataDir */
 function createDataStore(dataDir) {
   const entriesFile = path.join(dataDir, 'entries.json');
+  const undoImportFile = path.join(dataDir, 'import-undo.json');
   const photosFile = path.join(dataDir, 'photos.json');
   const photosDir = path.join(dataDir, 'photos');
 
@@ -97,6 +98,19 @@ function createDataStore(dataDir) {
     readPhotos: () => readJson(photosFile, Array.isArray),
     /** @param {StoredPhoto[]} data */
     writePhotos: (data) => writeJson(photosFile, data),
+    // The days the last backup import replaced, as they were stored (null
+    // for a day that wasn't there), so the import can be undone.
+    /** @param {Record<string, unknown>} days */
+    keepBeforeImport: (days) => writeJson(undoImportFile, { at: new Date().toISOString(), days }),
+    /** @returns {Record<string, unknown> | null} */
+    readBeforeImport: () => {
+      const saved = parseFile(undoImportFile, isObject);
+      return saved.ok && isObject(saved.value.days) ? saved.value.days : null;
+    },
+    clearBeforeImport: () => {
+      fs.rmSync(undoImportFile, { force: true });
+      fs.rmSync(`${undoImportFile}.bak`, { force: true });
+    },
   };
 }
 
@@ -110,8 +124,6 @@ function requireDate(date) {
 // The latest day the server accepts. The phone using the server may be in
 // a time zone ahead of it, so that's tomorrow on the server's clock.
 const latestDay = () => core.shiftDate(core.todayStr(), 1);
-
-const FUTURE_PHOTO = "A photo can't be filed under a day that hasn't happened yet.";
 
 /** @param {string} date @param {string} message */
 function requireNotFuture(date, message) {
@@ -208,15 +220,35 @@ function createApp(options) {
     res.json(publicEntry(next));
   });
 
-  // Restore days from a backup file. Everything is checked first; if any
-  // day is invalid, nothing is changed.
+  // Restore days from a backup file. Everything is checked first. Days that
+  // break the app's rules are left out and listed in `skipped`; if no day
+  // can be restored, nothing is changed. The days being replaced are kept
+  // first, so POST /api/import/undo can put them back.
   app.post('/api/import', (req, res) => {
     const parsed = core.parseBackup({ entries: req.body && req.body.entries }, latestDay());
     if (!parsed.ok) throw new ApiError(400, parsed.error);
     const entries = store.readEntries();
+    /** @type {Record<string, unknown>} */
+    const before = {};
+    for (const date of Object.keys(parsed.entries)) before[date] = Object.prototype.hasOwnProperty.call(entries, date) ? entries[date] : null;
+    store.keepBeforeImport(before);
     for (const date of Object.keys(parsed.entries)) entries[date] = parsed.entries[date];
     store.writeEntries(entries);
-    res.json({ restored: parsed.dayCount, futureDays: parsed.futureDays });
+    res.json({ restored: parsed.dayCount, futureDays: parsed.futureDays, skipped: parsed.skipped });
+  });
+
+  // Put back the days the last import replaced, exactly as they were.
+  app.post('/api/import/undo', (req, res) => {
+    const days = store.readBeforeImport();
+    if (!days) throw new ApiError(400, 'There is no restore to undo.');
+    const entries = store.readEntries();
+    for (const date of Object.keys(days)) {
+      if (days[date] === null) delete entries[date];
+      else entries[date] = days[date];
+    }
+    store.writeEntries(entries);
+    store.clearBeforeImport();
+    res.json({ days: Object.keys(days).length });
   });
 
   // Progress photos are real files under data/photos/, with their date and
@@ -267,7 +299,7 @@ function createApp(options) {
   app.post('/api/photos', (req, res) => {
     const { date, dataUrl, createdAt, thumbDataUrl } = req.body || {};
     requireDate(date);
-    requireNotFuture(date, FUTURE_PHOTO);
+    requireNotFuture(date, core.FUTURE_PHOTO);
     if (createdAt !== undefined && (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)))) {
       throw new ApiError(400, 'The photo upload time is not a valid time.');
     }
@@ -319,7 +351,7 @@ function createApp(options) {
   app.patch('/api/photos/:id', (req, res) => {
     const date = req.body && req.body.date;
     requireDate(date);
-    requireNotFuture(date, FUTURE_PHOTO);
+    requireNotFuture(date, core.FUTURE_PHOTO);
     const photos = store.readPhotos();
     const photo = photos.find((p) => p && p.id === req.params.id);
     if (!photo) throw new ApiError(404, 'That photo no longer exists.');

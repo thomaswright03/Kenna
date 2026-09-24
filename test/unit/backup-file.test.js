@@ -101,6 +101,24 @@ test('checking a backup reports problems without importing anything', async () =
   assert.equal(badPhoto.ok, false);
   assert.match(badPhoto.error, /^Nothing was imported\. Photo 1 has no valid upload time\. \(and 1 more problem\)/);
 
+  const mixed = await checkBackup(
+    new Blob([
+      JSON.stringify({
+        entries: { '2026-09-01': { meals: { breakfast: -5 } }, '2026-09-02': { meals: { lunch: 600 } } },
+        photos: [7, { date: '2026-09-02', createdAt: '2026-09-02T08:00:00.000Z', type: 'image/jpeg', data: 'AA==' }],
+      }),
+    ])
+  );
+  assert.equal(mixed.ok, true, 'what can be restored is');
+  assert.deepEqual(Object.keys(mixed.entries), ['2026-09-02']);
+  assert.equal(mixed.photoCount, 1);
+  assert.deepEqual(mixed.skipped, ["Breakfast on Tue, Sep 1 (-5): Calories can't be negative. Enter 0 or more.", "Photo 1 isn't in the expected format."]);
+  const handed = [];
+  await forEachBackupPhoto(new Blob([JSON.stringify({ entries: {}, photos: [7, { date: '2026-09-02', createdAt: '2026-09-02T08:00:00.000Z', type: 'image/jpeg', data: 'AA==' }] })]), async (p, n) => {
+    handed.push(n);
+  });
+  assert.deepEqual(handed, [2], 'photos listed as left out are passed over');
+
   const notKenna = await checkBackup(new Blob([JSON.stringify({ app: 'other', entries: {} })]));
   assert.equal(notKenna.ok, false);
 

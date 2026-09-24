@@ -6,6 +6,10 @@ function fakeStorage(initial = {}, { failWrites = false } = {}) {
   const data = new Map(Object.entries(initial));
   return {
     data,
+    get length() {
+      return data.size;
+    },
+    key: (i) => [...data.keys()][i] ?? null,
     getItem: (k) => (data.has(k) ? data.get(k) : null),
     setItem: (k, v) => {
       if (failWrites) {
@@ -60,7 +64,10 @@ test('corrupted data is recovered from the automatic backup, keeping the damaged
   const entries = await store.loadEntries();
   assert.equal(entries['2026-09-23'].weight, 181);
   assert.equal(storage.getItem(ENTRIES_KEY), good, 'the primary copy is healed');
-  assert.equal(storage.getItem(CORRUPT_KEY), '{not json');
+  assert.deepEqual(
+    (await store.damagedCopies()).map((c) => c.text),
+    ['{not json']
+  );
   assert.equal(notices.length, 1);
   assert.equal(notices[0].tone, 'warning');
 });
@@ -71,7 +78,10 @@ test('unrecoverable corruption starts fresh without destroying the damaged data'
   assert.deepEqual(await store.loadEntries(), {});
   assert.equal(notices[0].tone, 'error');
   await store.updateEntry('2026-09-24', { weight: 180 });
-  assert.equal(storage.getItem(CORRUPT_KEY), '{bad');
+  assert.deepEqual(
+    (await store.damagedCopies()).map((c) => c.text),
+    ['{bad']
+  );
   assert.notEqual(storage.getItem(BACKUP_KEY), '{bad', 'a damaged value never replaces the automatic backup');
 });
 
@@ -141,4 +151,67 @@ test('the phone storage refuses the same values the typed input and the server r
   await assert.rejects(store.updateEntry('2026-09-20', { weight: 165.123 }), /two decimal places/);
   await assert.rejects(store.updateEntry('2026-09-20', { meals: { lunch: 450.5 } }), /whole number/);
   assert.equal(storage.getItem(ENTRIES_KEY), null, 'nothing was written');
+});
+
+test('only the two newest damaged copies are kept, the first version\'s copy included, and they can be deleted', async () => {
+  const storage = fakeStorage({ [CORRUPT_KEY]: '{from the first version' });
+  const { store } = makeStore(storage);
+  for (const text of ['{broken 1', '{broken 2', '{broken 2', '{broken 3']) {
+    storage.setItem(ENTRIES_KEY, text);
+    await store.loadEntries();
+  }
+  const copies = await store.damagedCopies();
+  assert.deepEqual(
+    copies.map((c) => c.text),
+    ['{broken 3', '{broken 2']
+  );
+  assert.ok(copies.every((c) => !Number.isNaN(Date.parse(c.savedAt))));
+  assert.equal([...storage.data.keys()].filter((k) => k.startsWith(CORRUPT_KEY)).length, 2);
+  await store.deleteDamagedCopies();
+  assert.deepEqual(await store.damagedCopies(), []);
+});
+
+test('a copy kept by the first version is offered, with its time unknown', async () => {
+  const { store } = makeStore(fakeStorage({ [CORRUPT_KEY]: '{old' }));
+  assert.deepEqual(await store.damagedCopies(), [{ savedAt: null, text: '{old' }]);
+});
+
+test('an import can be undone: replaced days come back exactly, added days go', async () => {
+  const storage = fakeStorage();
+  const { store } = makeStore(storage);
+  await store.updateEntry('2026-09-24', { meals: { breakfast: 700 } });
+  // A day stored by the first version, exactly as it was written then.
+  const legacy = { date: '2026-09-01', weight: 165.333, meals: { lunch: [{ calories: 600, percent: 50 }] } };
+  const raw = JSON.parse(storage.getItem(ENTRIES_KEY));
+  raw['2026-09-01'] = legacy;
+  storage.setItem(ENTRIES_KEY, JSON.stringify(raw));
+
+  await store.importEntries({
+    '2026-09-24': { date: '2026-09-24', weight: null, meals: { breakfast: 500 } },
+    '2026-09-01': { date: '2026-09-01', weight: 165.33, meals: { lunch: 300 } },
+    '2026-09-02': { date: '2026-09-02', weight: 170, meals: {} },
+  });
+  assert.equal((await store.getEntry('2026-09-24')).meals.breakfast, 500);
+  assert.equal(await store.undoImport(), 3);
+  assert.equal((await store.getEntry('2026-09-24')).meals.breakfast, 700);
+  assert.deepEqual(JSON.parse(storage.getItem(ENTRIES_KEY))['2026-09-01'], legacy);
+  assert.equal(await store.getEntry('2026-09-02'), null);
+  await assert.rejects(store.undoImport(), /no restore to undo/);
+});
+
+test('if the days to be replaced cannot be kept first, nothing is restored', async () => {
+  const storage = fakeStorage();
+  const { store } = makeStore(storage);
+  await store.updateEntry('2026-09-24', { meals: { breakfast: 700 } });
+  const setItem = storage.setItem;
+  storage.setItem = (k, v) => {
+    if (k.endsWith(':before-import')) {
+      const err = new Error('quota');
+      err.name = 'QuotaExceededError';
+      throw err;
+    }
+    setItem(k, v);
+  };
+  await assert.rejects(store.importEntries({ '2026-09-24': { date: '2026-09-24', weight: null, meals: { breakfast: 500 } } }), /^\w*Error: Nothing was restored\. There's no room left/);
+  assert.equal((await store.getEntry('2026-09-24')).meals.breakfast, 700);
 });

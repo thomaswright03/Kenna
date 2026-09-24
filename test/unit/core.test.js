@@ -145,7 +145,7 @@ test('each rejected number is told what is actually wrong with it', () => {
   assert.equal(weightError('-165'), 'Enter a weight between 50 and 1,000 lbs.');
 });
 
-test('numbers from the API or a backup follow the typed-input rules, with the same messages, and are never rounded', () => {
+test('numbers from the API or a backup follow the typed-input rules, with the same messages; only old long weights are rounded', () => {
   assert.deepEqual(core.validateCaloriesValue(450), { ok: true, value: 450 });
   assert.deepEqual(core.validateCaloriesValue(null), { ok: true, value: null });
   assert.equal(core.validateCaloriesValue(450.7).error, core.validateCalories('450.7').error);
@@ -168,8 +168,12 @@ test('numbers from the API or a backup follow the typed-input rules, with the sa
   const decimalCalories = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
   assert.equal(decimalCalories.ok, false);
   assert.equal(decimalCalories.error, 'Nothing was imported. Lunch on Thu, Sep 24 (450.7): Enter calories as a whole number, like 450, without decimals.');
-  const longWeight = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-24': { weight: 150.123, meals: {} } } }));
-  assert.equal(longWeight.error, 'Nothing was imported. The weight on Thu, Sep 24 (150.123): Use at most two decimal places, like 165.25.');
+  // The first version saved weights as typed; a backup from then imports
+  // them rounded to two decimals, as the app shows them and exports them.
+  const longWeight = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } }));
+  assert.equal(longWeight.ok, true);
+  assert.equal(longWeight.entries['2026-09-16'].weight, 165.33);
+  assert.match(core.parseBackup({ entries: { '2026-09-16': { weight: 40.004, meals: {} } } }).error, /between 50 and 1,000/);
   // Lists of foods from the first version still import as their total.
   const foods = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
   assert.equal(foods.ok, true);
@@ -396,4 +400,70 @@ test('photo bytes are encoded as base64 exactly as the browser would', async () 
   for (let i = 0; i < bytes.length; i += 1) bytes[i] = (i * 7) % 256;
   assert.equal(await core.blobToBase64(new Blob([bytes])), Buffer.from(bytes).toString('base64'));
   assert.equal(await core.blobToBase64(new Blob([])), '');
+});
+
+test('a backup with some days outside the rules restores the rest and lists what it left out', () => {
+  const parsed = core.parseBackup({
+    app: 'kenna',
+    version: 2,
+    entries: {
+      '2026-09-01': { date: '2026-09-01', weight: null, meals: { breakfast: -5 } },
+      '2026-09-02': entry('2026-09-02', { lunch: 600 }),
+      '2026-09-03': { date: '2026-09-03', weight: 12, meals: {} },
+    },
+    photos: [{ date: '2026-09-02', createdAt: 'never', type: 'image/jpeg', data: 'AA==' }],
+  });
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(Object.keys(parsed.entries), ['2026-09-02']);
+  assert.deepEqual(parsed.skipped, [
+    "Breakfast on Tue, Sep 1 (-5): Calories can't be negative. Enter 0 or more.",
+    'The weight on Thu, Sep 3 (12): Enter a weight between 50 and 1,000 lbs.',
+    'Photo 1 has no valid upload time.',
+  ]);
+  assert.deepEqual(core.parseBackup({ entries: { '2026-09-02': entry('2026-09-02', { lunch: 600 }) } }).skipped, []);
+});
+
+test('a restore is described by how many stored days it replaces and adds', () => {
+  const stored = {
+    '2026-09-20': entry('2026-09-20', { breakfast: 700 }),
+    '2026-09-21': entry('2026-09-21', { breakfast: 400 }, 180),
+    '2026-09-22': entry('2026-09-22', {}),
+  };
+  const incoming = {
+    '2026-09-20': entry('2026-09-20', { breakfast: 500 }),
+    '2026-09-21': entry('2026-09-21', { breakfast: 400 }, 180),
+    '2026-09-22': entry('2026-09-22', { lunch: 300 }),
+    '2026-09-23': entry('2026-09-23', {}, 179),
+  };
+  assert.deepEqual(core.compareWithStored(stored, incoming), { replaced: ['2026-09-20'], added: ['2026-09-22', '2026-09-23'], unchanged: 1 });
+});
+
+test('long chart ranges are averaged by week, and multi-year ranges by month', () => {
+  assert.equal(core.chartPeriod(30), 'day');
+  assert.equal(core.chartPeriod(120), 'day');
+  assert.equal(core.chartPeriod(121), 'week');
+  assert.equal(core.chartPeriod(3 * 365), 'week');
+  assert.equal(core.chartPeriod(160 * 7 + 1), 'month');
+
+  // Thu Sep 17 .. Wed Sep 23: the week starting Sun Sep 13, then Sun Sep 20.
+  const points = ['2026-09-17', '2026-09-18', '2026-09-20', '2026-09-23'].map((date, i) => ({ date, value: 100 * (i + 1) }));
+  const weeks = core.periodAverages(points, 'week');
+  assert.deepEqual(
+    weeks.map((w) => [core.dateFromDayNumber(w.start), core.dateFromDayNumber(w.end), w.value, w.count]),
+    [
+      ['2026-09-13', '2026-09-19', 150, 2],
+      ['2026-09-20', '2026-09-26', 350, 2],
+    ]
+  );
+  const months = core.periodAverages([{ date: '2026-02-03', value: 1 }, { date: '2026-02-28', value: 3 }, { date: '2026-03-01', value: 5 }], 'month');
+  assert.deepEqual(
+    months.map((m) => [core.dateFromDayNumber(m.start), core.dateFromDayNumber(m.end), m.value]),
+    [
+      ['2026-02-01', '2026-02-28', 2],
+      ['2026-03-01', '2026-03-31', 5],
+    ]
+  );
+  assert.equal(core.formatPeriod(weeks[1].start, 'week'), 'Week of Sep 20');
+  assert.equal(core.formatPeriod(weeks[1].start, 'week', true), 'Week of Sep 20, 2026');
+  assert.equal(core.formatPeriod(months[0].start, 'month'), 'February 2026');
 });

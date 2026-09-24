@@ -140,6 +140,14 @@
       });
     }
 
+    /** @returns {Promise<number>} */
+    function undoImport() {
+      return serial(async () => {
+        const result = await request('POST', '/api/import/undo', {});
+        return Number(result && result.days) || 0;
+      });
+    }
+
     /** @param {any} p @returns {Photo} */
     function toPhoto(p) {
       return {
@@ -230,7 +238,11 @@
     async function createPhotoImporter() {
       return {
         /** @param {import('./core.js').BackupPhoto} p */
-        add: (p) => serial(async () => !((await postPhoto(p)) || {}).duplicate),
+        add: (p) =>
+          serial(async () => {
+            const saved = await postPhoto(p);
+            return saved && !saved.duplicate ? toPhoto(saved) : null;
+          }),
       };
     }
 
@@ -241,6 +253,11 @@
       getEntry,
       updateEntry,
       importEntries,
+      undoImport,
+      // The server keeps a damaged data file next to the restored one
+      // (*.damaged-<time>) in its data folder; the app has none to show.
+      damagedCopies: async () => [],
+      deleteDamagedCopies: async () => {},
       listPhotos,
       countPhotos,
       addPhoto,

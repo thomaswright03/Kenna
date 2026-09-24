@@ -24,6 +24,11 @@
  */
 
 /**
+ * Data that was found damaged, kept so it can be sent off for repair.
+ * @typedef {{ savedAt: string | null, text: string }} DamagedCopy savedAt is an ISO time (null when not known)
+ */
+
+/**
  * Makes a small preview of a photo, or null when this browser can't draw it.
  * @typedef {(photo: Blob) => Promise<Blob | null>} MakeThumbnail
  */
@@ -36,7 +41,8 @@
  * @property {() => Promise<Record<string, Entry>>} loadEntries
  * @property {(date: string) => Promise<Entry | null>} getEntry
  * @property {(date: string, patch: EntryPatch) => Promise<Entry>} updateEntry
- * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries
+ * @property {(entries: Record<string, Entry>) => Promise<number>} importEntries replaces the given days, first keeping the days it replaces so undoImport can put them back
+ * @property {() => Promise<number>} undoImport puts the days the last import replaced back as they were (and removes days it added)
  * @property {() => Promise<Photo[]>} listPhotos every photo's details, newest first (no images)
  * @property {() => Promise<number>} countPhotos
  * @property {(photo: { date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }) => Promise<Photo>} addPhoto
@@ -44,7 +50,9 @@
  * @property {(id: Photo['id'], changes: { date: string }) => Promise<Photo>} updatePhoto changes the day a photo is filed under
  * @property {(photo: Photo) => Promise<Blob>} getPhotoBlob the full image
  * @property {(photo: Photo, size: 'thumb' | 'full') => Promise<{ url: string, release: () => void }>} photoUrl an address to show the preview or full image
- * @property {() => Promise<{ add: (photo: BackupPhoto) => Promise<boolean> }>} createPhotoImporter adds backup photos one at a time; `add` resolves false for a photo that's already here
+ * @property {() => Promise<{ add: (photo: BackupPhoto) => Promise<Photo | null> }>} createPhotoImporter adds backup photos one at a time; `add` resolves null for a photo that's already here
+ * @property {() => Promise<DamagedCopy[]>} damagedCopies copies of stored data that were found damaged, newest first
+ * @property {() => Promise<void>} deleteDamagedCopies
  * @property {() => Promise<boolean | null>} requestPersistence
  * @property {() => Promise<boolean | null>} persistenceStatus
  * @property {(callback: () => void) => void} onExternalChange
@@ -59,6 +67,9 @@
   const ENTRIES_KEY = 'kenna:entries';
   const BACKUP_KEY = `${ENTRIES_KEY}:backup`;
   const CORRUPT_KEY = `${ENTRIES_KEY}:corrupt`;
+  const UNDO_IMPORT_KEY = `${ENTRIES_KEY}:before-import`;
+  // Damaged copies kept at most: the newest ones.
+  const MAX_CORRUPT_COPIES = 2;
   const PHOTOS_DB_NAME = 'kenna-photos';
   const PHOTOS_STORE = 'photos';
   const INDEX_DB_NAME = 'kenna-photo-index';
@@ -107,7 +118,7 @@
     const fail = () => {
       throw new core.KennaError('Storage is blocked in this browser.');
     };
-    return /** @type {Storage} */ (/** @type {unknown} */ ({ getItem: fail, setItem: fail, removeItem: fail }));
+    return /** @type {Storage} */ (/** @type {unknown} */ ({ getItem: fail, setItem: fail, removeItem: fail, key: fail, length: 0 }));
   }
 
   /**
@@ -146,14 +157,58 @@
       }
     }
 
+    // Keys holding damaged copies, oldest first. The first versions kept
+    // one under CORRUPT_KEY itself (time unknown, so the oldest); later ones
+    // add the time: CORRUPT_KEY:<ms>.
+    /** @returns {{ key: string, time: number }[]} */
+    function corruptKeys() {
+      /** @type {{ key: string, time: number }[]} */
+      const found = [];
+      try {
+        for (let i = 0; i < storage.length; i += 1) {
+          const key = storage.key(i);
+          if (key === CORRUPT_KEY) found.push({ key, time: 0 });
+          else if (key && key.startsWith(`${CORRUPT_KEY}:`)) found.push({ key, time: Number(key.slice(CORRUPT_KEY.length + 1)) || 0 });
+        }
+      } catch {
+        // Storage can't be listed; nothing to report.
+      }
+      return found.sort((a, b) => a.time - b.time);
+    }
+
+    // Keeps the damaged text (unless the same text is already kept), and
+    // only the newest MAX_CORRUPT_COPIES copies, so repeated damage can't
+    // fill the browser's small storage allowance.
     /** @param {string} text */
     function keepCorruptCopy(text) {
       try {
-        const kept = storage.getItem(CORRUPT_KEY);
-        if (kept === null) storage.setItem(CORRUPT_KEY, text);
-        else if (kept !== text) storage.setItem(`${CORRUPT_KEY}:${Date.now()}`, text);
+        const kept = corruptKeys();
+        if (kept.some((k) => storage.getItem(k.key) === text)) return;
+        const time = Math.max(Date.now(), ...kept.map((k) => k.time + 1));
+        storage.setItem(`${CORRUPT_KEY}:${time}`, text);
+        const all = corruptKeys();
+        for (const old of all.slice(0, Math.max(0, all.length - MAX_CORRUPT_COPIES))) storage.removeItem(old.key);
       } catch {
         // Nothing more we can do; the primary key is still left as it was.
+      }
+    }
+
+    /** @returns {Promise<DamagedCopy[]>} */
+    async function damagedCopies() {
+      /** @type {DamagedCopy[]} */
+      const copies = [];
+      for (const k of corruptKeys().reverse()) {
+        const text = storage.getItem(k.key);
+        if (text !== null) copies.push({ savedAt: k.time ? new Date(k.time).toISOString() : null, text });
+      }
+      return copies;
+    }
+
+    async function deleteDamagedCopies() {
+      try {
+        for (const k of corruptKeys()) storage.removeItem(k.key);
+      } catch (e) {
+        throw new StorageWriteError("Kenna couldn't delete the damaged data. Close Kenna completely, open it again and try once more.", { cause: e });
       }
     }
 
@@ -182,7 +237,7 @@
       onNotice({
         tone: 'error',
         message:
-          "Your saved data was damaged and couldn't be restored. The damaged copy has been kept, and Kenna is starting fresh. Import a backup file from Settings to get your history back.",
+          "Your saved data was damaged and couldn't be restored. Kenna is starting fresh, and has kept the damaged copy: Settings can download it to send off for repair. Import a backup file from Settings to get your history back.",
       });
       try {
         storage.setItem(ENTRIES_KEY, '{}');
@@ -246,16 +301,42 @@
       return next;
     }
 
+    // Before a backup's days replace the stored ones, the days they replace
+    // are kept (exactly as stored; null for a day that wasn't there), so the
+    // restore can be undone. If that copy can't be written, nothing is
+    // restored.
     /** @param {Record<string, Entry>} entries */
     async function importEntries(entries) {
       const raw = readRaw();
-      let count = 0;
-      for (const date of Object.keys(entries)) {
-        raw[date] = entries[date];
-        count += 1;
+      /** @type {Record<string, unknown>} */
+      const before = {};
+      for (const date of Object.keys(entries)) before[date] = Object.prototype.hasOwnProperty.call(raw, date) ? raw[date] : null;
+      try {
+        storage.setItem(UNDO_IMPORT_KEY, JSON.stringify({ at: new Date().toISOString(), days: before }));
+      } catch (e) {
+        throw new StorageWriteError(
+          core.isQuotaError(e) ? `Nothing was restored. ${core.STORAGE_FULL}` : 'Nothing was restored: this browser is blocking storage.',
+          { cause: e }
+        );
+      }
+      for (const date of Object.keys(entries)) raw[date] = entries[date];
+      writeRaw(raw);
+      return Object.keys(entries).length;
+    }
+
+    async function undoImport() {
+      const text = storage.getItem(UNDO_IMPORT_KEY);
+      const saved = text === null ? null : parseObject(text);
+      if (!saved || !isPlainObject(saved.days)) throw new core.KennaError('There is no restore to undo.');
+      const raw = readRaw();
+      const days = saved.days;
+      for (const date of Object.keys(days)) {
+        if (days[date] === null) delete raw[date];
+        else raw[date] = days[date];
       }
       writeRaw(raw);
-      return count;
+      storage.removeItem(UNDO_IMPORT_KEY);
+      return Object.keys(days).length;
     }
 
     // ------------------------------------------------------------ photos
@@ -413,7 +494,7 @@
     /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     async function addPhoto(photo) {
       if (!core.isValidDateStr(photo.date)) throw new core.KennaError('Pick a valid day for this photo.');
-      if (core.isFutureDate(photo.date)) throw new core.KennaError("A photo can't be filed under a day that hasn't happened yet.");
+      if (core.isFutureDate(photo.date)) throw new core.KennaError(core.FUTURE_PHOTO);
       const { bytes, type } = await bytesOf(photo.blob);
       const record = { date: photo.date, bytes, type, createdAt: photo.createdAt || new Date().toISOString() };
       const id = Number(await photosTx((s) => s.add(record), 'readwrite'));
@@ -434,7 +515,7 @@
     async function updatePhoto(id, changes) {
       const date = changes && changes.date;
       if (!core.isValidDateStr(date)) throw new core.KennaError('Pick a valid day for this photo.');
-      if (core.isFutureDate(date)) throw new core.KennaError("A photo can't be filed under a day that hasn't happened yet.");
+      if (core.isFutureDate(date)) throw new core.KennaError(core.FUTURE_PHOTO);
       /** @type {PhotoRecord | null} */
       let updated = null;
       await photosTx((s) => {
@@ -531,10 +612,10 @@
         add: (p) =>
           guardPhotos('write', async () => {
             const key = core.photoKey(p);
-            if (seen.has(key)) return false;
-            await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
+            if (seen.has(key)) return null;
+            const added = await addPhoto({ date: p.date, createdAt: p.createdAt, blob: base64ToBlob(p.data, p.type) });
             seen.add(key);
-            return true;
+            return added;
           }),
       };
     }
@@ -582,6 +663,9 @@
       getEntry,
       updateEntry,
       importEntries,
+      undoImport,
+      damagedCopies,
+      deleteDamagedCopies,
       // Every photo operation fails with a Kenna sentence, never the
       // browser's own error text.
       listPhotos: () => guardPhotos('list', listPhotos),
@@ -598,5 +682,5 @@
     };
   }
 
-  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, CORRUPT_KEY, StorageWriteError });
+  return Object.freeze({ createLocalStore, ENTRIES_KEY, BACKUP_KEY, CORRUPT_KEY, UNDO_IMPORT_KEY, MAX_CORRUPT_COPIES, StorageWriteError });
 });

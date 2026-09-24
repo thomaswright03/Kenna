@@ -126,9 +126,10 @@ test('importing skips photos already here, matched by the time they were first a
   await store.addPhoto({ date: '2026-09-21', createdAt: '2026-09-21T08:00:00.000Z', blob: new Blob([JPEG(1)], { type: 'image/jpeg' }) });
   const importer = await store.createPhotoImporter();
   const data = Buffer.from(JPEG(9)).toString('base64');
-  assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-21T08:00:00.000Z', type: 'image/jpeg', data }), false);
-  assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-18T08:00:00.000Z', type: 'image/jpeg', data }), true);
-  assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-18T08:00:00.000Z', type: 'image/jpeg', data }), false);
+  assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-21T08:00:00.000Z', type: 'image/jpeg', data }), null);
+  const added = await importer.add({ date: '2026-09-18', createdAt: '2026-09-18T08:00:00.000Z', type: 'image/jpeg', data });
+  assert.equal(added.date, '2026-09-18', 'the added photo, so a restore can be undone');
+  assert.equal(await importer.add({ date: '2026-09-18', createdAt: '2026-09-18T08:00:00.000Z', type: 'image/jpeg', data }), null);
   assert.equal((await store.listPhotos()).length, 2);
 });
 
