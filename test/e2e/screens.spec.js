@@ -135,9 +135,17 @@ test('a chart that spans more than one year dates every label with its year', as
     const labels = (await chart.locator('.axis-label').allTextContents()).filter((t) => /^[A-Z][a-z]{2} /.test(t));
     expect(labels.length).toBeGreaterThanOrEqual(3);
     for (const label of labels) expect(label).toMatch(/^[A-Z][a-z]{2} \d{1,2}, 20\d\d$/);
-    // The labels don't run into each other.
-    const boxes = [];
-    for (const el of await chart.locator('.axis-label').all()) if (/^[A-Z]/.test(await el.textContent())) boxes.push(await el.boundingBox());
+    // The labels don't run into each other, measured in the chart's own
+    // coordinates, where each label's box already reflects its text-anchor.
+    const boxes = await chart.locator('.axis-label').evaluateAll((els) =>
+      els
+        .filter((el) => /^[A-Z]/.test(el.textContent || ''))
+        .map((el) => {
+          const b = /** @type {SVGTextElement} */ (el).getBBox();
+          return { x: b.x, width: b.width };
+        })
+    );
+    expect(boxes.length).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < boxes.length; i += 1) expect(boxes[i].x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width);
   }
 });
