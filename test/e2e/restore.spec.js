@@ -84,6 +84,18 @@ test('restoring says how many days it will replace, and Undo restore puts them b
   await expect(dialog).toContainText('you can undo the restore afterwards');
   await dialog.getByRole('button', { name: 'Restore' }).click();
   await expect(page.getByText('Restored 2 days and 1 photo.', { exact: true })).toBeVisible();
+  // The check mark starts the message's line rather than sitting on a line of its own.
+  const mark = await page.getByText('Restored 2 days and 1 photo.', { exact: true }).evaluate((span) => {
+    const line = span.parentElement;
+    return {
+      own: getComputedStyle(line, '::before').content,
+      text: getComputedStyle(span, '::before').content,
+      extra: line.getBoundingClientRect().height - span.getBoundingClientRect().height,
+    };
+  });
+  expect(mark.text).toBe('"✓"');
+  expect(mark.own).toBe('none');
+  expect(Math.abs(mark.extra)).toBeLessThan(2);
   expect((await data.entry(TODAY)).meals.breakfast).toBe(500);
 
   await page.getByRole('button', { name: 'Undo restore' }).click();

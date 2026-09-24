@@ -88,6 +88,14 @@ test('no UI source file is longer than a few hundred lines', () => {
   }
 });
 
+test('every font size in the stylesheet comes from the type scale', () => {
+  const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8');
+  const sizes = [...css.matchAll(/font-size:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(sizes.length > 20);
+  const outside = sizes.filter((v) => !/^var\(--fs-[a-z]+\)$/.test(v) && v !== 'inherit');
+  assert.deepEqual(outside, []);
+});
+
 test('the page allows pinch-zoom', () => {
   const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
   assert.doesNotMatch(html, /maximum-scale|user-scalable=no/);
