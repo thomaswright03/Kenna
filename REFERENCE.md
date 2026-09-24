@@ -206,8 +206,12 @@ Every such failure is also noted in a **Problem log** on the device (in
 the place in the built script where they happened. It never holds a
 logged value, a photo or an error's message, keeps the last 30 events (a
 failure repeated straight after itself is counted, not listed again), and
-is never sent anywhere. **Settings → Problem log** shows the latest,
-**Copy log** copies the whole list as text to paste into a
+is never sent anywhere. A mistake in what was entered or picked (a file
+that isn't a photo, a day that hasn't happened yet) isn't a failure and
+isn't noted: the message on screen already explains it.
+**Settings → Problem log** shows the latest, each described in plain
+words ("The device's storage was full"); **Copy log** copies the whole
+list, with the technical names, as text to paste into a
 message (or downloads it as a file where the browser won't copy), and
 **Clear…** empties it. When the browser's storage is full the event is
 still shown and copied for that visit.

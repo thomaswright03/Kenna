@@ -1,8 +1,10 @@
 // The problem log (see core/problems.js): every failure Kenna tells the
 // user about is noted here too, with unexpected errors in the code, so
-// Settings can show what went wrong and when, and copy it to send to
-// whoever looks after Kenna. It stays on the device; nothing is sent
-// anywhere by itself.
+// Settings can show what went wrong and when, in plain words, and copy it
+// (with the technical names) to send to whoever looks after Kenna. A
+// mistake in what was entered or picked isn't a failure and isn't noted:
+// the message on screen already explains it. The log stays on the device;
+// nothing is sent anywhere by itself.
 
 import { core, h, prefs, today, errorText } from './dom.js';
 import { createStatusLine, confirmDialog } from './feedback.js';
@@ -33,6 +35,8 @@ export function problemLog() {
  * @param {{ where?: string | null }} [options]
  */
 export function recordProblem(op, err, options) {
+  // A mistake the message on screen already explains isn't a fault.
+  if (err instanceof core.InputError) return;
   try {
     const event = core.problemEvent(op, err, options);
     const stored = core.parseProblemLog(prefs.get(KEY, null));
@@ -144,7 +148,7 @@ export function buildProblemLogCard(download) {
         'li',
         { 'data-problem': '' },
         h('span', { class: 'problem-op', text: `${e.op}${e.count && e.count > 1 ? ` (${e.count} times)` : ''}` }),
-        h('span', { class: 'problem-meta', text: `${when(e.at)} · ${e.error}` })
+        h('span', { class: 'problem-meta', text: `${when(e.at)} · ${core.plainProblem(e.error)}` })
       )
     );
     const more = list.length - SHOWN;

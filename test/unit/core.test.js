@@ -563,6 +563,20 @@ test('a problem event names what failed and the kind of error, never its message
   assert.equal(core.problemEvent('x', { name: 'StorageBlocked' }, { where: null }).where, undefined);
 });
 
+test('the problem log says what went wrong in plain words, from the innermost error it knows', () => {
+  assert.equal(core.plainProblem('KennaError ← QuotaExceededError'), 'The device’s storage was full');
+  assert.equal(core.plainProblem('StorageBlocked'), 'The browser wouldn’t let Kenna save anything');
+  assert.equal(core.plainProblem('TypeError'), 'A fault in Kenna itself');
+  assert.equal(core.plainProblem('KennaError ← UnknownError ← object'), 'The browser’s storage reported an error');
+  for (const unknown of ['KennaError', 'object', 'Error', 'SomethingNew']) assert.equal(core.plainProblem(unknown), 'Something unexpected went wrong');
+});
+
+test('a mistake in what was entered is a Kenna message, but not a fault', () => {
+  const err = new core.InputError("That file isn't a photo we can show.");
+  assert.ok(err instanceof core.KennaError);
+  assert.equal(err.name, 'InputError');
+});
+
 test('the problem log keeps the newest events, counting a failure repeated in a row once', () => {
   let list = [];
   for (let i = 0; i < 100; i += 1) list = core.addProblem(list, core.problemEvent(`Op ${i}`, new Error('x'), { now: new Date(i * 1000), where: null }));

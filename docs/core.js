@@ -39,6 +39,7 @@ const problems = require('./core/problems.js');
 // type checker flag a misspelt name.
 module.exports = Object.freeze({
   KennaError: errors.KennaError,
+  InputError: errors.InputError,
   isQuotaError: errors.isQuotaError,
   STORAGE_FULL: errors.STORAGE_FULL,
   MEAL_STEPS: entries.MEAL_STEPS,
@@ -112,4 +113,5 @@ module.exports = Object.freeze({
   addProblem: problems.addProblem,
   parseProblemLog: problems.parseProblemLog,
   problemReport: problems.problemReport,
+  plainProblem: problems.plainProblem,
 });

@@ -71,13 +71,13 @@ export async function preparePhoto(file, maxDim) {
   const decoded = await decodeImage(file);
   if (!decoded) {
     if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: false };
-    throw new core.KennaError("That file isn't a photo we can show.");
+    throw new core.InputError("That file isn't a photo we can show.");
   }
   const blob = await scaleToJpeg(decoded.img, maxDim, 0.85);
   decoded.release();
   if (blob) return { blob, viewable: true };
   if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: true };
-  throw new core.KennaError("That file isn't a photo we can show.");
+  throw new core.InputError("That file isn't a photo we can show.");
 }
 
 // What the Photos grid shows for a photo this browser can't draw.

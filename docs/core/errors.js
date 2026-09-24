@@ -15,6 +15,17 @@ class KennaError extends Error {
   }
 }
 
+// A mistake in what was entered or picked (a file that isn't a photo, a
+// day that hasn't happened yet), which the message on screen already
+// explains. It isn't a fault, so it's never noted in the problem log.
+class InputError extends KennaError {
+  /** @param {string} message @param {{ cause?: unknown }} [options] */
+  constructor(message, options) {
+    super(message, options);
+    this.name = 'InputError';
+  }
+}
+
 // The browser refused a write because the storage it allows is full.
 /** @param {unknown} err */
 function isQuotaError(err) {
@@ -28,6 +39,7 @@ const STORAGE_FULL =
 
 module.exports = {
   KennaError,
+  InputError,
   isQuotaError,
   STORAGE_FULL,
 };

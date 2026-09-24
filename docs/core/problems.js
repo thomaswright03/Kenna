@@ -121,6 +121,45 @@ function parseProblemLog(text, limit) {
   return value.filter(isProblemEvent).slice(-(limit || PROBLEM_LOG_LIMIT));
 }
 
+// What each kind of error means, in words for the person using Kenna. The
+// problem log on screen shows these; the copied log keeps the names.
+/** @type {Record<string, string>} */
+const PLAIN_ERRORS = {
+  QuotaExceededError: 'the device’s storage was full',
+  NS_ERROR_DOM_QUOTA_REACHED: 'the device’s storage was full',
+  StorageBlocked: 'the browser wouldn’t let Kenna save anything',
+  SecurityError: 'the browser wouldn’t allow it',
+  NotAllowedError: 'the browser wouldn’t allow it',
+  DamagedDataRestoredFromCopy: 'saved days were damaged and put back from Kenna’s copy',
+  DamagedDataNotRestored: 'saved days were damaged and couldn’t be put back',
+  AbortError: 'it was stopped before it finished',
+  NotReadableError: 'a file couldn’t be read',
+  NotFoundError: 'something Kenna needed wasn’t there',
+  InvalidStateError: 'the browser’s storage wasn’t ready',
+  UnknownError: 'the browser’s storage reported an error',
+  DataError: 'the browser’s storage reported an error',
+  TransactionInactiveError: 'the browser’s storage reported an error',
+  VersionError: 'the browser’s storage reported an error',
+  EncodingError: 'a photo couldn’t be read',
+  TypeError: 'a fault in Kenna itself',
+  ReferenceError: 'a fault in Kenna itself',
+  RangeError: 'a fault in Kenna itself',
+  SyntaxError: 'a fault in Kenna itself',
+};
+
+/**
+ * What went wrong, in plain words, from a recorded error ("KennaError ←
+ * QuotaExceededError" is "The device’s storage was full"). The innermost
+ * error known here is the reason; Kenna's own wrapper adds nothing to it.
+ * @param {string} error a ProblemEvent's error
+ */
+function plainProblem(error) {
+  const names = String(error).split(' ← ').reverse();
+  const known = names.find((n) => Object.prototype.hasOwnProperty.call(PLAIN_ERRORS, n));
+  const text = known ? PLAIN_ERRORS[known] : 'something unexpected went wrong';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
  * The log as plain text to paste into a message, newest first.
  * @param {ProblemEvent[]} list oldest first
@@ -142,4 +181,5 @@ module.exports = {
   addProblem,
   parseProblemLog,
   problemReport,
+  plainProblem,
 };

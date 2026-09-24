@@ -284,10 +284,10 @@
     // can't be displayed are left in storage untouched rather than dropped.
     /** @param {string} date @param {EntryPatch} patch */
     async function updateEntry(date, patch) {
-      if (!core.isValidDateStr(date)) throw new core.KennaError('Not saved: pick a valid date first.');
-      if (core.isFutureDate(date)) throw new core.KennaError(`Not saved. ${core.FUTURE_DAY}`);
+      if (!core.isValidDateStr(date)) throw new core.InputError('Not saved: pick a valid date first.');
+      if (core.isFutureDate(date)) throw new core.InputError(`Not saved. ${core.FUTURE_DAY}`);
       const checked = core.validatePatch(patch);
-      if (!checked.ok) throw new core.KennaError(checked.error);
+      if (!checked.ok) throw new core.InputError(checked.error);
       const raw = readRaw();
       const next = core.applyPatch(date, raw[date], checked.patch);
       if (core.isEntryEmpty(next)) delete raw[date];
@@ -488,8 +488,8 @@
 
     /** @param {{ date: string, blob: Blob, createdAt?: string, thumb?: Blob | null }} photo */
     async function addPhoto(photo) {
-      if (!core.isValidDateStr(photo.date)) throw new core.KennaError('Pick a valid day for this photo.');
-      if (core.isFutureDate(photo.date)) throw new core.KennaError(core.FUTURE_PHOTO);
+      if (!core.isValidDateStr(photo.date)) throw new core.InputError('Pick a valid day for this photo.');
+      if (core.isFutureDate(photo.date)) throw new core.InputError(core.FUTURE_PHOTO);
       const { bytes, type } = await bytesOf(photo.blob);
       const record = { date: photo.date, bytes, type, createdAt: photo.createdAt || new Date().toISOString() };
       const id = Number(await photosTx((s) => s.add(record), 'readwrite'));
@@ -509,8 +509,8 @@
     /** @param {Photo['id']} id @param {{ date: string }} changes */
     async function updatePhoto(id, changes) {
       const date = changes && changes.date;
-      if (!core.isValidDateStr(date)) throw new core.KennaError('Pick a valid day for this photo.');
-      if (core.isFutureDate(date)) throw new core.KennaError(core.FUTURE_PHOTO);
+      if (!core.isValidDateStr(date)) throw new core.InputError('Pick a valid day for this photo.');
+      if (core.isFutureDate(date)) throw new core.InputError(core.FUTURE_PHOTO);
       /** @type {PhotoRecord | null} */
       let updated = null;
       await photosTx((s) => {

@@ -36,7 +36,8 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   const item = card.locator('[data-problem]');
   await expect(item).toHaveCount(1);
   await expect(item).toContainText(/Save the weight \(\d times\)/);
-  await expect(item).toContainText('Today, 10:00 AM · KennaError ← QuotaExceededError');
+  await expect(item).toContainText('Today, 10:00 AM · The device’s storage was full');
+  await expect(item).not.toContainText('Error');
   // Nothing typed or logged is kept in it.
   const stored = await page.evaluate(() => localStorage.getItem('kenna:problemLog'));
   expect(stored).not.toContain('181');
@@ -71,6 +72,7 @@ test('an error nothing else caught is noted with where in the code it happened',
   await page.goto(`${appURL}/#/settings`);
   const items = page.locator('[data-problem-log] [data-problem]');
   await expect(items).toHaveCount(2);
+  await expect(items.first()).toContainText('A fault in Kenna itself');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('kenna:problemLog')));
   expect(stored.map((e) => `${e.op}: ${e.error}`).sort()).toEqual(['Unexpected error: RangeError', 'Unexpected error: TypeError']);
   expect(JSON.stringify(stored)).not.toContain('secret');
@@ -96,4 +98,12 @@ test('the problem log never grows past its limit', async ({ page, appURL }) => {
   const ops = await page.evaluate(() => JSON.parse(localStorage.getItem('kenna:problemLog')).map((e) => e.op));
   expect(ops[0]).toBe('Old 51');
   expect(ops[ops.length - 1]).toBe('Unexpected error');
+});
+
+test('picking a file that isn’t a photo is explained, and isn’t noted as a problem', async ({ page, appURL }) => {
+  await page.goto(`${appURL}/#/photos`);
+  await page.locator('input[type=file]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a photo') });
+  await expect(page.getByText("Photo not saved. That file isn't a photo we can show.")).toBeVisible();
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page.locator('[data-problem-log]')).toContainText('Nothing has gone wrong on this device.');
 });
