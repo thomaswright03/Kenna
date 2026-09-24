@@ -1,12 +1,26 @@
 {
   "name": "kenna-calorie-tracker",
   "version": "1.0.0",
-  "description": "Local, phone-hosted daily calorie tracker",
+  "description": "Private calorie and weight tracker: an installable offline phone app, plus an optional Node server version",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "serve:docs": "node scripts/serve-docs.js",
+    "lint": "eslint .",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "test:e2e": "playwright test",
+    "test": "npm run lint && npm run test:unit && npm run test:e2e"
   },
   "dependencies": {
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "1.56.1",
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

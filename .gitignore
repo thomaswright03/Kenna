@@ -1,4 +1,6 @@
 node_modules/
 data/*.json
-data/*.json.bak
+data/*.json.*
 data/photos/
+test-results/
+playwright-report/
