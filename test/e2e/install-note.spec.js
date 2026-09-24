@@ -8,6 +8,28 @@ test.use({ installed: false });
 const note = (page) => page.locator('[data-install-note]');
 
 test.describe('phone version in a Safari tab', () => {
+  test('on first open the day comes first, with a welcome, and the Home Screen note waits below it', async ({ page, appURL }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(appURL);
+    await expect(page.locator('[data-welcome]')).toContainText('Welcome to Kenna.');
+    await expect(page.getByLabel('Weight (lbs)')).toBeInViewport({ ratio: 1 });
+    await expect(page.getByRole('link', { name: 'Log Meal' })).toBeInViewport({ ratio: 1 });
+    await expect(note(page)).toBeVisible();
+    const [dayCard, noteBox] = await Promise.all([page.locator('.card', { has: page.getByLabel('Weight (lbs)') }).boundingBox(), note(page).boundingBox()]);
+    expect(noteBox.y).toBeGreaterThan(dayCard.y + dayCard.height - 1);
+
+    // With something logged, it moves above the day: now there's data to lose.
+    await page.getByLabel('Weight (lbs)').fill('180');
+    await page.getByLabel('Weight (lbs)').press('Enter');
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.locator('[data-welcome]')).toHaveCount(0);
+    const [dayAfter, noteAfter] = await Promise.all([page.locator('.card', { has: page.getByLabel('Weight (lbs)') }).boundingBox(), note(page).boundingBox()]);
+    expect(noteAfter.y).toBeLessThan(dayAfter.y);
+    // One meal is too little to ask for a backup about.
+    await expect(page.locator('[data-backup-reminder]')).toHaveCount(0);
+  });
+
   test('Today says iPhone may delete the data and gives the Home Screen steps', async ({ page, appURL }) => {
     await page.goto(appURL);
     await expect(note(page)).toBeVisible();
@@ -114,7 +136,11 @@ test.describe('not on an iPhone', () => {
 
 test.describe('only one notice above the day', () => {
   test('with days logged and no backup, the Home Screen note is the only card above the day, and the Weight box is in view', async ({ page, appURL, data }) => {
-    await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+    await data.seed({
+      '2026-09-21': day('2026-09-21', { lunch: 500 }),
+      '2026-09-22': day('2026-09-22', { lunch: 600 }),
+      [TODAY]: day(TODAY, { breakfast: 400 }),
+    });
     await page.goto(appURL);
     await expect(note(page)).toBeVisible();
     await expect(page.locator('[data-backup-reminder]')).toHaveCount(0);

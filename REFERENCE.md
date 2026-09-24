@@ -19,8 +19,14 @@ run, test and release it.
   under the box says, and also when you leave Today with a weight still in
   the box: the next screen then says "Weight saved: 181.2 lbs", with
   **Undo**. Emptying the weight box clears the day's weight, with **Undo** under the
-  box to put it back. Pick another day in **Day to view or edit**, or tap a day in
-  History, to view or fix a past day; **Back to today** returns to the current day.
+  box to put it back. Tap **Change day** beside the day's heading and pick
+  a date, or tap a day in History, to view or fix a past day; **Back to
+  today** returns to the current day. Before anything is logged, a short
+  welcome under the heading says what Kenna is. A day with no meals says
+  "No meals logged yet today" in place of a total. Once anything is
+  logged, a line under the day says how old the last saved backup is
+  ("Last backup: 3 days ago", or "No backup saved yet"), with **Back up
+  now**.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
   value saves as soon as you leave the box or tap another meal, and also
@@ -221,20 +227,28 @@ On iPhone and iPad, Safari may delete a website's data when it hasn't
 been used for about a week, unless the site is on the Home Screen. So when
 Kenna runs in a Safari tab there (not opened from the Home Screen), Today
 shows a card saying so, with the steps one tap away (**How to add it**:
-Share → Add to Home Screen → open Kenna from that icon). If anything is
-logged it also says to save a backup first, because the Home Screen app
-starts with its own, empty storage. **Not now** hides the card for a
+Share → Add to Home Screen → open Kenna from that icon). Before anything
+is logged the card sits under the day, so a first visit starts with the
+day itself; once anything is logged it moves above the day and also says
+to save a backup first, because the Home Screen app starts with its own,
+empty storage. **Not now** hides the card for a
 week; it never appears when Kenna is opened from the Home Screen, and
 Settings explains the same risk.
 
 That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
-logged, the Today screen reminds you when no backup has been saved from this
-device yet, or when the last one is more than a week old; **Back up now**
-makes one straight away, and **Not now** hides the reminder for three days.
-Today shows at most one of these cards above the day, so the Weight box
-stays in view: the Home Screen card first (it already says to back up),
-then the backup reminder once that card is hidden or doesn't apply.
+logged, a line under the day on Today always says how old the last saved
+backup is, with **Back up now**, which makes the file and leads straight to
+saving it. Once three days have something logged (a weight, a meal or a
+photo), a card above the day asks for a backup when none has been saved from
+this device yet, or when the last one is more than a week old; **Back up
+now** makes one straight away, and **Not now** puts the question off for
+three days, while the line under the day keeps showing the backup's age,
+marked as overdue. (While the card shows, it says the age itself, so the
+line waits until the card is gone.) Today shows at most one of these cards
+above the day, so the Weight box stays in view: the Home Screen card first
+(it already says to back up), then the backup reminder once that card is
+hidden or doesn't apply.
 
 - **Settings → Export Backup** makes one `.json` file containing every day
   (weight and each meal's calories) and every progress photo with the date

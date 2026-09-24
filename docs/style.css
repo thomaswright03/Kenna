@@ -284,15 +284,7 @@ h2[tabindex='-1']:focus { outline: none; }
 
 /* ------------------------------------------------------------ forms */
 
-.field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s3);
-  margin-bottom: var(--s4);
-}
-
 .field { min-width: 0; margin-bottom: var(--s3); }
-.field-row .field { margin-bottom: 0; }
 
 label {
   display: block;
@@ -450,6 +442,62 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
 .btn-secondary:active:not(:disabled) { background: var(--card-hover); }
 
 /* ------------------------------------------------------------ today */
+
+/* The day's heading, with Change day beside it: a small secondary button
+   with the date input lying unseen over it, so a tap opens the picker. */
+.day-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s3); }
+.day-head .card-sub { margin-bottom: var(--s3); }
+.day-switch { position: relative; flex-shrink: 0; }
+.day-switch-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0 var(--s3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+input[type='date'].day-switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}
+.day-switch:focus-within .day-switch-label { outline: 3px solid var(--focus); outline-offset: 2px; }
+.day-switch:has(.day-switch-input[aria-invalid='true']) .day-switch-label { border-color: var(--danger); }
+.day-head + .field-status:not(:empty) { margin: calc(-1 * var(--s2)) 0 var(--s3); }
+
+.welcome {
+  margin: 0 0 var(--s4);
+  padding: var(--s3);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+/* How old the last backup is, under the day. */
+.backup-status { padding-top: var(--s3); padding-bottom: var(--s3); }
+.backup-status-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.backup-status-title { margin: 0; font-weight: 700; }
+.backup-status-text { margin: var(--s1) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.backup-status.is-overdue { border-color: var(--warning-border); background: var(--warning-soft); color: var(--warning-text); }
+.backup-status.is-overdue .backup-status-text { color: inherit; }
+.backup-status.is-done .backup-status-text[role='status'] { color: var(--accent-text); font-weight: 600; }
+.backup-status .backup-delivery { margin-top: var(--s2); }
+.btn.btn-compact { width: auto; flex-shrink: 0; min-height: var(--tap); margin: 0; padding: var(--s2) var(--s3); font-size: var(--fs-sm); white-space: nowrap; }
 
 .total-box {
   background: var(--card-2);

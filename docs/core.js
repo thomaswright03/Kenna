@@ -91,6 +91,7 @@ module.exports = Object.freeze({
   photoKey: backup.photoKey,
   entryForBackup: backup.entryForBackup,
   backupReminderDue: backup.backupReminderDue,
+  backupAge: backup.backupAge,
   checkBackupDays: backup.checkBackupDays,
   checkBackupPhoto: backup.checkBackupPhoto,
   backupProblemsMessage: backup.backupProblemsMessage,

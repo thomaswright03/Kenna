@@ -370,11 +370,12 @@ test('image sniffing recognises photos and rejects other files', () => {
   assert.equal(core.sniffImageType(text), null);
 });
 
-test('a backup reminder is due with data and no backup, or a week after the last one', () => {
+test('a backup reminder is due once a few days are logged and no backup is saved, or a week after the last one', () => {
   const now = new Date(2026, 8, 24, 10);
   const at = (d) => new Date(2026, 8, d, 9).toISOString();
-  const due = (state) => core.backupReminderDue({ hasData: true, lastBackupAt: null, snoozedUntil: null, now, ...state });
-  assert.equal(due({ hasData: false }), null, 'nothing to back up');
+  const due = (state) => core.backupReminderDue({ loggedDays: 3, lastBackupAt: null, snoozedUntil: null, now, ...state });
+  assert.equal(due({ loggedDays: 0 }), null, 'nothing to back up');
+  assert.equal(due({ loggedDays: 2 }), null, 'a day or two is too little to ask about');
   assert.deepEqual(due({}), { never: true });
   assert.deepEqual(due({ lastBackupAt: 'garbage' }), { never: true });
   assert.equal(due({ lastBackupAt: at(20) }), null, '4 days is recent enough');
@@ -382,6 +383,16 @@ test('a backup reminder is due with data and no backup, or a week after the last
   assert.deepEqual(due({ lastBackupAt: at(14) }), { never: false, days: 10 });
   assert.equal(due({ snoozedUntil: new Date(2026, 8, 25).toISOString() }), null, 'snoozed');
   assert.deepEqual(due({ snoozedUntil: new Date(2026, 8, 23).toISOString() }), { never: true }, 'snooze over');
+});
+
+test("a backup's age is counted in calendar days", () => {
+  const now = new Date(2026, 8, 24, 10);
+  assert.equal(core.backupAge(null, now), null);
+  assert.equal(core.backupAge('not a time', now), null);
+  assert.equal(core.backupAge(new Date(2026, 8, 24, 1).toISOString(), now), 0);
+  assert.equal(core.backupAge(new Date(2026, 8, 23, 23).toISOString(), now), 1, 'last night is yesterday');
+  assert.equal(core.backupAge(new Date(2026, 8, 16, 9).toISOString(), now), 8);
+  assert.equal(core.backupAge(new Date(2026, 8, 30).toISOString(), now), 0, 'a clock that was ahead is not a negative age');
 });
 
 test('days after today never count toward averages', () => {

@@ -1,6 +1,14 @@
 const { test, expect, TODAY, day } = require('./fixtures');
 
 const reminder = (page) => page.locator('[data-backup-reminder]');
+const status = (page) => page.locator('[data-backup-status]');
+// Three days logged: enough for the reminder to ask.
+const threeDays = (extra = {}) => ({
+  '2026-09-21': day('2026-09-21', { lunch: 500 }),
+  '2026-09-22': day('2026-09-22', { lunch: 600 }, 180),
+  [TODAY]: day(TODAY, { breakfast: 400 }),
+  ...extra,
+});
 const daysAgo = (n) => new Date(new Date('2026-09-24T10:00:00-05:00').getTime() - n * 86400000).toISOString();
 
 async function setPref(page, key, value) {
@@ -8,7 +16,7 @@ async function setPref(page, key, value) {
 }
 
 test('Today reminds to back up until a backup is confirmed saved, and again once it is a week old', async ({ page, appURL, data }) => {
-  await data.seed({ '2026-09-22': day('2026-09-22', { lunch: 600 }, 180), [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   await page.goto(appURL);
   await setPref(page, 'backupConfirmedAt', null);
   await page.reload();
@@ -25,7 +33,7 @@ test('Today reminds to back up until a backup is confirmed saved, and again once
   expect(download.suggestedFilename()).toBe('kenna-backup-2026-09-24.json');
   await expect(page.getByRole('region', { name: 'Backup file not saved yet' })).toBeVisible();
   await expect(note).toContainText('Backup file created');
-  await expect(note).toContainText('kenna-backup-2026-09-24.json, with 2 days and no photos');
+  await expect(note).toContainText('kenna-backup-2026-09-24.json, with 3 days and no photos');
   await expect(note).not.toContainText('Backup saved');
   expect(await page.evaluate(() => localStorage.getItem('kenna:backupConfirmedAt'))).toBeNull();
   await page.reload();
@@ -69,7 +77,7 @@ async function fakeShareSheet(page, outcome) {
 
 test('on a phone, cancelling the share sheet leaves the backup unsaved and the reminder in place', async ({ page, appURL, data }) => {
   await fakeShareSheet(page, 'cancel');
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   await page.goto(appURL);
   await reminder(page).getByRole('button', { name: 'Back up now' }).click();
   await expect(reminder(page)).toContainText('Backup file ready');
@@ -90,7 +98,7 @@ test('on a phone, cancelling the share sheet leaves the backup unsaved and the r
 
 test('on a phone, a completed share counts as a saved backup', async ({ page, appURL, data }) => {
   await fakeShareSheet(page, 'complete');
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   await page.goto(`${appURL}/#/settings`);
   await page.getByRole('button', { name: 'Export Backup' }).click();
   await expect(page.locator('[data-backup-delivery]')).toContainText("It isn't saved anywhere yet");
@@ -103,7 +111,7 @@ test('on a phone, a completed share counts as a saved backup', async ({ page, ap
 });
 
 test('a backup time recorded by an older version is read but not shown as confirmed', async ({ page, appURL, data }) => {
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   await page.goto(appURL);
   await setPref(page, 'lastBackupAt', daysAgo(2));
   await page.goto(`${appURL}/#/settings`);
@@ -111,13 +119,14 @@ test('a backup time recorded by an older version is read but not shown as confir
   await page.goto(appURL);
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(reminder(page)).toHaveCount(0);
+  await expect(status(page)).toContainText('Backup file made 2 days ago, not confirmed saved');
   await setPref(page, 'lastBackupAt', daysAgo(9));
   await page.reload();
   await expect(page.getByRole('region', { name: 'Your last backup was 9 days ago' })).toBeVisible();
 });
 
 test('"Not now" hides the reminder for a few days, not for good', async ({ page, appURL, data }) => {
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   await page.goto(appURL);
   await reminder(page).getByRole('button', { name: 'Not now' }).click();
   await expect(reminder(page)).toHaveCount(0);
@@ -130,14 +139,68 @@ test('"Not now" hides the reminder for a few days, not for good', async ({ page,
   await expect(reminder(page)).toBeVisible();
 });
 
-test('there is no reminder before anything is logged', async ({ page, appURL }) => {
+test('there is no reminder or backup line before anything is logged', async ({ page, appURL }) => {
   await page.goto(appURL);
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   await expect(reminder(page)).toHaveCount(0);
+  await expect(status(page)).toHaveCount(0);
+});
+
+test('a first meal brings no card, only a quiet line saying there is no backup yet; three days bring the reminder', async ({ page, appURL, data }) => {
+  await page.goto(`${appURL}/#/log/breakfast`);
+  await page.getByLabel('Breakfast calories').fill('400');
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  await expect(page.locator('.total-num')).toHaveText('400');
+  await expect(page.locator('.notice-card')).toHaveCount(0);
+  await expect(status(page)).toContainText('No backup saved yet');
+  await expect(status(page)).not.toHaveClass(/is-overdue/);
+
+  await data.seed(threeDays());
+  await page.reload();
+  await expect(reminder(page)).toBeVisible();
+  // The card says how old the backup is, so the line waits until it's gone.
+  await expect(status(page)).toBeHidden();
+});
+
+test('Today always shows how old the last backup is, snoozed or not, and backs up from there in one tap', async ({ page, data }) => {
+  const days = {};
+  for (let i = 0; i < 30; i += 1) {
+    const date = new Date(Date.UTC(2026, 7, 26 + i)).toISOString().slice(0, 10);
+    days[date] = day(date, { lunch: 500 + i }, 180 - i / 10);
+  }
+  await data.seed(days);
+  await page.reload();
+  await expect(reminder(page)).toContainText("You haven't saved a backup yet");
+  await reminder(page).getByRole('button', { name: 'Not now' }).click();
+  // Put off, the question goes; the age stays in view, marked as overdue.
+  await expect(reminder(page)).toHaveCount(0);
+  await expect(status(page)).toBeVisible();
+  await expect(status(page)).toContainText('No backup saved yet');
+  await expect(status(page)).toHaveClass(/is-overdue/);
+  await page.reload();
+  await expect(status(page)).toContainText('No backup saved yet');
+
+  const downloadPromise = page.waitForEvent('download');
+  await status(page).getByRole('button', { name: 'Back up now' }).click();
+  await downloadPromise;
+  await expect(status(page)).toContainText('Backup file not saved yet');
+  await status(page).getByRole('button', { name: 'I’ve saved it' }).click();
+  await expect(status(page)).toContainText('Last backup: today');
+  await expect(status(page)).toContainText('Backup saved. Kenna will remind you again in a week.');
+  await expect(status(page)).not.toHaveClass(/is-overdue/);
+  expect(await page.evaluate(() => localStorage.getItem('kenna:backupConfirmedAt'))).toBeTruthy();
+
+  await setPref(page, 'backupConfirmedAt', daysAgo(3));
+  await page.reload();
+  await expect(status(page)).toContainText('Last backup: 3 days ago');
+  await expect(reminder(page)).toHaveCount(0);
+  await setPref(page, 'backupConfirmedAt', daysAgo(8));
+  await page.reload();
+  await expect(reminder(page)).toContainText('Your last backup was 8 days ago');
 });
 
 test('the reminder is readable in light and dark themes', async ({ page, appURL, data }) => {
-  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await data.seed(threeDays());
   for (const theme of ['light', 'dark']) {
     await page.goto(appURL);
     await setPref(page, 'theme', theme);

@@ -72,9 +72,9 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   expect((await data.entry(TODAY)).weight).toBe(165);
 });
 
-test('the date field cannot be emptied or set to the future', async ({ page, appURL }) => {
+test('Change day cannot be emptied or set to the future', async ({ page, appURL }) => {
   await page.goto(appURL);
-  const date = page.getByLabel('Day to view or edit');
+  const date = page.getByLabel('Change day');
   await date.fill('');
   await date.dispatchEvent('change');
   await expect(date).toHaveValue(TODAY);
@@ -117,6 +117,8 @@ test('removing a meal can be undone', async ({ page, appURL, data }) => {
 });
 
 test('a confirmation message never blocks a tap on what is under it', async ({ page, appURL }) => {
+  // Short enough that Log Meal starts under the message, to be scrolled level with it.
+  await page.setViewportSize({ width: 390, height: 440 });
   await page.goto(`${appURL}/#/log/breakfast`);
   await page.getByLabel('Breakfast calories').fill('400');
   await page.getByRole('button', { name: 'Save and close' }).click();
@@ -255,7 +257,7 @@ test('a day long before anything logged asks first, so a mistyped year is not sa
 
   // The day picker lands on the same question for a mistyped year.
   await page.goto(appURL);
-  const picker = page.getByLabel('Day to view or edit');
+  const picker = page.getByLabel('Change day');
   await picker.fill('2002-09-23');
   await picker.dispatchEvent('change');
   await expect(page.getByRole('group', { name: 'Log a day in 2002?' })).toBeVisible();

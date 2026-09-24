@@ -54,8 +54,10 @@ The full rules: [How the numbers work](REFERENCE.md#how-the-numbers-work).
 - Days are kept in the browser's `localStorage` and photos in IndexedDB,
   on the phone only. Nothing is sent anywhere.
 - **Settings → Export Backup** saves one `.json` file with every day and
-  photo; **Import Backup** restores it (and can be undone). Today reminds
-  you when no backup has been saved for a week.
+  photo; **Import Backup** restores it (and can be undone). Today always
+  shows how old the last saved backup is, with **Back up now**, and asks
+  for a backup once a few days are logged and none has been saved for a
+  week.
 - On iPhone, Safari may clear a tab's data after about a week unused, so
   Kenna asks to be added to the Home Screen when it runs in a tab.
 

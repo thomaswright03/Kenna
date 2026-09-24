@@ -186,22 +186,37 @@ function compareWithStored(stored, incoming) {
   return { replaced, added, unchanged };
 }
 
-// When the Today screen reminds the user to save a backup file.
-const BACKUP_REMINDER = { REMIND_AFTER_DAYS: 7, SNOOZE_DAYS: 3 };
+// When the Today screen asks the user to save a backup file: once a few
+// days are logged (a first meal is too little to ask about), when no
+// backup has been saved yet or the last one is a week old. "Not now" puts
+// the question off for a few days; Today shows the backup's age meanwhile.
+const BACKUP_REMINDER = { REMIND_FROM_DAYS: 3, REMIND_AFTER_DAYS: 7, SNOOZE_DAYS: 3 };
 
 /**
- * Whether a backup reminder is due, and what it should say. `lastBackupAt`
- * and `snoozedUntil` are ISO times or null.
- * @param {{ hasData: boolean, lastBackupAt: string | null, snoozedUntil: string | null, now: Date }} state
+ * Whether a backup reminder is due, and what it should say. `loggedDays`
+ * counts the days with anything logged (a weight, a meal or a photo);
+ * `lastBackupAt` and `snoozedUntil` are ISO times or null.
+ * @param {{ loggedDays: number, lastBackupAt: string | null, snoozedUntil: string | null, now: Date }} state
  * @returns {{ never: true } | { never: false, days: number } | null}
  */
-function backupReminderDue({ hasData, lastBackupAt, snoozedUntil, now }) {
-  if (!hasData) return null;
+function backupReminderDue({ loggedDays, lastBackupAt, snoozedUntil, now }) {
+  if (loggedDays < BACKUP_REMINDER.REMIND_FROM_DAYS) return null;
   if (snoozedUntil && Date.parse(snoozedUntil) > now.getTime()) return null;
+  const age = backupAge(lastBackupAt, now);
+  if (age === null) return { never: true };
+  return age >= BACKUP_REMINDER.REMIND_AFTER_DAYS ? { never: false, days: age } : null;
+}
+
+/**
+ * How many calendar days ago a backup was saved (0 today), or null for
+ * none (or an unreadable time).
+ * @param {string | null} lastBackupAt ISO time
+ * @param {Date} now
+ */
+function backupAge(lastBackupAt, now) {
   const last = lastBackupAt ? new Date(lastBackupAt) : null;
-  if (!last || Number.isNaN(last.getTime())) return { never: true };
-  const days = daysBetween(localDateStr(last), localDateStr(now));
-  return days >= BACKUP_REMINDER.REMIND_AFTER_DAYS ? { never: false, days } : null;
+  if (!last || Number.isNaN(last.getTime())) return null;
+  return Math.max(0, daysBetween(localDateStr(last), localDateStr(now)));
 }
 
 module.exports = {
@@ -217,4 +232,5 @@ module.exports = {
   compareWithStored,
   BACKUP_REMINDER,
   backupReminderDue,
+  backupAge,
 };
