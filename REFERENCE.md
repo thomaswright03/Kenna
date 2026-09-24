@@ -17,21 +17,26 @@ run, test and release it.
   one row per meal, and Calories and Weight charts (last 30 days, 90 days or
   all time). Tap anywhere on a meal's row to open Log Meal at that meal.
   The weight saves when you leave its box or press Enter, as the line
-  under the box says. Emptying the weight box clears the day's weight, with **Undo** under the
+  under the box says, and also when you leave Today with a weight still in
+  the box: the next screen then says "Weight saved: 181.2 lbs", with
+  **Undo**. Emptying the weight box clears the day's weight, with **Undo** under the
   box to put it back. Pick another day in **Day to view or edit**, or tap a day in
   History, to view or fix a past day; **Back to today** returns to the current day.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
-  value saves as soon as you leave the box or tap another meal, and also if
-  you switch to another app, lock the phone or close the page with a number
-  still in the box (a number that isn't valid isn't saved; the next visit
-  puts it back in its box and says why). The day total updates as you type,
+  value saves as soon as you leave the box or tap another meal, and also
+  however you leave the screen with a number still in the box: **Back to
+  Today** (or **Back to Yesterday**, **Back to Sep 20** for a past day),
+  the tab bar, the phone's Back gesture, switching to another app, locking
+  the phone or closing the page. Leaving within the app, the next screen
+  says what was saved ("Lunch saved: 450 cal"), with **Undo** to put back
+  what was there before (unless it has been changed again since). A
+  number that isn't valid isn't saved: it's kept, and goes back in its box
+  with the reason the next time Log Meal opens for that day (the message
+  on leaving has **Fix it** to go straight there). The day total updates as you type,
   marked "not saved yet" until the save is done; **Enter** moves
   to the next meal you haven't logged; **Save and close** saves what's in the box, returns to the day you
-  were logging and confirms what was saved. **Back to Today** (or **Back
-  to Yesterday**, **Back to Sep 20** for a past day) returns to that day
-  without saving the number in the box, and says so; meals already saved
-  stay saved. **Escape** in the box puts back the saved number. Each saved meal's button shows
+  were logging and confirms the day's total. **Escape** in the box puts back the saved number. Each saved meal's button shows
   a ✓ and its calories. On the Today screen **Log Meal** is the main way
   in; tapping a meal's row (its name, calories or **Add**/**Edit**) opens
   Log Meal at that meal. A meal removed on the Today screen

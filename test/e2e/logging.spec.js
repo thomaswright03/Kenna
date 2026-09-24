@@ -319,29 +319,95 @@ test('clearing the weight can be undone', async ({ page, appURL, data }) => {
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0);
 });
 
-test('Back leaves Log Meal without saving the number in the box; meals already saved stay saved', async ({ page, appURL, data }) => {
-  await page.goto(`${appURL}/#/log/breakfast`);
-  await page.getByLabel('Breakfast calories').fill('400');
-  await page.locator('[data-meal="lunch"]').click();
-  await expect(page.getByLabel('Lunch calories')).toBeVisible();
-  // Typed, and the box never left before the tap.
-  await page.getByLabel('Lunch calories').tap();
-  await page.keyboard.type('999');
+test('every way out of Log Meal saves the number in the box, and the next screen says so', async ({ page, appURL, data }) => {
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  const saved = (n) => page.locator('.toast').filter({ hasText: `Lunch saved: ${n} cal` });
+  const lunch = async () => {
+    const e = await data.entry(TODAY);
+    return e ? e.meals.lunch : null;
+  };
+  /** Opens Lunch from Today and types `n`, without leaving the box. */
+  const open = async (n) => {
+    await page.goto(appURL);
+    await page.locator('.meal-row[data-meal="lunch"] .meal-name').click();
+    await page.getByLabel('Lunch calories').tap();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type(String(n));
+  };
+
+  // The on-screen Back button, tapped with the number still in the box.
+  await open(222);
   await page.getByRole('button', { name: 'Back to Today' }).tap();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
-  await expect(page.locator('.toast').filter({ hasText: 'Lunch not saved (“999”)' })).toBeVisible();
-  await expect(page.locator('.total-num')).toHaveText('400');
-  const saved = await data.entry(TODAY);
-  expect(saved.meals.breakfast).toBe(400);
-  expect(saved.meals.lunch).toBe(null);
+  await expect(saved(222)).toBeVisible();
+  await expect.poll(lunch).toBe(222);
+  await expect(page.locator('.total-num')).toHaveText('222');
 
-  // A click (mouse) does the same.
-  await page.goto(`${appURL}/#/log/dinner`);
-  await page.getByLabel('Dinner calories').click();
-  await page.keyboard.type('777');
+  // The tab bar.
+  await open(333);
+  await nav.getByRole('link', { name: 'History' }).click();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  await expect(saved(333)).toBeVisible();
+  await expect.poll(lunch).toBe(333);
+
+  // The browser's or phone's Back.
+  await open(444);
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+  await expect(saved(444)).toBeVisible();
+  await expect.poll(lunch).toBe(444);
+
+  // Undo on that message puts back what was there before.
+  await saved(444).getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Lunch is back to 333 cal' })).toBeVisible();
+  await expect.poll(lunch).toBe(333);
+  await expect(page.locator('.total-num')).toHaveText('333');
+
+  // Save and close says it once, its own way.
+  await open(555);
+  await page.getByRole('button', { name: 'Save and close' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Saved for Today: 555 cal' })).toBeVisible();
+  await expect(saved(555)).toHaveCount(0);
+  expect(await lunch()).toBe(555);
+});
+
+test('leaving Log Meal with a number that can’t be saved keeps it, says why, and leads back to it', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+  await page.goto(`${appURL}/#/log/lunch`);
+  await page.getByLabel('Lunch calories').fill('22x');
   await page.getByRole('button', { name: 'Back to Today' }).click();
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
-  expect((await data.entry(TODAY)).meals.dinner).toBe(null);
+  const message = page.locator('.toast').filter({ hasText: 'Lunch not saved (“22x”). Enter calories using digits only, like 450.' });
+  await expect(message).toBeVisible();
+  expect((await data.entry(TODAY)).meals.lunch).toBe(null);
+  await message.getByRole('button', { name: 'Fix it' }).click();
+  await expect(page.getByLabel('Lunch calories')).toHaveValue('22x');
+  await expect(page.getByText('Not saved yet. Enter calories using digits only, like 450.')).toBeVisible();
+
+  // Opening Log Meal from Today's button goes to it too.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Lunch not saved' })).toBeVisible();
+  await page.getByRole('link', { name: 'Log Meal' }).click();
+  await expect(page.getByLabel('Lunch calories')).toHaveValue('22x');
+});
+
+test('leaving Today saves the weight typed in its box and says so; one that can’t be saved waits in the box', async ({ page, appURL, data }) => {
+  const nav = page.getByRole('navigation', { name: 'Main' });
+  await page.goto(appURL);
+  await page.getByLabel('Weight (lbs)').fill('181.2');
+  await nav.getByRole('link', { name: 'Compare' }).click();
+  await expect(page.getByRole('heading', { name: 'Compare', exact: true })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Weight saved: 181.2 lbs' })).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(181.2);
+
+  await nav.getByRole('link', { name: 'Today' }).click();
+  await page.getByLabel('Weight (lbs)').fill('18l');
+  await nav.getByRole('link', { name: 'History' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Weight not saved (“18l”).' })).toBeVisible();
+  expect((await data.entry(TODAY)).weight).toBe(181.2);
+  await nav.getByRole('link', { name: 'Today' }).click();
+  await expect(page.getByLabel('Weight (lbs)')).toHaveValue('18l');
+  await expect(page.getByText(/^Not saved yet\./)).toBeVisible();
 });
 
 test('Back from a past day’s Log Meal returns to that day, and Escape puts back what was saved', async ({ page, appURL, data }) => {

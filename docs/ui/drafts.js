@@ -2,7 +2,8 @@
 // the page is hidden or closed while the Weight or a Calories box holds
 // such a value, it is kept here, and the next visit puts it back in its box
 // with the reason it wasn't saved (or, on another screen, says so in a
-// banner). Valid values are simply saved instead.
+// banner). The same goes for leaving the screen with such a value in the
+// box. Valid values are simply saved instead.
 
 import { core, prefs, mealLabel } from './dom.js';
 import { showBanner } from './feedback.js';
@@ -19,9 +20,23 @@ export function keepDraft(draft) {
   prefs.set(KEY, JSON.stringify(draft));
 }
 
-/** The page is back, with the value still in its box: nothing to restore. */
+/**
+ * A screen was left with a value that can't be saved: it goes back in its
+ * box the next time that box is shown, in this visit or the next.
+ * @param {Draft} draft
+ */
+export function holdDraft(draft) {
+  pending = draft;
+  keepDraft(draft);
+}
+
+/**
+ * The page is back, with the value still in its box: nothing to restore,
+ * except a value held from a screen left earlier.
+ */
 export function dropStoredDraft() {
-  prefs.remove(KEY);
+  if (pending) keepDraft(pending);
+  else prefs.remove(KEY);
 }
 
 /** Reads the draft left by the previous visit, if any (once, at start). */
@@ -49,6 +64,7 @@ export function claimDraft(field, date) {
   if (!pending || pending.field !== field || pending.date !== date) return null;
   const d = pending;
   pending = null;
+  prefs.remove(KEY);
   return d;
 }
 

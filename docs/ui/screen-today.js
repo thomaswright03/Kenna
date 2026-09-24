@@ -130,6 +130,7 @@ export async function buildToday(ctx) {
       if (weight) weight.mounted();
     },
     flush: weight ? weight.flush : undefined,
+    leave: weight ? () => weight.leave(dayHash(ctx.route.date)) : undefined,
     async refreshFromStorage() {
       view.entry = (await store.getEntry(view.date)) || blankEntry(view.date);
       if (weight) weight.refresh();

@@ -8,6 +8,7 @@ import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
 import { render } from './render.js';
 import { saveDateFor, farBackGate } from './day.js';
 import { keepDraft, claimDraft, draftMealFor } from './drafts.js';
+import { sayLeftSaved, keepLeftUnsaved } from './leaving.js';
 
 /**
  * What the screen is working on: the day (see today-weight.js) and the
@@ -15,7 +16,7 @@ import { keepDraft, claimDraft, draftMealFor } from './drafts.js';
  * @typedef {import('./today-weight.js').DayView & { activeKey: string }} LogState
  */
 
-const HOW_IT_SAVES = 'Each meal saves as soon as you leave its box or pick another meal; saved meals show a ✓.';
+const HOW_IT_SAVES = 'Each meal saves as soon as you leave its box, pick another meal or leave this screen; saved meals show a ✓.';
 
 /**
  * The meal buttons. Each shows a ✓ and its calories once saved, for as long
@@ -79,19 +80,27 @@ function showRunningTotal(el, state, typedText) {
 function mealSaver(state, input, status, onSaved) {
   /** @type {{ key: string, value: number | null, promise: Promise<boolean> } | null} */
   let saving = null;
-  // Set by Back: what's in the box is left unsaved from then on.
-  let discarded = false;
+  // The last save, while its "saved" message shows under the box.
+  /** @type {{ key: string, date: string, saved: number | null, previous: number | null } | null} */
+  let lastSave = null;
+  // Set once the screen is being left: a save finishing after that doesn't
+  // draw this screen again.
+  let left = false;
+  // Set by Save and close, which says what was saved itself.
+  let closed = false;
   /** @param {{ value: number | null }} result */
   const needsSave = (result) => result.value !== state.entry.meals[state.activeKey] || state.rolledOver;
 
   /** @param {string} key @param {number | null} value */
   async function save(key, value) {
     const target = saveDateFor(state);
+    const previous = state.entry.meals[key];
     status.set('pending', 'Saving…');
     try {
       state.entry = await store.updateEntry(target, { meals: { [key]: value } });
+      lastSave = { key, date: target, saved: value, previous };
       if (state.rolledOver) {
-        render();
+        if (!left) render();
         return true;
       }
       onSaved();
@@ -108,7 +117,6 @@ function mealSaver(state, input, status, onSaved) {
 
   /** @returns {Promise<boolean>} */
   async function commit() {
-    if (discarded) return false;
     const key = state.activeKey;
     const result = core.validateCalories(input.value);
     if (!result.ok) {
@@ -130,14 +138,46 @@ function mealSaver(state, input, status, onSaved) {
     const result = core.validateCalories(input.value);
     return result.ok && !needsSave(result);
   };
-  return {
-    commit,
-    settled,
-    discard: () => {
-      discarded = true;
-    },
-    isDiscarded: () => discarded,
+  /**
+   * The screen is being left. A valid number in the box is saved (or the
+   * save already under way is waited for) and the next screen says so; so
+   * is a save whose "saved" message was still showing, since that message
+   * goes with this screen. An invalid one is kept for next time.
+   * @param {string} backHash this screen's address, for coming back to fix it
+   */
+  function leave(backHash) {
+    if (left) return;
+    left = true;
+    const key = state.activeKey;
+    const result = core.validateCalories(input.value);
+    if (!result.ok) {
+      keepLeftUnsaved({ field: key, date: state.date, text: input.value, error: result.error }, backHash);
+      return;
+    }
+    if (closed) return;
+    if (!needsSave(result)) {
+      if (lastSave && lastSave.key === key && status.el.classList.contains('is-saved')) sayLeftSaved({ field: key, ...lastSave });
+      return;
+    }
+    commit().then((ok) => {
+      if (ok && lastSave && lastSave.key === key) sayLeftSaved({ field: key, ...lastSave });
+    });
+  }
+
+  // Saves what's in the box when the page is hidden or closed, exactly as
+  // leaving the box would; a value that can't be saved is kept as a draft.
+  function flush() {
+    if (left) return;
+    const result = core.validateCalories(input.value);
+    if (result.ok) return void commit();
+    keepDraft({ field: state.activeKey, date: state.date, text: input.value, error: result.error });
+    status.set('error', result.error);
+  }
+
+  const closedWithSave = () => {
+    closed = true;
   };
+  return { commit, settled, leave, flush, closedWithSave };
 }
 
 /**
@@ -148,8 +188,9 @@ function mealSaver(state, input, status, onSaved) {
  * @param {() => Promise<boolean>} commit
  * @param {HTMLInputElement} input
  * @param {string | null} routeDate
+ * @param {() => void} onClose runs as it returns to the day, having said what was saved
  */
-function doneButton(state, commit, input, routeDate) {
+function doneButton(state, commit, input, routeDate, onClose) {
   const btn = h('button', { type: 'button', class: 'btn btn-primary', text: 'Save and close' });
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
@@ -164,34 +205,23 @@ function doneButton(state, commit, input, routeDate) {
     const total = core.totalCalories(state.entry.meals);
     const when = core.formatRelativeDate(state.date, today());
     toast(total === null ? `Nothing logged for ${when}` : `Saved for ${when}: ${core.formatCalories(total)}`, { keepOnNavigate: true });
+    onClose();
     returnTo(dayHash(routeDate));
   });
   return btn;
 }
 
 /**
- * Back to the day, without saving what's in the box (meals already saved
- * stay saved). A tap on it keeps the box focused, so leaving the box
- * doesn't save the number on the way out.
+ * Back to the day. Like every other way out, it saves what's in the box on
+ * the way (see mealSaver's leave), and the day's screen says so.
  * @param {LogState} state
- * @param {HTMLInputElement} input
- * @param {{ settled: () => boolean, discard: () => void }} saver
  * @param {string | null} routeDate
  */
-function backButton(state, input, saver, routeDate) {
+function backButton(state, routeDate) {
   const now = today();
   const when = core.formatRelativeDate(state.date, now);
   const label = `Back to ${when === 'Today' || when === 'Yesterday' ? when : core.formatMonthDay(state.date, state.date.slice(0, 4) !== now.slice(0, 4))}`;
-  const btn = h('button', { type: 'button', class: 'btn btn-secondary', text: label, 'data-log-back': '' });
-  btn.addEventListener('mousedown', (e) => e.preventDefault());
-  btn.addEventListener('click', () => {
-    const typed = input.value.trim();
-    const unsaved = !saver.settled() && typed !== '';
-    saver.discard();
-    if (unsaved) toast(`${mealLabel(state.activeKey)} not saved (“${typed.slice(0, 20)}”)`, { keepOnNavigate: true });
-    returnTo(dayHash(routeDate));
-  });
-  return btn;
+  return h('button', { type: 'button', class: 'btn btn-secondary', text: label, 'data-log-back': '', onClick: () => returnTo(dayHash(routeDate)) });
 }
 
 /**
@@ -273,17 +303,7 @@ export async function buildLog(ctx) {
     if (key === state.activeKey) input.focus();
     else if (saver.settled() || (await saver.commit())) select(key);
   }
-  // Saves what's in the box when the page is hidden or closed, exactly as
-  // leaving the box would; a value that can't be saved is kept as a draft.
-  function flush() {
-    if (saver.isDiscarded()) return;
-    const result = core.validateCalories(input.value);
-    if (result.ok) return void saver.commit();
-    keepDraft({ field: state.activeKey, date: state.date, text: input.value, error: result.error });
-    status.set('error', result.error);
-  }
-
-  const doneBtn = doneButton(state, saver.commit, input, ctx.route.date);
+  const doneBtn = doneButton(state, saver.commit, input, ctx.route.date, saver.closedWithSave);
   input.addEventListener('change', saver.commit);
   input.addEventListener('input', () => showRunningTotal(runningTotal, state, input.value));
   boxKeys(input, {
@@ -300,7 +320,7 @@ export async function buildLog(ctx) {
 
   const forDay = date === now ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now);
   const root = h('section', { class: 'card' }, h('h2', { class: 'card-title', text: 'Log Meal' }), h('p', { class: 'card-sub', text: `For ${forDay}. ${HOW_IT_SAVES}` }));
-  const backBtn = backButton(state, input, saver, ctx.route.date);
+  const backBtn = backButton(state, ctx.route.date);
   root.append(picker.el, h('div', { class: 'field' }, label, input, status.el), runningTotal, h('div', { class: 'log-actions' }, backBtn, doneBtn));
   return {
     title: date === now ? 'Log Meal' : `Log Meal, ${core.formatDate(date, now)}`,
@@ -309,7 +329,8 @@ export async function buildLog(ctx) {
       if (draft) status.set('error', `Not saved yet. ${draft.error}`);
       if (window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
     },
-    flush,
+    flush: saver.flush,
+    leave: () => saver.leave(logHash(ctx.route.date, state.activeKey)),
     async refreshFromStorage() {
       state.entry = (await store.getEntry(state.date)) || blankEntry(state.date);
       if (document.activeElement !== input) loadInput();

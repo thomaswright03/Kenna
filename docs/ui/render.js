@@ -16,6 +16,7 @@ import { failureText, recordProblem } from './problems.js';
  * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
  * @property {() => void} [release] frees resources such as object URLs
  * @property {() => void} [flush] saves typed input now (the page is being hidden or closed)
+ * @property {() => void} [leave] another screen, or another day, is being opened: saves typed input on the way out
  */
 
 /**
@@ -39,6 +40,11 @@ export function registerScreens(screens) {
 let renderSeq = 0;
 /** @type {View | null} */
 let currentView = null;
+// The screen and day the current view shows. Drawing it again (new data,
+// a new calendar day) isn't leaving it; drawing anything else is.
+/** @param {import('./router.js').Route} r */
+const placeOf = (r) => `${r.screen}/${r.date || ''}`;
+let currentPlace = '';
 
 export const getCurrentView = () => currentView;
 
@@ -58,6 +64,12 @@ export async function render(options) {
   const main = byId('main');
   const seq = (renderSeq += 1);
   const isCurrent = () => seq === renderSeq;
+  const place = placeOf(route);
+  if (currentView && currentView.leave && place !== currentPlace) {
+    const leave = currentView.leave;
+    currentView.leave = undefined;
+    leave();
+  }
   closeAllDialogs();
   updateTabs();
   const stopLoading = startLoading(main);
@@ -80,6 +92,7 @@ export async function render(options) {
   if (currentView && currentView.release) currentView.release();
   view.release = () => releases.forEach((fn) => fn());
   currentView = view;
+  currentPlace = place;
   main.replaceChildren(view.root);
   document.title = `${view.title} · Kenna`;
   if (opts.focus) {
