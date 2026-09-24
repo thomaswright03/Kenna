@@ -655,3 +655,52 @@ test('a day with no meals says so in words, with no stand-in number, until a mea
   await expect(page.locator('.total-num')).toHaveText('0');
   await expect(total).toContainText('calories logged today');
 });
+
+test.describe('on a wide screen', () => {
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
+
+  test('a message sits above the day and covers no meal, button or chart', async ({ page, appURL }) => {
+    await page.goto(`${appURL}/#/log/breakfast`);
+    await page.getByLabel('Breakfast calories').fill('420');
+    await page.getByRole('button', { name: 'Save and close' }).click();
+    const message = page.locator('.toast').filter({ hasText: 'Saved for Today: 420 cal' });
+    await expect(message).toBeVisible();
+    const box = await message.boundingBox();
+    const covered = await page.evaluate((b) => {
+      const hits = [];
+      for (const el of document.querySelectorAll('main .meal-row, main button, main a, main input, main svg')) {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (r.left < b.x + b.width && r.right > b.x && r.top < b.y + b.height && r.bottom > b.y) hits.push(el.outerHTML.slice(0, 60));
+      }
+      return hits;
+    }, box);
+    expect(covered).toEqual([]);
+    const heading = await page.getByRole('heading', { name: 'Today', exact: true }).boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(heading.y);
+  });
+
+  test('a message shown while the top of the page is out of view floats in sight', async ({ page, appURL, data }) => {
+    await page.setViewportSize({ width: 1440, height: 600 });
+    const days = {};
+    for (let d = 1; d <= 24; d += 1) {
+      const date = `2026-09-${String(d).padStart(2, '0')}`;
+      days[date] = day(date, { breakfast: 400 });
+    }
+    await data.seed(days);
+    await page.goto(`${appURL}/#/history`);
+    const sep2 = page.locator('.history-item[data-date="2026-09-02"]');
+    await sep2.scrollIntoViewIfNeeded();
+    await sep2.click();
+    await page.getByLabel('Weight (lbs)').fill('180');
+    // Back to History, which returns to where it was: far from the top.
+    await page.goBack();
+    await expect(sep2).toBeFocused();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    const message = page.locator('.toast').filter({ hasText: 'Weight saved: 180 lbs' });
+    await expect(message).toBeInViewport({ ratio: 1 });
+    await message.getByRole('button', { name: 'Undo' }).click();
+    await expect(message).toHaveCount(0);
+    await expect(page.locator('#toasts')).not.toHaveClass(/is-floating/);
+  });
+});

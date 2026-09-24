@@ -1130,6 +1130,23 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
     align-items: start;
   }
   .photo-grid { grid-template-columns: repeat(4, 1fr); }
+  /* Two columns leave no free space along the bottom, so messages sit
+     above the content instead, covering none of it. One that appears while
+     the top of the page is scrolled out of view floats at the bottom right
+     until the messages are gone (see feedback.js). */
+  .toasts {
+    position: static;
+    transform: none;
+    width: auto;
+    margin: 0 var(--s4) var(--s3);
+  }
+  .toasts:empty { margin: 0; }
+  .toasts.is-floating {
+    position: fixed;
+    left: auto;
+    right: var(--s4);
+    width: min(400px, calc(100vw - var(--s6)));
+  }
 }
 
 /* On a laptop the tabs join the brand and Settings in one row. */

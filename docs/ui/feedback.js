@@ -36,20 +36,37 @@ export function showBanner(notice) {
 /** Each toast on screen, and how to dismiss it. @type {Map<HTMLElement, () => void>} */
 const liveToasts = new Map();
 
-// A message with a button stays until it's used, so the page gets room
-// below its end to scroll clear of it: nothing is ever stuck under it.
+// A message with a button stays until it's used, so while messages float
+// over the page it gets room below its end to scroll clear of them:
+// nothing is ever stuck under one.
 function makeRoomForToasts() {
   const toasts = byId('toasts');
-  const room = toasts.querySelector('.toast-actionable') ? toasts.getBoundingClientRect().height + 16 : 0;
+  if (!toasts.hasChildNodes()) toasts.classList.remove('is-floating');
+  const floating = window.getComputedStyle(toasts).position === 'fixed';
+  const room = floating && toasts.querySelector('.toast-actionable') ? toasts.getBoundingClientRect().height + 16 : 0;
   document.documentElement.style.setProperty('--toast-room', `${Math.ceil(room)}px`);
 }
 
+// On a wide screen messages sit above the content (see style.css), where
+// they'd go unseen once the top of the page is scrolled out of view: then
+// they float at the bottom right until they're all gone.
+/** @param {HTMLElement} toasts */
+function placeToasts(toasts) {
+  if (!toasts.hasChildNodes() || window.getComputedStyle(toasts).position === 'fixed') return;
+  if (toasts.getBoundingClientRect().top < 0) {
+    toasts.classList.add('is-floating');
+    makeRoomForToasts();
+  }
+}
+window.addEventListener('scroll', () => placeToasts(byId('toasts')), { passive: true });
+
 /**
- * A short message at the bottom of the screen. At most one message without
- * a button shows at a time (a new one replaces it); it goes after a few
- * seconds, or at a tap on it. A message with a button (Undo, Fix it) is
- * never taken away by time: it stays until the button is used, it's
- * dismissed (×), or the user moves on to another screen. Moving to another
+ * A short message at the bottom of the screen (above the content on a
+ * wide one). At most one message without a button shows at a time (a new
+ * one replaces it); it goes after a few seconds, or at a tap on it. A
+ * message with a button (Undo, Fix it) is never taken away by time: it
+ * stays until the button is used, it's dismissed (×), or the user moves on
+ * to another screen. Moving to another
  * screen clears messages about the one left, except one that says
  * `keepOnNavigate` it's about the screen being opened (Save and close's
  * "Saved for Today", or what was saved on the way out); that one goes when
@@ -102,6 +119,7 @@ export function toast(message, options) {
     else oldest.remove();
   }
   const timer = action ? undefined : setTimeout(() => dismiss(), 4000);
+  placeToasts(toasts);
   makeRoomForToasts();
   return () => dismiss();
 }

@@ -52,7 +52,11 @@ run, test and release it.
   it's put back or logged again), and the next screen you open offers
   **Undo** too (a meal logged again since is left as it is). A message
   with **Undo** (or **Fix it**) is never taken away by time: it stays
-  until you use it, dismiss it (×) or move on to another screen.
+  until you use it, dismiss it (×) or move on to another screen. Messages
+  show along the bottom of a phone's screen; on a wide screen (two
+  columns) they sit above the content, so they cover none of it, and one
+  shown while the top of the page is scrolled out of view floats at the
+  bottom right instead.
 - **History** lists every logged day with its total calories and weight,
   grouped by month under headings with each month's average calories
   (days with meals) and weight, neither counting today. The most recent
