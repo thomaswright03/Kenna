@@ -22,7 +22,7 @@ const SCREENS = ['history', 'compare', 'photos', 'settings'];
  * @param {string} hash
  * @returns {Route}
  */
-export function parseRoute(hash) {
+function parseRoute(hash) {
   const parts = String(hash || '')
     .replace(/^#\/?/, '')
     .split('/')
@@ -54,13 +54,13 @@ export function logHash(date, meal) {
 }
 
 /** @param {Route} r */
-export function routeHash(r) {
+function routeHash(r) {
   if (r.screen === 'today') return r.date ? `#/day/${r.date}` : '#/';
   if (r.screen === 'log') return logHash(r.date, r.meal);
   return `#/${r.screen}`;
 }
 
-export const currentHash = () => routeHash(parseRoute(window.location.hash));
+const currentHash = () => routeHash(parseRoute(window.location.hash));
 
 /**
  * An address that doesn't lead anywhere valid (mistyped, an old bookmark,

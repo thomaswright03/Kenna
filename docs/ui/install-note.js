@@ -9,7 +9,7 @@ import { h, uid, prefs, BACKEND } from './dom.js';
 import { announce } from './feedback.js';
 
 const SNOOZE_KEY = 'installNoteSnoozedUntil';
-export const INSTALL_NOTE_SNOOZE_DAYS = 7;
+const INSTALL_NOTE_SNOOZE_DAYS = 7;
 
 /** True when Kenna was opened from the Home Screen (or installed elsewhere). */
 export function runningInstalled() {
@@ -20,7 +20,7 @@ export function runningInstalled() {
 }
 
 /** iPhone, iPod or iPad (which reports itself as a Mac with a touch screen). */
-export function onAppleMobile() {
+function onAppleMobile() {
   const nav = window.navigator;
   if (/iPhone|iPad|iPod/.test(nav.userAgent)) return true;
   return /Macintosh/.test(nav.userAgent) && nav.maxTouchPoints > 1;
