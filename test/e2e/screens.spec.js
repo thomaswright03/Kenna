@@ -249,18 +249,15 @@ test('Compare answers how today stands in plain sentences, within the first scre
     expect(box.y + box.height).toBeLessThanOrEqual(844);
   }
 
-  // Bars are plain amounts from zero, each labelled with its value; today's
-  // is set apart by shade only.
+  // Two plain bars from zero, each labelled with its value: today and the
+  // baseline the sentence uses; today's is set apart by shade only.
   const rows = calories.locator('.amount-row');
-  // The average day is the same as the usual breakfast and lunch here, so
-  // it isn't shown twice.
-  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/, /^Yesterday\s*2,100 cal$/]);
-  // With one average there's nothing to tell apart.
-  await expect(calories.locator('[data-baseline-note]')).toHaveCount(0);
+  await expect(rows).toHaveText([/^Today so far\s*2,750 cal$/, /^Usual for these meals\s*2,000 cal$/]);
   const widths = await rows.locator('.amount-bar').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
-  expect(widths[0]).toBeGreaterThan(widths[2]);
-  expect(widths[2]).toBeGreaterThan(widths[1]);
+  expect(widths[0]).toBeGreaterThan(widths[1]);
   expect(Math.abs(widths[1] / widths[0] - 2000 / 2750)).toBeLessThan(0.02);
+  // The average day and yesterday are in the detail line.
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('2,750 cal so far · average day 2,000 cal · yesterday 2,100 cal');
 
   // Each meal is one tap further down.
   const meals = page.locator('.compare-meals');
@@ -271,7 +268,7 @@ test('Compare answers how today stands in plain sentences, within the first scre
   await expect(meals).toContainText('Never logged: Snack 1, Snack 2, Dinner, Snack 3.');
 });
 
-test("on Compare, a meal with no average yet gets its own bar, so today's compared bar and the usual one differ by the sentence's amount", async ({ page, appURL, data }) => {
+test("on Compare, a meal with no average yet is left out of today's bar, so it and the usual one differ by the sentence's amount", async ({ page, appURL, data }) => {
   await data.seed({
     '2026-09-22': day('2026-09-22', { breakfast: 400, lunch: 600 }),
     '2026-09-23': day('2026-09-23', { breakfast: 380, lunch: 600 }),
@@ -281,12 +278,7 @@ test("on Compare, a meal with no average yet gets its own bar, so today's compar
   const calories = page.locator('[data-answer="calories"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 40 cal more than your average breakfast and lunch.');
   const rows = calories.locator('.amount-row');
-  await expect(rows).toHaveText([
-    /^Today, these meals\s*1,030 cal$/,
-    /^Usual for these meals\s*990 cal$/,
-    /^Snack 2 \(no average yet\)\s*200 cal$/,
-    /^Yesterday\s*980 cal$/,
-  ]);
+  await expect(rows).toHaveText([/^Today, these meals\s*1,030 cal$/, /^Usual for these meals\s*990 cal$/]);
   const values = (await rows.locator('.amount-value').allTextContents()).map((v) => Number(v.replace(/[^\d]/g, '')));
   expect(values[0] - values[1]).toBe(40);
   await expect(calories).toContainText('1,230 cal so far');
@@ -327,12 +319,11 @@ test("today's unfinished day doesn't drag the calorie trend, and is compared as 
   await expect(page.locator('.chart-latest.series-weight')).toContainText('Today');
   const calories = page.locator('[data-answer="calories"]');
   await expect(calories.locator('.compare-answer-text')).toHaveText('So far today: 100 cal less than your average breakfast.');
-  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/, /^Average day\s*1,900 cal$/, /^Yesterday\s*1,900 cal$/]);
-  await expect(calories.locator('.amount-row').first()).toContainText('Today so far');
-  // Two averages: which one the sentence used is said in words.
-  await expect(calories.locator('[data-baseline-note]')).toHaveText(
-    'The sentence compares today with “Usual for these meals”: your average for just the meals logged so far today. “Average day” covers whole days, so it’s a fair match only once today is finished.'
-  );
+  // The bars are today and the sentence's baseline, and nothing needs
+  // explaining; the whole average day is in the detail line.
+  await expect(calories.locator('.amount-row')).toHaveText([/^Today so far\s*400 cal$/, /^Usual for these meals\s*500 cal$/]);
+  await expect(calories.locator('.compare-caption')).toHaveCount(0);
+  await expect(calories.locator('.compare-answer-detail')).toHaveText('400 cal so far · average day 1,900 cal · yesterday 1,900 cal');
   await expect(page.locator('[data-answer="weight"]')).not.toContainText('So far');
 
   // The daily chart on Today shows the running total, marked as unfinished.

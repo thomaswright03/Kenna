@@ -64,17 +64,13 @@ run, test and release it.
   calories so far against your average for the same meals ("So far today:
   100 cal less than your average breakfast and lunch") and today's weight
   against your average weight and yesterday ("0.6 lbs below your
-  average"), with the numbers behind each. Plain bars show today's
-  calories so far, your usual for those meals, the average day (when it's
-  different) and yesterday side by side, from zero. When a meal logged
-  today has never been logged before (so it has no average), today's bar
-  covers only the meals the sentence compares ("Today, these meals") and
-  that meal has its own bar ("Snack 2 (no average yet)"), so the gap
-  between today's bar and "Usual for these meals" is always the sentence's
-  number. When both averages
-  show, a line under the bars says the sentence used "Usual for these
-  meals", and that "Average day" is a whole day's, so a fair match only
-  once today is finished. Each meal's today, yesterday and
+  average"), with the numbers behind each. Two plain bars from zero show
+  today's calories so far and your usual for those same meals, so the gap
+  between them is always the sentence's number. When a meal logged today
+  has never been logged before (so it has no average), today's bar covers
+  only the meals the sentence compares ("Today, these meals"), and the
+  line under the sentence names the meal left out. That line also gives
+  the whole average day and yesterday. Each meal's today, yesterday and
   average are one tap further down (**See each meal**). Below that are
   7-day rolling averages of calories and weight. The 7-day calorie average
   leaves today out until the day is over (on the Today screen's Calories
