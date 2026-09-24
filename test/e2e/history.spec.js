@@ -1,4 +1,4 @@
-const { test, expect, day } = require('./fixtures');
+const { test, expect, day, TODAY } = require('./fixtures');
 
 const nav = (page) => page.getByRole('navigation', { name: 'Main' });
 
@@ -111,4 +111,38 @@ test('on a wide screen the tabs sit in the header, lined up with the columns bel
   const brand = await page.getByRole('heading', { name: 'Kenna' }).boundingBox();
   expect(tabs.y).toBeGreaterThan(brand.y + brand.height - 1);
   expect(tabs.width).toBeGreaterThan(390 - 40);
+});
+
+test("a month's weight average leaves out today, and averages always show their decimal", async ({ page, appURL, data }) => {
+  await data.seed({
+    '2026-08-10': day('2026-08-10', {}, 165),
+    '2026-08-20': day('2026-08-20', {}, 167),
+    '2026-09-23': day('2026-09-23', {}, 170),
+    [TODAY]: day(TODAY, {}, 180),
+  });
+  await page.goto(`${appURL}/#/history`);
+  const september = page.locator('.history-month').filter({ hasText: 'September 2026' });
+  // Yesterday's 170 alone: today's 180 isn't in the average yet.
+  await expect(september.locator('.history-month-sub')).toHaveText('2 days · avg 170.0 lbs');
+  const august = page.locator('.history-month').filter({ hasText: 'August 2026' });
+  await expect(august.locator('.history-month-sub')).toHaveText('2 days · avg 166.0 lbs');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const overview = page.locator('.months-overview');
+  await expect(overview).toContainText('not counting today');
+  await expect(overview.locator('tr[data-overview-month="2026-08"]')).toHaveText(/August 2026\s*2\s*—\s*166\.0/);
+  await expect(overview.locator('tr[data-overview-month="2026-09"]')).toHaveText(/September 2026\s*2\s*—\s*170\.0/);
+
+  await page.goto(`${appURL}/#/compare`);
+  // Average of 165, 167 and 170 before today is 167.3; the difference too
+  // is to one decimal.
+  await expect(page.locator('[data-answer="weight"]')).toContainText('average 167.3 lbs');
+  await expect(page.locator('[data-answer="weight"]')).toContainText('12.7 lbs above your average');
+});
+
+test('an average that comes out whole still shows its decimal on Compare', async ({ page, appURL, data }) => {
+  await data.seed({ '2026-09-20': day('2026-09-20', {}, 165), '2026-09-21': day('2026-09-21', {}, 167), [TODAY]: day(TODAY, {}, 167) });
+  await page.goto(`${appURL}/#/compare`);
+  const weight = page.locator('[data-answer="weight"]');
+  await expect(weight).toContainText('167 lbs today: 1.0 lbs above your average.');
+  await expect(weight).toContainText('average 166.0 lbs');
 });

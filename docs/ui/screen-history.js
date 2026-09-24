@@ -28,27 +28,15 @@ function byMonth(days) {
   return months;
 }
 
-/**
- * A month's averages: calories over the days with meals (leaving out
- * today, which isn't over, as every average does), weight over the days
- * with a weight. Null where there's nothing to average.
- * @param {Entry[]} days
- * @param {string} now
- */
-function monthAverages(days, now) {
-  const totals = /** @type {number[]} */ (days.filter((e) => e.date < now).map((e) => core.totalCalories(e.meals)).filter((t) => t !== null));
-  const weights = /** @type {number[]} */ (days.map((e) => e.weight).filter((w) => w !== null));
-  /** @param {number[]} list */
-  const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : null);
-  return { calories: mean(totals), weight: mean(weights) };
-}
+// A month's averages leave out today, as every average does.
+const monthAverages = core.computeMonthAverages;
 
 /** @param {Entry[]} days @param {string} now */
 function monthSummary(days, now) {
   const avg = monthAverages(days, now);
   const parts = [plural(days.length, 'day')];
   if (avg.calories !== null) parts.push(`avg ${core.formatCalories(avg.calories)}`);
-  if (avg.weight !== null) parts.push(`avg ${core.formatWeight(avg.weight, 1)}`);
+  if (avg.weight !== null) parts.push(`avg ${core.formatAverageWeight(avg.weight)}`);
   return parts.join(' · ');
 }
 
@@ -217,14 +205,14 @@ function monthsOverview(months, now, jump) {
       h('th', { scope: 'row' }, name),
       h('td', { text: core.formatNumber(m.days.length) }),
       cell(avg.calories, (n) => core.formatNumber(Math.round(n))),
-      cell(avg.weight, (n) => core.formatNumber(n, 1))
+      cell(avg.weight, (n) => core.formatNumber(n, 1, 1))
     );
   });
   return h(
     'section',
     { class: 'card months-overview', 'aria-labelledby': 'months-overview-title' },
     h('h3', { class: 'section-title', id: 'months-overview-title', text: 'Month by month' }),
-    h('p', { class: 'card-sub', text: 'Average calories (days with meals) and weight (lbs) each month. Tap a month to go to it.' }),
+    h('p', { class: 'card-sub', text: 'Average calories (days with meals) and weight (lbs) each month, not counting today. Tap a month to go to it.' }),
     h(
       'div',
       { class: 'months-overview-scroll' },

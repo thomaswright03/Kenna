@@ -10,8 +10,10 @@ import { buildChartsCard } from './charts.js';
 
 /** @param {number} n */
 const cal = (n) => core.formatCalories(n);
-/** @param {number} n @param {number} [decimals] */
-const lbs = (n, decimals) => core.formatWeight(n, decimals);
+/** A weight as entered. @param {number} n */
+const lbs = (n) => core.formatWeight(n);
+/** An average weight, or a difference from one: always one decimal. @param {number} n */
+const avgLbs = (n) => core.formatAverageWeight(n);
 
 /**
  * "500 cal more than", "the same as": today against a reference value.
@@ -26,7 +28,7 @@ function difference(diff, unit, words, decimals = 1) {
   // Rounded the same way above and below (0.75 is 0.8 either way).
   const rounded = (Math.sign(diff) * Math.round(Math.abs(diff) * (unit === 'lbs' ? scale : 1))) / (unit === 'lbs' ? scale : 1);
   if (rounded === 0) return { amount: '', text: 'the same as', direction: 'same' };
-  const amount = unit === 'lbs' ? lbs(Math.abs(rounded), decimals) : cal(Math.abs(rounded));
+  const amount = unit === 'cal' ? cal(Math.abs(rounded)) : decimals === 1 ? avgLbs(Math.abs(rounded)) : core.formatWeight(Math.abs(rounded), decimals);
   return { amount, text: rounded > 0 ? words[0] : words[1], direction: rounded > 0 ? 'above' : 'below' };
 }
 
@@ -152,7 +154,7 @@ function weightAnswer(t, y, avg) {
   const details = [];
   if (t.weight === null) {
     sentence = [document.createTextNode('No weight logged yet today.')];
-    if (avg.weight !== null) details.push(`average ${lbs(avg.weight, 1)}`);
+    if (avg.weight !== null) details.push(`average ${avgLbs(avg.weight)}`);
     if (y.weight !== null) details.push(`yesterday ${lbs(y.weight)}`);
   } else if (avg.weight === null) {
     sentence = [document.createTextNode(`${lbs(t.weight)} today.`)];
@@ -163,7 +165,7 @@ function weightAnswer(t, y, avg) {
       d.amount ? h('strong', { text: d.amount }) : null,
       document.createTextNode(`${d.amount ? ' ' : ''}${d.text} your average.`),
     ].filter((n) => n !== null);
-    details.push(`average ${lbs(avg.weight, 1)}`);
+    details.push(`average ${avgLbs(avg.weight)}`);
     if (y.weight !== null) {
       const dy = difference(t.weight - y.weight, 'lbs', ['up', 'down'], 2);
       details.push(dy.direction === 'same' ? `same as yesterday (${lbs(y.weight)})` : `${dy.amount} ${dy.text} from yesterday (${lbs(y.weight)})`);

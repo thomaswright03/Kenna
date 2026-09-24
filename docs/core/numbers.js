@@ -4,15 +4,21 @@
 
 const { LOCALE } = require('./dates.js');
 
-/** @type {Record<number, Intl.NumberFormat>} */
+/** @type {Record<string, Intl.NumberFormat>} */
 const numberFormats = {};
-/** @param {number} value @param {number} [maxDecimals] */
-function formatNumber(value, maxDecimals) {
-  const digits = maxDecimals || 0;
-  if (!numberFormats[digits]) {
-    numberFormats[digits] = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+/**
+ * @param {number} value
+ * @param {number} [maxDecimals] at most this many decimals (0 when omitted)
+ * @param {number} [minDecimals] at least this many (0 when omitted): 1 keeps "166.0"
+ */
+function formatNumber(value, maxDecimals, minDecimals) {
+  const most = maxDecimals || 0;
+  const least = Math.min(minDecimals || 0, most);
+  const key = `${most}.${least}`;
+  if (!numberFormats[key]) {
+    numberFormats[key] = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: most, minimumFractionDigits: least });
   }
-  return numberFormats[digits].format(value);
+  return numberFormats[key].format(value);
 }
 
 /** @param {number} value */
@@ -21,14 +27,22 @@ function formatCalories(value) {
 }
 
 // A logged weight is shown as it was entered (up to two decimals, the
-// most the input accepts); averages pass 1 for one decimal.
-/** @param {number} value @param {number} [decimals] */
+// most the input accepts).
+/** @param {number} value @param {number} [decimals] at most this many (2 when omitted) */
 function formatWeight(value, decimals) {
   return `${formatNumber(value, decimals === undefined ? 2 : decimals)} lbs`;
+}
+
+// An average weight, or a difference from one, always to one decimal, so
+// "166.0 lbs" sits beside "164.3 lbs" rather than "166 lbs".
+/** @param {number} value */
+function formatAverageWeight(value) {
+  return `${formatNumber(value, 1, 1)} lbs`;
 }
 
 module.exports = {
   formatNumber,
   formatCalories,
   formatWeight,
+  formatAverageWeight,
 };

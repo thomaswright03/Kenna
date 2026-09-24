@@ -488,3 +488,32 @@ test('long chart ranges are averaged by week, and multi-year ranges by month', (
   assert.equal(core.formatPeriod(weeks[1].start, 'week', true), 'Week of Sep 20, 2026');
   assert.equal(core.formatPeriod(months[0].start, 'month'), 'February 2026');
 });
+
+test('an average weight always shows its one decimal; a logged weight shows as entered', () => {
+  assert.equal(core.formatAverageWeight(166), '166.0 lbs');
+  assert.equal(core.formatAverageWeight(165.96), '166.0 lbs');
+  assert.equal(core.formatAverageWeight(164.34), '164.3 lbs');
+  assert.equal(core.formatAverageWeight(1000), '1,000.0 lbs');
+  assert.equal(core.formatWeight(166), '166 lbs');
+  assert.equal(core.formatWeight(165.25), '165.25 lbs');
+  assert.equal(core.formatNumber(166, 1, 1), '166.0');
+  assert.equal(core.formatNumber(166, 1), '166');
+  assert.equal(core.formatNumber(1.25, 0, 2), '1', 'never more decimals than the most asked for');
+});
+
+test("a month's averages leave out today, like every other average", () => {
+  const days = [
+    { date: '2026-09-22', weight: null, meals: { ...core.emptyMeals(), breakfast: 500 } },
+    { date: '2026-09-23', weight: 170, meals: { ...core.emptyMeals(), breakfast: 1500 } },
+    { date: '2026-09-24', weight: 180, meals: { ...core.emptyMeals(), breakfast: 100 } },
+    { date: '2026-09-25', weight: 200, meals: core.emptyMeals() },
+  ];
+  assert.deepEqual(core.computeMonthAverages(days, '2026-09-24'), { calories: 1000, weight: 170 });
+  assert.deepEqual(core.computeMonthAverages(days.slice(2), '2026-09-24'), { calories: null, weight: null });
+  // A past month is unaffected.
+  assert.deepEqual(core.computeMonthAverages(days, '2026-10-02'), { calories: 700, weight: (170 + 180 + 200) / 3 });
+  // The same as Compare's all-time averages over the same days.
+  const all = core.computeAllTimeAverages(days, '2026-09-24');
+  assert.equal(all.weight, 170);
+  assert.equal(all.total, 1000);
+});

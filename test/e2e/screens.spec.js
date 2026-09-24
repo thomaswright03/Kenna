@@ -174,7 +174,7 @@ test('a weight is shown everywhere as it was entered, to two decimals', async ({
   await page.goto(`${appURL}/#/compare`);
   const weight = page.locator('[data-answer="weight"]');
   await expect(weight).toContainText('165.25 lbs today: 0.8 lbs below your average.');
-  await expect(weight).toContainText('average 166 lbs · 0.75 lbs down from yesterday (166 lbs)');
+  await expect(weight).toContainText('average 166.0 lbs · 0.75 lbs down from yesterday (166 lbs)');
 });
 
 test('Compare answers how today stands in plain sentences, within the first screenful', async ({ page, appURL, data }) => {

@@ -119,6 +119,24 @@ function rollingAverage(points, windowDays) {
   return out;
 }
 
+// A month's averages, as History shows them: calories over the days with
+// meals, weight over the days with a weight. Today is left out of both, as
+// it is from every average, so a month reads the same in History as the
+// averages on Compare; days after today never count. Null where there's
+// nothing to average.
+/**
+ * @param {Entry[]} days the month's days
+ * @param {string} today
+ * @returns {{ calories: number | null, weight: number | null }}
+ */
+function computeMonthAverages(days, today) {
+  const before = days.filter((e) => e && e.date < today);
+  return {
+    calories: mean(/** @type {number[]} */ (before.map((e) => totalCalories(e.meals)).filter((t) => t !== null))),
+    weight: mean(/** @type {number[]} */ (before.map((e) => normalizeWeight(e.weight)).filter((w) => w !== null))),
+  };
+}
+
 // The 7-day trend line on Compare. Today's calories are left out: the day
 // isn't over, so its running total (breakfast only, at 10 AM) would drag
 // the average down every morning. Weight is one reading a day and keeps
@@ -142,4 +160,5 @@ module.exports = {
   seriesFromRows,
   rollingAverage,
   trendSeries,
+  computeMonthAverages,
 };

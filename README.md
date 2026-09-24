@@ -38,7 +38,7 @@ data never leaves your device.
   it is).
 - **History** lists every logged day with its total calories and weight,
   grouped by month under headings with each month's average calories
-  (days with meals, not counting today) and weight. The most recent
+  (days with meals) and weight, neither counting today. The most recent
   months are shown first; **Show earlier months** adds more, and **Go to
   month** jumps to any month. Tap a day to open it; going back (Back, the
   back gesture) returns to the same place in History, with the same months
@@ -87,7 +87,11 @@ How the numbers work:
   comparison, charts) only if at least one meal was logged. A day with only a
   weight shows "No meals logged", never "0 cal", and is a gap in the calorie
   chart. Weight statistics use every day that has a weight.
-- All-time averages leave out today, so Compare shows "today vs a typical day".
+- Every average leaves out today: the all-time averages on Compare (so it
+  shows "today vs a typical day") and each month's averages in History,
+  for calories and weight alike, so a month reads the same wherever it's
+  shown. (The 7-day weight trend line includes today's weigh-in; the
+  7-day calorie line doesn't, see Compare above.)
 - Compare's calorie sentence compares like with like: the meals logged
   today against the sum of those same meals' averages (breakfast so far
   against your average breakfast, not against a whole day). A meal logged
@@ -135,7 +139,8 @@ How the numbers work:
   2 lbs, or 200 cal (a fifth of the value, when that's more), so a single
   day or a tiny change doesn't look like a dramatic one.
 - A weight is shown as it was entered, to up to two decimals (165.25);
-  averages are shown to one.
+  averages, and differences from an average, always show one decimal
+  (166.0 lbs, 1.0 lbs above your average).
 - Weight is in pounds (lbs) and dates and numbers are written the US English
   way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. Pounds and
   US English only are a deliberate limit of scope: there is no kilogram

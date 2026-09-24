@@ -80,7 +80,7 @@ function subtitle(opts, period) {
 /** @param {SeriesInfo} opts */
 function formatter(opts) {
   const averaged = opts.averaged;
-  return (/** @type {number} */ v) => (opts.unit === 'lbs' ? core.formatWeight(v, averaged ? 1 : 2) : core.formatCalories(v));
+  return (/** @type {number} */ v) => (opts.unit === 'lbs' ? (averaged ? core.formatAverageWeight(v) : core.formatWeight(v)) : core.formatCalories(v));
 }
 
 /**
