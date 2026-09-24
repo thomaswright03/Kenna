@@ -32,18 +32,42 @@ let inBox = null;
 /** Drafts from the last visit that no screen has shown yet, by field and day. @type {Set<string>} */
 const unseen = new Set();
 
+/**
+ * The drafts this window has read, kept or handed to a box, by field and
+ * day: what's stored for them is this window's to keep or drop. Any other
+ * stored draft was kept by another Kenna window or tab on this device (one
+ * closed with a value in its box, say), and is left for the next visit.
+ * @type {Set<string>}
+ */
+const mine = new Set();
+
 /** @param {{ field: string, date: string }} d */
 const idOf = (d) => `${d.field}@${d.date}`;
 
+/** The drafts stored now (by any window). @returns {Draft[]} */
+function storedDrafts() {
+  const text = prefs.get(KEY, null);
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    return (Array.isArray(parsed) ? parsed : [parsed]).map(readDraft).filter((d) => d !== null);
+  } catch {
+    return [];
+  }
+}
+
 function persist() {
   const box = inBox;
-  const all = box ? [...held.filter((d) => idOf(d) !== idOf(box)), box] : held;
+  const own = box ? [...held.filter((d) => idOf(d) !== idOf(box)), box] : held;
+  const others = storedDrafts().filter((d) => !mine.has(idOf(d)));
+  const all = [...others, ...own];
   if (all.length === 0) prefs.remove(KEY);
   else prefs.set(KEY, JSON.stringify(all));
 }
 
 /** @param {Draft} draft */
 function hold(draft) {
+  mine.add(idOf(draft));
   held = [...held.filter((d) => idOf(d) !== idOf(draft)), draft];
 }
 
@@ -64,6 +88,7 @@ function readDraft(d) {
  * @param {Draft} draft error: why it wasn't saved (a failed save's message, or what's wrong with it)
  */
 export function keepDraft(draft) {
+  mine.add(idOf(draft));
   inBox = { ...draft, error: notSavedReason(draft.error) };
   persist();
 }
@@ -87,21 +112,12 @@ export function dropStoredDraft() {
 
 /** Reads the drafts left by the previous visit, if any (once, at start). */
 export function loadDraftFromLastVisit() {
-  const text = prefs.get(KEY, null);
   held = [];
   inBox = null;
   unseen.clear();
-  if (!text) return;
-  try {
-    const parsed = JSON.parse(text);
-    for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
-      const d = readDraft(item);
-      if (!d) continue;
-      hold(d);
-      unseen.add(idOf(d));
-    }
-  } catch {
-    held = [];
+  for (const d of storedDrafts()) {
+    hold(d);
+    unseen.add(idOf(d));
   }
   persist();
 }

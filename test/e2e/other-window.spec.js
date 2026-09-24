@@ -115,6 +115,16 @@ test.describe('a meal saved in another window', () => {
     await b.close({ runBeforeUnload: true });
     expect((await stored(page))[TODAY].meals.breakfast).toBe(450);
 
+    // This window being switched away from and back leaves the number the
+    // other one kept where it is.
+    await page.evaluate(() => {
+      for (const state of ['hidden', 'visible']) {
+        Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      }
+    });
+    await expect(page.getByLabel('Breakfast calories')).toHaveValue('450');
+
     // Kenna opened again.
     await page.goto(`${appURL}/#/`);
     await page.reload();
