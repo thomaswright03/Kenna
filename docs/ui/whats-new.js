@@ -141,6 +141,9 @@ const EDGE = 12;
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
 
+/** @param {number} vw the screen's width */
+const cardWidthFor = (vw) => Math.min(360, vw - 2 * EDGE);
+
 /** The address shown, with the bare one written as Today's. */
 const currentHash = () => (window.location.hash && window.location.hash !== '#' ? window.location.hash : '#/');
 
@@ -190,7 +193,7 @@ function buildTour(labelId) {
 function place(t, target) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const cardWidth = Math.min(360, vw - 2 * EDGE);
+  const cardWidth = cardWidthFor(vw);
   t.card.style.width = `${cardWidth}px`;
   const cardHeight = t.card.offsetHeight;
   if (!target || !target.isConnected) {
@@ -212,7 +215,9 @@ function place(t, target) {
 
   const below = vh - bottom - GAP - EDGE;
   const above = top - GAP - EDGE;
-  const side = below >= cardHeight || below >= above ? 'below' : 'above';
+  // Where the card fits, below first; where neither does, the roomier side.
+  const fits = (/** @type {number} */ space) => space >= cardHeight;
+  const side = fits(below) || (!fits(above) && below >= above) ? 'below' : 'above';
   const cardTop = side === 'below' ? Math.min(bottom + GAP, vh - EDGE - cardHeight) : Math.max(EDGE, top - GAP - cardHeight);
   const centre = (left + right) / 2;
   const cardLeft = Math.min(Math.max(EDGE, centre - cardWidth / 2), vw - EDGE - cardWidth);
@@ -251,13 +256,18 @@ async function arrive(stop, isCurrent) {
 }
 
 /**
- * Scrolls a feature to a third of the way down the screen, or a tall one
- * to near the top, leaving room for the card below it.
+ * Scrolls a feature to a third of the way down the screen, or higher when
+ * that leaves too little room for the card below it; a feature too tall
+ * for both goes near the top, and is lit only as far as fits.
  * @param {Element} el
+ * @param {number} cardHeight
  */
-function bringIntoView(el) {
+function bringIntoView(el, cardHeight) {
   const r = el.getBoundingClientRect();
-  const wanted = r.height > window.innerHeight * 0.45 ? EDGE * 2 : window.innerHeight / 3 - r.height / 2;
+  const vh = window.innerHeight;
+  const pad = 6;
+  const room = vh - 2 * EDGE - GAP - cardHeight - 2 * pad;
+  const wanted = r.height > room ? EDGE * 2 : Math.max(EDGE + pad, Math.min(vh / 3 - r.height / 2, vh - EDGE - GAP - cardHeight - r.height - pad));
   window.scrollBy(0, r.top - wanted);
 }
 
@@ -306,8 +316,9 @@ export function showWhatsNew() {
     const found = await arrive(STOPS[index], () => seq === moveSeq);
     if (seq !== moveSeq) return;
     target = found.el;
-    if (target) bringIntoView(target);
     fill(t, index, found.missing);
+    t.card.style.width = `${cardWidthFor(window.innerWidth)}px`;
+    if (target) bringIntoView(target, t.card.offsetHeight);
     place(t, target);
     t.layer.classList.remove('is-moving');
     // The new stop's title is read out when focus lands on it.

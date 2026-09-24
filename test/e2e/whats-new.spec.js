@@ -136,7 +136,7 @@ test('Close or Escape ends it where it started, and it stays closed', async ({ p
   await expect(tour(page)).toHaveCount(0);
 });
 
-test('a new user isn’t shown it, then or later "what’s new" later', async ({ page, appURL }) => {
+test('a new user isn’t shown it, then or later', async ({ page, appURL }) => {
   await page.goto(appURL);
   await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
   await expect(tour(page)).toHaveCount(0);
