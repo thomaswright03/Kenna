@@ -172,17 +172,21 @@ shown.
 On iPhone and iPad, Safari may delete a website's data when it hasn't
 been used for about a week, unless the site is on the Home Screen. So when
 Kenna runs in a Safari tab there (not opened from the Home Screen), Today
-shows a card saying so, with the steps (Share → Add to Home Screen → open
-Kenna from that icon). If anything is logged it also says to save a backup
-first, because the Home Screen app may start with its own, empty storage.
-**Not now** hides the card for a week; it never appears when Kenna is
-opened from the Home Screen, and Settings explains the same risk.
+shows a card saying so, with the steps one tap away (**How to add it**:
+Share → Add to Home Screen → open Kenna from that icon). If anything is
+logged it also says to save a backup first, because the Home Screen app
+starts with its own, empty storage. **Not now** hides the card for a
+week; it never appears when Kenna is opened from the Home Screen, and
+Settings explains the same risk.
 
 That still doesn't protect against clearing Safari's website data, switching
 phones or losing the phone, so save a backup file regularly. Once anything is
 logged, the Today screen reminds you when no backup has been saved from this
 device yet, or when the last one is more than a week old; **Back up now**
 makes one straight away, and **Not now** hides the reminder for three days.
+Today shows at most one of these cards above the day, so the Weight box
+stays in view: the Home Screen card first (it already says to back up),
+then the backup reminder once that card is hidden or doesn't apply.
 
 - **Settings → Export Backup** makes one `.json` file containing every day
   (weight and each meal's calories) and every progress photo with the date

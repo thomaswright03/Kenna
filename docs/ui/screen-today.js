@@ -1,7 +1,7 @@
 // Today (or a past day): date, weight, the day's calories per meal, and the
 // Calories and Weight charts. The weight box and the meal list are their
 // own modules (today-weight.js, today-meals.js); this one puts the day's
-// card together with the charts and the reminders above them.
+// card together with the charts and the notice above them.
 
 import { core, h, uid, today, blankEntry, visibleEntries } from './dom.js';
 import { createFieldStatus } from './feedback.js';
@@ -106,12 +106,22 @@ export async function buildToday(ctx) {
     footer: h('p', { class: 'card-foot' }, h('a', { class: 'btn-text', href: '#/history', text: 'See exact numbers in History' })),
   });
   const hasData = visibleEntries(allEntries).length > 0 || (await photoCount) > 0;
-  const reminder = buildBackupReminder(hasData);
-  const installNote = buildInstallNote(hasData);
+  // At most one card above the day, so logging stays in reach. The Home
+  // Screen note wins: it already says to back up first. The backup
+  // reminder shows once the note is hidden or doesn't apply.
+  const installNote = buildInstallNote(hasData, () => {
+    const next = buildBackupReminder(hasData);
+    if (!next) return;
+    root.prepend(next.root);
+    next.root.setAttribute('tabindex', '-1');
+    next.root.focus();
+  });
+  const reminder = installNote ? null : buildBackupReminder(hasData);
+  const root = h('div', { class: 'screen-stack two-col' }, installNote ? installNote.root : null, reminder ? reminder.root : null, dayCard, charts.root);
 
   return {
     title: isToday ? 'Today' : core.formatDate(date, now),
-    root: h('div', { class: 'screen-stack two-col' }, installNote ? installNote.root : null, reminder ? reminder.root : null, dayCard, charts.root),
+    root,
     mounted: () => {
       charts.draw();
       if (installNote) installNote.mounted();

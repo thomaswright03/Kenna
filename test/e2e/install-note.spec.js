@@ -15,6 +15,10 @@ test.describe('phone version in a Safari tab', () => {
     await expect(note(page)).toBeVisible();
     await expect(note(page).getByText('Add Kenna to your Home Screen')).toBeVisible();
     await expect(note(page)).toContainText('iPhone may delete your days and photos from a tab that hasn’t been used for about a week');
+    // The steps are one tap away.
+    await expect(note(page).locator('li').first()).toBeHidden();
+    await note(page).getByText('How to add it').click();
+    await expect(note(page).locator('li').first()).toBeVisible();
     const steps = await note(page).locator('li').allTextContents();
     expect(steps).toEqual([
       'Tap the Share button (the square with an arrow) in Safari’s toolbar.',
@@ -30,7 +34,7 @@ test.describe('phone version in a Safari tab', () => {
   test('with days logged it says to back up first, since the Home Screen app starts separately', async ({ page, appURL, data }) => {
     await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
     await page.goto(appURL);
-    await expect(note(page)).toContainText('Save a backup file here first, then import it there');
+    await expect(note(page)).toContainText('It starts empty there, so save a backup file here first, then import it there');
     await note(page).getByRole('link', { name: 'Back up first' }).click();
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   });
@@ -96,4 +100,27 @@ test('the server version never shows the note, even in a Safari tab', async ({ p
   await page.goto(appURL);
   await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
   await expect(note(page)).toHaveCount(0);
+});
+
+test.describe('only one notice above the day', () => {
+  test.beforeEach(({ backend }) => test.skip(backend !== 'local', 'the server version keeps data on the server'));
+
+  test('with days logged and no backup, the Home Screen note is the only card above the day, and the Weight box is in view', async ({ page, appURL, data }) => {
+    await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
+    await page.goto(appURL);
+    await expect(note(page)).toBeVisible();
+    await expect(page.locator('[data-backup-reminder]')).toHaveCount(0);
+    await expect(page.locator('.notice-card')).toHaveCount(1);
+    await expect(page.getByLabel('Weight (lbs)')).toBeInViewport({ ratio: 1 });
+
+    // Hiding the note brings the backup reminder in its place.
+    await note(page).getByRole('button', { name: 'Not now' }).click();
+    await expect(note(page)).toHaveCount(0);
+    await expect(page.locator('[data-backup-reminder]')).toBeVisible();
+    await expect(page.locator('[data-backup-reminder]')).toBeFocused();
+    await expect(page.locator('.notice-card')).toHaveCount(1);
+    await page.reload();
+    await expect(page.locator('[data-backup-reminder]')).toBeVisible();
+    await expect(page.locator('.notice-card')).toHaveCount(1);
+  });
 });

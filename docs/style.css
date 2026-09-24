@@ -856,10 +856,25 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 
 .notice-title { font-size: var(--fs-md); font-weight: 700; margin: 0 0 var(--s1); }
 .notice-text { font-size: var(--fs-sm); margin: 0; }
+.notice-text + .notice-text { margin-top: var(--s2); }
 .notice-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 .notice-actions > :only-child { grid-column: 1 / -1; }
 .notice-card .field-status { color: inherit; }
 
+.notice-more { margin: var(--s1) 0 var(--s2); }
+.notice-more summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+.notice-more summary::-webkit-details-marker { display: none; }
+.notice-more summary::before { content: '▸'; display: inline-block; width: 1.2em; flex-shrink: 0; }
+.notice-more[open] summary::before { content: '▾'; }
+.notice-more .install-steps { margin-top: 0; }
 .install-steps { margin: var(--s2) 0; padding-left: var(--s5); font-size: var(--fs-sm); }
 .install-steps li { margin-bottom: var(--s1); }
 

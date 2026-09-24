@@ -45,9 +45,10 @@ export function installSteps() {
 /**
  * The card for Today, or null when it doesn't apply or was hidden.
  * @param {boolean} hasData something is logged here already
+ * @param {() => void} [onHidden] runs after "Not now" removes the card
  * @returns {{ root: HTMLElement, mounted: () => void } | null}
  */
-export function buildInstallNote(hasData) {
+export function buildInstallNote(hasData, onHidden) {
   if (!inAppleBrowserTab()) return null;
   const snoozedUntil = prefs.get(SNOOZE_KEY, null);
   if (snoozedUntil && Date.parse(snoozedUntil) > Date.now()) return null;
@@ -62,19 +63,21 @@ export function buildInstallNote(hasData) {
     { class: 'card notice-card', 'aria-labelledby': titleId, 'data-install-note': '' },
     h('p', { class: 'notice-title', id: titleId, text: headline }),
     h('p', { class: 'notice-text', text: why }),
-    installSteps(),
     hasData
       ? h('p', {
           class: 'notice-text',
-          text: 'Kenna on the Home Screen may open empty, because iPhone keeps its data apart from Safari’s. Save a backup file here first, then import it there (Settings, Import Backup).',
+          text: 'It starts empty there, so save a backup file here first, then import it there (Settings, Import Backup).',
         })
       : null,
+    // The steps are one tap away, so the card leaves the day's entry in view.
+    h('details', { class: 'notice-more' }, h('summary', { text: 'How to add it' }), installSteps()),
     h('div', { class: 'notice-actions' }, laterBtn, hasData ? h('a', { class: 'btn btn-primary', href: '#/settings', text: 'Back up first' }) : null)
   );
   laterBtn.addEventListener('click', () => {
     prefs.set(SNOOZE_KEY, new Date(Date.now() + INSTALL_NOTE_SNOOZE_DAYS * 24 * 60 * 60 * 1000).toISOString());
     root.remove();
     announce(`Hidden for ${INSTALL_NOTE_SNOOZE_DAYS} days. Settings has the steps too.`);
+    if (onHidden) onHidden();
   });
   return { root, mounted: () => announce(`${headline}. ${why}`) };
 }
