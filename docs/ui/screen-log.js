@@ -6,6 +6,7 @@ import { store } from './store.js';
 import { dayHash, logHash, replaceHashSilently, returnTo } from './router.js';
 import { render } from './render.js';
 import { saveDateFor } from './day.js';
+import { keepDraft, claimDraft, draftMealFor } from './drafts.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildLog(ctx) {
@@ -15,12 +16,14 @@ export async function buildLog(ctx) {
   const view = { date, entry: stored || blankEntry(date), rolledOver: false };
   const isToday = date === now;
   const firstOpen = MEAL_STEPS.find((m) => view.entry.meals[m.key] === null);
-  let activeKey = ctx.route.meal || (firstOpen ? firstOpen.key : MEAL_STEPS[0].key);
+  const draftMeal = draftMealFor(date);
+  let activeKey = ctx.route.meal || draftMeal || (firstOpen ? firstOpen.key : MEAL_STEPS[0].key);
+  const draft = claimDraft(activeKey, date);
 
   const input = h('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', id: uid('cal'), placeholder: 'e.g. 450' });
   const label = h('label', { for: input.id });
   const status = createFieldStatus(input);
-  const runningTotal = h('p', { class: 'running-total', 'aria-live': 'polite' });
+  const runningTotal = h('p', { class: 'running-total' });
   /** @type {Map<string, HTMLButtonElement>} */
   const pills = new Map();
 
@@ -36,8 +39,17 @@ export async function buildLog(ctx) {
       if (valueEl) valueEl.textContent = value !== null ? core.formatNumber(value) : '';
       pill.setAttribute('aria-label', value !== null ? `${step.label}, ${core.formatCalories(value)}` : `${step.label}, not logged`);
     }
-    const total = core.totalCalories(view.entry.meals);
-    runningTotal.textContent = total === null ? 'No meals logged yet' : `Day total: ${core.formatCalories(total)}`;
+    refreshTotal();
+  }
+
+  // The day total follows what's typed, marked as not saved until it is.
+  function refreshTotal() {
+    const typed = core.validateCalories(input.value);
+    const unsaved = typed.ok && typed.value !== view.entry.meals[activeKey];
+    const meals = unsaved ? { ...view.entry.meals, [activeKey]: typed.value } : view.entry.meals;
+    const total = core.totalCalories(meals);
+    runningTotal.replaceChildren(total === null ? 'No meals logged yet' : `Day total: ${core.formatCalories(total)}`);
+    if (unsaved) runningTotal.append(h('span', { class: 'running-note', text: ` · ${mealLabel(activeKey)} not saved yet` }));
   }
 
   function loadInput() {
@@ -130,6 +142,20 @@ export async function buildLog(ctx) {
   }
 
   input.addEventListener('change', commit);
+  input.addEventListener('input', refreshTotal);
+
+  // Saves what's in the box when the page is hidden or closed, exactly as
+  // leaving the box would; a value that can't be saved is kept as a draft.
+  function flush() {
+    const text = input.value;
+    const result = core.validateCalories(text);
+    if (result.ok) {
+      commit();
+    } else {
+      keepDraft({ field: activeKey, date: view.date, text, error: result.error });
+      status.set('error', result.error);
+    }
+  }
   input.addEventListener('keydown', async (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -157,6 +183,7 @@ export async function buildLog(ctx) {
   });
 
   loadInput();
+  if (draft) input.value = draft.text;
   refreshPills();
 
   const root = h(
@@ -175,8 +202,10 @@ export async function buildLog(ctx) {
   return {
     root,
     mounted: () => {
+      if (draft) status.set('error', `Not saved yet. ${draft.error}`);
       if (window.matchMedia && window.matchMedia('(hover: hover)').matches) input.focus({ preventScroll: true });
     },
+    flush,
     async refreshFromStorage() {
       view.entry = (await store.getEntry(view.date)) || blankEntry(view.date);
       if (document.activeElement !== input) loadInput();

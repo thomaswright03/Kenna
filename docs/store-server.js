@@ -37,6 +37,9 @@
           method,
           headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
           body: body === undefined ? undefined : JSON.stringify(body),
+          // A day's save is tiny; keepalive lets it finish even if the page
+          // is closed right after (a reload, or the phone discarding the app).
+          keepalive: method === 'PATCH',
         });
       } catch {
         throw new Error("Couldn't reach the Kenna server. Check that it's running, then try again.");

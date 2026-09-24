@@ -11,7 +11,11 @@ data never leaves your device.
   day; **Back to today** returns to the current day.
 - **Log Meal** takes one total-calorie number per meal or snack (Breakfast,
   Snack 1, Lunch, Snack 2, Dinner, Snack 3) instead of itemised foods. Each
-  value saves as soon as you leave the box or tap another meal; **Enter** moves
+  value saves as soon as you leave the box or tap another meal, and also if
+  you switch to another app, lock the phone or close the page with a number
+  still in the box (a number that isn't valid isn't saved; the next visit
+  puts it back in its box and says why). The day total updates as you type,
+  marked "not saved yet" until the save is done; **Enter** moves
   to the next meal you haven't logged; **Done** returns to the day you were
   logging and confirms what was saved. Removing a meal from the Today screen can be
   undone for a few seconds.

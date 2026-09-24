@@ -9,6 +9,7 @@ import { render } from './render.js';
 import { saveDateFor } from './day.js';
 import { buildChartsCard } from './charts.js';
 import { buildBackupReminder } from './backup-reminder.js';
+import { keepDraft, claimDraft } from './drafts.js';
 
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildToday(ctx) {
@@ -93,6 +94,21 @@ export async function buildToday(ctx) {
     })();
     return weightSaving;
   }
+  // Saves what's in the box when the page is hidden or closed, exactly as
+  // leaving the box would; a value that can't be saved is kept as a draft.
+  function flush() {
+    const text = weightInput.value;
+    const result = core.validateWeight(text);
+    if (result.ok) {
+      commitWeight();
+    } else {
+      keepDraft({ field: 'weight', date: view.date, text, error: result.error });
+      weightStatus.set('error', result.error);
+    }
+  }
+  const draft = claimDraft('weight', date);
+  if (draft) weightInput.value = draft.text;
+
   weightInput.addEventListener('change', commitWeight);
   weightInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -227,7 +243,9 @@ export async function buildToday(ctx) {
     mounted: () => {
       charts.draw();
       if (reminder) reminder.mounted();
+      if (draft) weightStatus.set('error', `Not saved yet. ${draft.error}`);
     },
+    flush,
     async refreshFromStorage() {
       const entry = (await store.getEntry(view.date)) || blankEntry(view.date);
       view.entry = entry;

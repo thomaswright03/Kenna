@@ -1,0 +1,70 @@
+// Typed-but-unsaved input that can't be saved because it isn't valid. If
+// the page is hidden or closed while the Weight or a Calories box holds
+// such a value, it is kept here, and the next visit puts it back in its box
+// with the reason it wasn't saved (or, on another screen, says so in a
+// banner). Valid values are simply saved instead.
+
+import { core, prefs, mealLabel } from './dom.js';
+import { showBanner } from './feedback.js';
+
+/** @typedef {{ field: string, date: string, text: string, error: string }} Draft field is 'weight' or a meal key */
+
+const KEY = 'unsavedInput';
+
+/** @type {Draft | null} */
+let pending = null;
+
+/** @param {Draft} draft */
+export function keepDraft(draft) {
+  prefs.set(KEY, JSON.stringify(draft));
+}
+
+/** The page is back, with the value still in its box: nothing to restore. */
+export function dropStoredDraft() {
+  prefs.remove(KEY);
+}
+
+/** Reads the draft left by the previous visit, if any (once, at start). */
+export function loadDraftFromLastVisit() {
+  const text = prefs.get(KEY, null);
+  prefs.remove(KEY);
+  if (!text) return;
+  try {
+    const d = JSON.parse(text);
+    if (d && typeof d.field === 'string' && core.isValidDateStr(d.date) && typeof d.text === 'string' && typeof d.error === 'string') {
+      pending = { field: d.field, date: d.date, text: d.text, error: d.error };
+    }
+  } catch {
+    pending = null;
+  }
+}
+
+/**
+ * Hands the draft to the screen showing that field and day.
+ * @param {string} field
+ * @param {string} date
+ * @returns {Draft | null}
+ */
+export function claimDraft(field, date) {
+  if (!pending || pending.field !== field || pending.date !== date) return null;
+  const d = pending;
+  pending = null;
+  return d;
+}
+
+/** @returns {string | null} the meal key of a draft waiting for `date`'s Log screen */
+export function draftMealFor(/** @type {string} */ date) {
+  return pending && pending.field !== 'weight' && pending.date === date ? pending.field : null;
+}
+
+/** If the first screen shown didn't take the draft, explain it in a banner. */
+export function reportUnclaimedDraft() {
+  if (!pending) return;
+  const d = pending;
+  pending = null;
+  const what = d.field === 'weight' ? 'weight' : `${mealLabel(d.field)} calories`;
+  showBanner({
+    tone: 'warning',
+    message: `The ${what} you typed for ${core.formatRelativeDate(d.date)} (“${d.text.slice(0, 20)}”) wasn't saved. ${d.error}`,
+  });
+}

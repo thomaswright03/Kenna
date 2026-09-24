@@ -13,6 +13,7 @@ import { route, updateTabs } from './router.js';
  * @property {() => void} [mounted] runs once the view is on the page
  * @property {() => Promise<void>} [refreshFromStorage] re-reads data changed elsewhere (another tab)
  * @property {() => void} [release] frees resources such as object URLs
+ * @property {() => void} [flush] saves typed input now (the page is being hidden or closed)
  */
 
 /**

@@ -9,6 +9,7 @@ import { store } from './ui/store.js';
 import { route, startRouter } from './ui/router.js';
 import { render, registerScreens, getCurrentView } from './ui/render.js';
 import { dayHasChanged } from './ui/day.js';
+import { loadDraftFromLastVisit, dropStoredDraft, reportUnclaimedDraft } from './ui/drafts.js';
 import { buildToday } from './ui/screen-today.js';
 import { buildLog } from './ui/screen-log.js';
 import { buildHistory } from './ui/screen-history.js';
@@ -67,15 +68,30 @@ async function start() {
     else if (route.screen === 'history' || route.screen === 'compare') render();
   });
 
+  // A number typed but not yet saved is saved when the page is hidden (app
+  // switched away from, phone locked) or closed/reloaded, since the app may
+  // never get the chance once it's in the background.
+  const flushInput = () => {
+    const view = getCurrentView();
+    if (view && view.flush) view.flush();
+  };
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') checkForNewDay();
+    if (document.visibilityState === 'hidden') {
+      flushInput();
+    } else {
+      dropStoredDraft();
+      checkForNewDay();
+    }
   });
+  window.addEventListener('pagehide', flushInput);
   window.addEventListener('focus', checkForNewDay);
   window.addEventListener('pageshow', checkForNewDay);
   setInterval(checkForNewDay, 30000);
 
+  loadDraftFromLastVisit();
   startRouter(render);
   await render();
+  reportUnclaimedDraft();
 
   if (BACKEND === 'local' && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {
