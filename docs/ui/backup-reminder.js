@@ -55,8 +55,10 @@ function backupState(logged) {
   else if (last.confirmed) text = `Last backup: ${ago(age)}`;
   else text = `Backup file made ${ago(age)}, not confirmed saved`;
   let sub = 'Your days and photos are only on this device.';
-  if (due && due.photos > 0 && last) sub = `${photosArent(due.photos)} in it: ${due.photos === 1 ? 'it was' : 'they were'} added since. Save a new backup file so they survive losing this device.`;
-  else if (due) sub = 'Save a backup file so your days and photos survive losing this device.';
+  if (due && due.photos > 0 && last) {
+    const one = due.photos === 1;
+    sub = `${one ? 'A photo added since then isn’t' : `${core.formatNumber(due.photos)} photos added since then aren’t`} in it. Save a new backup file so ${one ? 'it survives' : 'they survive'} losing this device.`;
+  } else if (due) sub = 'Save a backup file so your days and photos survive losing this device.';
   return { text, sub, overdue: due !== null };
 }
 

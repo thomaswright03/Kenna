@@ -335,3 +335,16 @@ test('how often Kenna asks is chosen in Settings, kept, and used on Today', asyn
   await reminder(page).getByRole('button', { name: 'I’ve saved it' }).click();
   await expect(reminder(page)).toContainText('Backup saved. Kenna will remind you again tomorrow.');
 });
+
+test('put off, the line on Today says which photos the last backup is missing', async ({ page, appURL, data }) => {
+  await data.seed(threeDays());
+  await page.goto(appURL);
+  await setPref(page, 'backupConfirmedAt', new Date('2026-09-24T08:00:00-05:00').toISOString());
+  await page.goto(`${appURL}/#/photos`);
+  await addPhoto(page);
+  await reminder(page).getByRole('button', { name: 'Not now' }).click();
+  await page.goto(appURL);
+  await expect(status(page)).toContainText('Last backup: today');
+  await expect(status(page)).toContainText('A photo added since then isn’t in it. Save a new backup file so it survives losing this device.');
+  await expect(status(page)).toHaveClass(/is-overdue/);
+});
