@@ -1,0 +1,38 @@
+# iPhone release checklist
+
+The automated tests run the app in Chromium and WebKit, but the share
+sheet, Home Screen install and iPhone storage only exist on a real iPhone.
+Go through this list on an iPhone before merging a change into the
+published branch (`claude/phone-calorie-tracker-gbxsn6`), and again on the
+live site once Pages has deployed it.
+
+Use a copy of the app at its own address (the steps below do), never the
+live Kenna you log with: each web address keeps its own data, so nothing
+here touches your real days or photos.
+
+## Before merging
+
+1. `npm test` passes, and the GitHub checks **Tests / test** and
+   **Tests / webkit** are green on the pull request.
+2. On a computer on the same Wi-Fi as the iPhone, run `npm run serve:docs`
+   and note the computer's network address (for example 192.168.1.23).
+3. On the iPhone, open `http://<that address>:8080` in Safari.
+4. Tap Share → **Add to Home Screen** → **Add**, and open Kenna from the new
+   icon. The "Add Kenna to your Home Screen" card is not shown there.
+5. Log a meal: **Log Meal**, type a number, **Save and close**. Today shows
+   "Saved for Today" and the new total.
+6. Log a weight and check it in History and on Compare.
+7. Add a progress photo from the photo library (a HEIC one if you have it).
+   It appears on the Photos screen and opens in the viewer.
+8. Settings → **Export Backup** → **Save or share…** → **Save to Files**.
+   Settings then says "Backup shared" and when.
+9. Delete the photo and change the meal, then Settings → **Import Backup**
+   and pick the file just saved. The meal and the photo come back, and
+   importing it a second time adds nothing.
+10. Delete the test copy from the Home Screen (touch and hold → Remove App).
+
+## After Pages deploys
+
+1. Open the live app from its Home Screen icon while online, then close it.
+2. Turn on Airplane Mode and open it again: it opens and shows your data.
+3. If anything fails, roll back as the README describes.

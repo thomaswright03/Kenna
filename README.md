@@ -98,8 +98,9 @@ How the numbers work:
 - A weight is shown as it was entered, to up to two decimals (165.25);
   averages are shown to one.
 - Weight is in pounds (lbs) and dates and numbers are written the US English
-  way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. There is
-  no kilogram setting.
+  way ("Thu, Sep 24", "1,200 cal"), whatever the device's language. Pounds and
+  US English only are a deliberate limit of scope: there is no kilogram
+  setting and no translation.
 
 ## Using it on your phone (recommended — `docs/`)
 
@@ -306,9 +307,13 @@ Releasing a change:
 1. If you changed any file listed in `APP_SHELL` in `docs/sw.js`, bump
    `CACHE_NAME` there (for example `kenna-v2` → `kenna-v3`) in the same
    change, so phones pre-cache the new set of files together.
-2. Make sure `npm test` passes, then merge or push to the published branch.
+2. Make sure `npm test` passes, and go through the "Before merging" part
+   of [RELEASE-CHECKLIST.md](RELEASE-CHECKLIST.md) on an iPhone (install to
+   the Home Screen, log a meal, add a photo, export with Save to Files and
+   import that file back). Then merge or push to the published branch.
 3. Pages redeploys within a minute or two (see the repository's Actions tab).
    Phones load the new version the next time the app is opened online.
+   Finish the checklist's "After Pages deploys" part on the live app.
 
 Rolling back: `git revert` the commit(s) that caused the problem, push to the
 published branch, and Pages redeploys the previous files. User data is never
