@@ -128,6 +128,13 @@ usable copy it leaves the file untouched and the app shows an error rather
 than overwriting it. Days in the file that can't be read are skipped, not
 fatal. Backup export and import work the same way as on the phone.
 
+While a screen is loading from the server the previous screen is dimmed and
+can't be used, with a "Loading…" indicator if it takes more than a moment.
+If the server doesn't answer within 10 seconds (60 for a photo), the app
+says it isn't responding and offers **Try again** (or **Retry** next to a
+value that wasn't saved; the typed value stays in its box). Unknown
+addresses on the server show a "Page not found" page with a link to the app.
+
 ## Development
 
 ```

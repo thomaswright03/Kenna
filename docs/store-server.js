@@ -14,8 +14,14 @@
 })(typeof self !== 'undefined' ? self : this, function (/** @type {typeof import('./core.js')} */ core) {
   'use strict';
 
+  // How long to wait for the server before saying it isn't responding.
+  const REQUEST_TIMEOUT_MS = 10000;
+  // Photo uploads and downloads carry much more data.
+  const PHOTO_TIMEOUT_MS = 60000;
+  const NOT_RESPONDING = "The Kenna server isn't responding. Check it's running, then try again.";
+
   /**
-   * @param {{ fetch?: typeof fetch, base?: string }} [options]
+   * @param {{ fetch?: typeof fetch, base?: string, timeoutMs?: number }} [options]
    * @returns {import('./store-local.js').KennaStore}
    */
   function createServerStore(options) {
@@ -23,27 +29,48 @@
     /** @type {typeof fetch} */
     const fetchFn = opts.fetch || ((input, init) => fetch(input, init));
     const base = opts.base || '';
+    const timeoutMs = opts.timeoutMs || REQUEST_TIMEOUT_MS;
+
+    /**
+     * Fetches with a time limit, so a server that accepts the connection but
+     * never answers can't leave the app waiting forever.
+     * @param {string} url
+     * @param {RequestInit} init
+     * @param {number} timeoutMs
+     */
+    async function fetchWithTimeout(url, init, timeoutMs) {
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+      try {
+        return await fetchFn(url, { ...init, signal: controller ? controller.signal : undefined });
+      } catch (err) {
+        if (controller && controller.signal.aborted) throw new Error(NOT_RESPONDING);
+        throw new Error("Couldn't reach the Kenna server. Check that it's running, then try again.", { cause: err });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
 
     /**
      * @param {string} method
      * @param {string} path
      * @param {unknown} [body]
+     * @param {{ timeoutMs?: number }} [options]
      * @returns {Promise<any>}
      */
-    async function request(method, path, body) {
-      let res;
-      try {
-        res = await fetchFn(base + path, {
+    async function request(method, path, body, options) {
+      const res = await fetchWithTimeout(
+        base + path,
+        {
           method,
           headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
           body: body === undefined ? undefined : JSON.stringify(body),
           // A day's save is tiny; keepalive lets it finish even if the page
           // is closed right after (a reload, or the phone discarding the app).
           keepalive: method === 'PATCH',
-        });
-      } catch {
-        throw new Error("Couldn't reach the Kenna server. Check that it's running, then try again.");
-      }
+        },
+        (options && options.timeoutMs) || timeoutMs
+      );
       let data = null;
       try {
         data = await res.json();
@@ -51,8 +78,12 @@
         data = null;
       }
       if (!res.ok) {
-        const message = data && typeof data.error === 'string' ? data.error : `The Kenna server had a problem (${res.status}).`;
-        throw new Error(message);
+        if (data && typeof data.error === 'string') throw new Error(data.error);
+        throw new Error(
+          res.status >= 500
+            ? 'The Kenna server ran into a problem. Try again, and if it keeps happening, restart the server.'
+            : "The Kenna server didn't accept that. Reload the page and try again."
+        );
       }
       return data;
     }
@@ -134,7 +165,7 @@
     /** @param {{ date: string, createdAt?: string, blob?: Blob, type?: string, data?: string }} photo */
     async function postPhoto(photo) {
       const dataUrl = photo.data ? `data:${photo.type};base64,${photo.data}` : await blobToDataUrl(photo.blob || new Blob());
-      return request('POST', '/api/photos', { date: photo.date, createdAt: photo.createdAt, dataUrl });
+      return request('POST', '/api/photos', { date: photo.date, createdAt: photo.createdAt, dataUrl }, { timeoutMs: PHOTO_TIMEOUT_MS });
     }
 
     /** @param {{ date: string, blob: Blob, createdAt?: string }} photo */
@@ -154,12 +185,7 @@
 
     /** @param {Photo} photo */
     async function getPhotoBlob(photo) {
-      let res;
-      try {
-        res = await fetchFn(base + photo.url);
-      } catch {
-        throw new Error("Couldn't reach the Kenna server to read a photo.");
-      }
+      const res = await fetchWithTimeout(base + photo.url, {}, PHOTO_TIMEOUT_MS);
       if (!res.ok) throw new Error(`A photo from ${core.formatDate(photo.date)} couldn't be read from the server.`);
       return res.blob();
     }
@@ -208,5 +234,5 @@
     };
   }
 
-  return { createServerStore };
+  return { createServerStore, REQUEST_TIMEOUT_MS, NOT_RESPONDING };
 });

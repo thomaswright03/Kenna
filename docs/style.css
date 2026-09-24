@@ -660,6 +660,40 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .viewer-bar .btn { margin-top: 0; }
 .viewer .field { margin-bottom: 0; }
 
+/* ------------------------------------------------------------ loading */
+
+.main.is-loading { opacity: 0.35; pointer-events: none; transition: opacity 0.15s ease; }
+
+.loading {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+  z-index: 15;
+}
+
+.loading[hidden] { display: none; }
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* ------------------------------------------------------------ messages */
 
 .notice-card {
@@ -747,4 +781,5 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+  .spinner { animation-duration: 2.4s; }
 }

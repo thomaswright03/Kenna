@@ -48,7 +48,7 @@ export async function render(options) {
   const isCurrent = () => seq === renderSeq;
   closeAllDialogs();
   updateTabs();
-  main.setAttribute('aria-busy', 'true');
+  const stopLoading = startLoading(main);
   /** @type {(() => void)[]} */
   const releases = [];
   /** @type {ScreenContext} */
@@ -64,11 +64,11 @@ export async function render(options) {
     releases.forEach((fn) => fn());
     return;
   }
+  stopLoading();
   if (currentView && currentView.release) currentView.release();
   view.release = () => releases.forEach((fn) => fn());
   currentView = view;
   main.replaceChildren(view.root);
-  main.removeAttribute('aria-busy');
   if (opts.focus) {
     const heading = main.querySelector('h2');
     if (heading) {
@@ -78,6 +78,35 @@ export async function render(options) {
     window.scrollTo(0, 0);
   }
   if (view.mounted) view.mounted();
+}
+
+// While a screen loads, the screen being left can't be used (so nothing is
+// typed into a screen that's about to disappear), and if loading takes
+// more than a moment a "Loading…" indicator covers it.
+const LOADING_DELAY_MS = 200;
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let loadingTimer;
+
+/**
+ * @param {HTMLElement} main
+ * @returns {() => void} ends this loading state
+ */
+function startLoading(main) {
+  const indicator = byId('loading');
+  clearTimeout(loadingTimer);
+  main.setAttribute('aria-busy', 'true');
+  main.inert = true;
+  loadingTimer = setTimeout(() => {
+    main.classList.add('is-loading');
+    indicator.hidden = false;
+  }, LOADING_DELAY_MS);
+  return () => {
+    clearTimeout(loadingTimer);
+    main.removeAttribute('aria-busy');
+    main.inert = false;
+    main.classList.remove('is-loading');
+    indicator.hidden = true;
+  };
 }
 
 /**

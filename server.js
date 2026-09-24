@@ -127,6 +127,27 @@ function publicEntry(entry) {
 
 // ---------------------------------------------------------------- app
 
+const NOT_FOUND_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Page not found · Kenna</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 48px 16px; text-align: center; background: #f1f5f9; color: #0f172a; }
+  a { color: #15803d; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { body { background: #0f172a; color: #f1f5f9; } a { color: #4ade80; } }
+</style>
+</head>
+<body>
+<h1>Page not found</h1>
+<p>There's nothing at this address in Kenna.</p>
+<p><a href="/">Open Kenna</a></p>
+</body>
+</html>
+`;
+
 function createApp(options) {
   const opts = options || {};
   const dataDir = opts.dataDir || process.env.KENNA_DATA_DIR || path.join(__dirname, 'data');
@@ -262,11 +283,19 @@ function createApp(options) {
     res.status(404).json({ error: 'There is no such Kenna API endpoint.' });
   });
 
+  // Any other address is a mistyped or old link: say so plainly and link
+  // back to the app.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+    return res.status(404).type('html').send(NOT_FOUND_PAGE);
+  });
+
   // Every error becomes a short JSON message: no stack traces or file paths.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     let status = err.status || err.statusCode || 500;
-    let message = err instanceof ApiError ? err.message : 'Something went wrong on the Kenna server. Please try again.';
+    let message =
+      err instanceof ApiError ? err.message : 'Something went wrong on the Kenna server. Try again, and if it keeps happening, restart the server.';
     if (err.type === 'entity.parse.failed') message = "The request wasn't valid JSON.";
     else if (err.type === 'entity.too.large') message = 'That upload is too large.';
     else if (status === 404 && !(err instanceof ApiError)) message = 'Not found.';

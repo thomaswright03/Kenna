@@ -45,6 +45,68 @@ test.describe('server version', () => {
     await expect(page.getByRole('heading', { name: 'History' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
   });
+
+  test('a slow screen shows a loading indicator and the old screen cannot be used meanwhile', async ({ page, appURL }) => {
+    await page.goto(appURL);
+    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+    await page.route('**/api/**', async (route) => {
+      await new Promise((r) => setTimeout(r, 4000));
+      await route.continue().catch(() => {});
+    });
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeVisible();
+    await expect(page.locator('#main')).toHaveAttribute('inert', '');
+    const focused = await page.getByLabel('Weight (lbs)').evaluate((el) => {
+      el.focus();
+      return document.activeElement === el;
+    });
+    expect(focused).toBe(false);
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeHidden();
+    await expect(page.locator('#main')).not.toHaveAttribute('inert', '');
+  });
+
+  test('a server that never answers times out with a message and Try again', async ({ page, appURL }) => {
+    await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
+    await page.goto(appURL);
+    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
+    await page.route('**/api/entries', () => {
+      // never answers
+    });
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
+    await page.clock.runFor(10500);
+    await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
+    await page.unroute('**/api/entries');
+    await page.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  });
+
+  test('a save that times out keeps the typed value and can be retried', async ({ page, appURL, data }) => {
+    await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
+    await page.goto(appURL);
+    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? undefined : route.continue()));
+    await page.getByLabel('Weight (lbs)').fill('180');
+    await page.getByLabel('Weight (lbs)').blur();
+    await page.clock.runFor(10500);
+    await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
+    await expect(page.getByLabel('Weight (lbs)')).toHaveValue('180');
+    await page.unroute('**/api/entries/*');
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+    expect((await data.entry(TODAY)).weight).toBe(180);
+  });
+
+  test('a server error is explained without a status code', async ({ page, appURL }) => {
+    await page.goto(appURL);
+    await page.route('**/api/entries/*', (route) =>
+      route.request().method() === 'PATCH' ? route.fulfill({ status: 500, body: 'Internal Server Error' }) : route.continue()
+    );
+    await page.getByLabel('Weight (lbs)').fill('180');
+    await page.getByLabel('Weight (lbs)').blur();
+    const message = page.locator('.field-status.is-error');
+    await expect(message).toContainText('The Kenna server ran into a problem. Try again, and if it keeps happening, restart the server.');
+    await expect(message).not.toContainText('500');
+  });
 });
 
 test.describe('phone version', () => {

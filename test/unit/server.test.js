@@ -207,3 +207,14 @@ test('a photo can be moved to another day, but not to a day that has not happene
   assert.equal(again.json.duplicate, true);
   assert.equal((await call('GET', '/api/photos')).json.length, 1);
 });
+
+test('unknown pages get a plain "Page not found" page that links back to the app', async (t) => {
+  const { base } = await startServer(t);
+  const res = await fetch(`${base}/nonexistent`);
+  assert.equal(res.status, 404);
+  assert.match(res.headers.get('content-type'), /html/);
+  const html = await res.text();
+  assert.match(html, /Page not found/);
+  assert.match(html, /<a href="\/">Open Kenna<\/a>/);
+  assert.doesNotMatch(html, /Cannot GET/);
+});
