@@ -143,7 +143,8 @@ h2[tabindex='-1']:focus { outline: none; }
   display: flex;
   flex-direction: column;
   padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
+  /* --toast-room: the height of a message with a button (see feedback.js). */
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--toast-room, 0px));
 }
 
 /* ------------------------------------------------------------ header + tabs */
@@ -443,7 +444,8 @@ input.visually-hidden:focus-visible + .file-btn { outline: 3px solid var(--focus
   .segment:hover { color: var(--text); }
   .history-item:hover { background: var(--card-hover); }
   .photo-thumb:hover img { opacity: 0.85; }
-  .toast-action:hover { background: var(--toast-action-hover); }
+  .toast-action:hover,
+  .toast-close:hover { background: var(--toast-action-hover); }
 }
 
 .btn-primary:active:not(:disabled) { background: var(--accent-hover); }
@@ -1059,6 +1061,7 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 }
 
 .toast-actionable { pointer-events: auto; }
+.toast-text { flex: 1 1 auto; }
 
 .toast-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
 
@@ -1073,6 +1076,22 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
   font: inherit;
   font-weight: 700;
   text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  min-height: var(--tap);
+  min-width: var(--tap);
+  margin-left: calc(-1 * var(--s3));
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
   cursor: pointer;
 }
 

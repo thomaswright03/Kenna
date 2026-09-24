@@ -1,7 +1,8 @@
 // The day's calories on the Today screen: the total, and one row per meal.
-// A tap on a row opens Log Meal at that meal; a meal removed here keeps an
-// Undo button in its row while the screen is open, and if the screen is
-// left soon after, the next screen offers Undo for a few seconds more.
+// A tap on a row opens Log Meal at that meal. A meal removed here keeps an
+// Undo button in its row for the rest of the visit (until it's put back or
+// logged again), and the next screen opened offers Undo too, until it's
+// used, dismissed or the user moves on from that screen.
 
 import { core, h, MEAL_STEPS, mealLabel, today, notSavedReason } from './dom.js';
 import { failureText } from './problems.js';
@@ -11,12 +12,24 @@ import { logHash } from './router.js';
 import { refreshCurrentScreen } from './render.js';
 import { saveDateFor } from './day.js';
 
-/** @typedef {{ value: number, date: string, at: number }} Removed a meal removed on this screen: what it was, its day and when */
+/** @typedef {{ value: number, date: string, offered: boolean }} Removed a meal removed on Today: what it was, its day, and whether leaving Today has offered it back yet */
 
-// A meal removed this recently when Today is left is offered back on the
-// next screen, for as long as that message shows.
-const UNDO_AFTER_LEAVING_MS = 60 * 1000;
-const UNDO_TOAST_MS = 10 * 1000;
+/**
+ * Meals removed on Today this visit and not put back, by day and meal, so
+ * Undo is still in the row when Today is opened again.
+ * @type {Map<string, Map<string, Removed>>}
+ */
+const removedByDay = new Map();
+
+/** @param {string} date */
+function removedOn(date) {
+  let removed = removedByDay.get(date);
+  if (!removed) {
+    removed = new Map();
+    removedByDay.set(date, removed);
+  }
+  return removed;
+}
 
 /** "today", "yesterday" or "Tue, Sep 22" @param {string} date */
 function dayWords(date) {
@@ -42,6 +55,7 @@ async function putBackElsewhere(key, r) {
     toast(`${mealLabel(key)} not put back. ${notSavedReason(failureText('Put back a meal', err))}`, { tone: 'error' });
     return;
   }
+  removedOn(r.date).delete(key);
   toast(`${mealLabel(key)} put back for ${dayWords(r.date)}: ${core.formatCalories(r.value)}`);
   refreshCurrentScreen();
 }
@@ -55,8 +69,8 @@ export function buildMealList(view, where) {
   const totalNum = h('div', { class: 'total-num' });
   const totalLabel = h('div', { class: 'total-label' });
   const list = h('ul', { class: 'meal-list', 'aria-label': 'Meals' });
-  /** Meals removed on this screen, not put back. @type {Map<string, Removed>} */
-  const removed = new Map();
+  /** Meals removed from the day shown, not put back. */
+  const removed = () => removedOn(view.date);
 
   const totalBox = h('div', { class: 'total-box' }, totalNum, totalLabel);
 
@@ -88,7 +102,7 @@ export function buildMealList(view, where) {
       toast(failureText('Remove a meal', err), { tone: 'error' });
       return;
     }
-    if (typeof previous === 'number') removed.set(key, { value: previous, date, at: Date.now() });
+    if (typeof previous === 'number') removedOn(date).set(key, { value: previous, date, offered: false });
     refresh();
     focusInRow(key, '[data-undo]');
     announce(`${mealLabel(key)} removed. Undo is next to it.`);
@@ -96,7 +110,7 @@ export function buildMealList(view, where) {
 
   /** @param {string} key @param {HTMLButtonElement} button */
   async function undoRemove(key, button) {
-    const r = removed.get(key);
+    const r = removed().get(key);
     if (r === undefined || button.disabled) return;
     const previous = r.value;
     button.disabled = true;
@@ -107,7 +121,7 @@ export function buildMealList(view, where) {
       toast(failureText('Put back a meal', err), { tone: 'error' });
       return;
     }
-    removed.delete(key);
+    removed().delete(key);
     refresh();
     focusInRow(key, 'a');
     announce(`${mealLabel(key)} restored: ${core.formatCalories(previous)}.`);
@@ -116,8 +130,8 @@ export function buildMealList(view, where) {
   /** @param {{ key: string, label: string }} step */
   function row(step) {
     const value = view.entry.meals[step.key];
-    if (value !== null) removed.delete(step.key);
-    const r = removed.get(step.key);
+    if (value !== null) removed().delete(step.key);
+    const r = removed().get(step.key);
     return mealRow(step, value, r ? r.value : undefined, {
       href: logHash(where.routeDate, step.key),
       onRemove: () => removeMeal(step.key),
@@ -131,18 +145,16 @@ export function buildMealList(view, where) {
   }
   refresh();
 
-  // Today is being left: a meal removed moments ago can still be put back
-  // from the next screen, which might be where the tap was headed anyway.
+  // Today is being left: a meal removed since it was last left can be put
+  // back from the next screen too, which might be where the tap was headed.
   function offerUndoAfterLeaving() {
-    for (const [key, r] of removed) {
-      if (Date.now() - r.at > UNDO_AFTER_LEAVING_MS) continue;
+    for (const [key, r] of removed()) {
+      if (r.offered) continue;
+      r.offered = true;
       toast(`${mealLabel(key)} removed from ${dayWords(r.date)} (${core.formatCalories(r.value)})`, {
         action: { label: 'Undo', onClick: () => putBackElsewhere(key, r) },
-        keepWhileNavigating: true,
-        duration: UNDO_TOAST_MS,
       });
     }
-    removed.clear();
   }
 
   return { total: totalBox, list, refresh, offerUndoAfterLeaving };

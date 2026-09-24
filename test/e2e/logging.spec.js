@@ -1,4 +1,4 @@
-const { test, expect, TODAY, day } = require('./fixtures');
+const { test, expect, TODAY, NOW, day } = require('./fixtures');
 
 test('typing then tapping another control takes effect on the first tap', async ({ page, appURL, data }) => {
   await page.goto(appURL);
@@ -556,7 +556,8 @@ test('the Weight box says how it saves before anything is typed', async ({ page,
   expect((await data.entry(TODAY)).weight).toBe(170.2);
 });
 
-test('a meal removed just before leaving Today can be put back from the next screen', async ({ page, appURL, data }) => {
+test('a meal removed on Today can be put back from the next screen, and from its row for the rest of the visit', async ({ page, appURL, data }) => {
+  await page.clock.install({ time: NOW });
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 450, lunch: 650 }) });
   await page.goto(appURL);
   await page.getByRole('button', { name: 'Remove Breakfast' }).click();
@@ -565,10 +566,38 @@ test('a meal removed just before leaving Today can be put back from the next scr
   await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
   const offer = page.locator('.toast').filter({ hasText: 'Breakfast removed from today (450 cal)' });
   await expect(offer).toBeVisible();
-  // It's still offered on the screen after that.
+  // Time alone never takes it away, and the page has room to scroll clear of it.
+  await page.clock.runFor(30000);
+  await expect(offer).toBeVisible();
+  const room = () => page.evaluate(() => parseFloat(document.documentElement.style.getPropertyValue('--toast-room')) || 0);
+  expect(await room()).toBeGreaterThan(40);
+  // Moving on does, but Today's row still offers Undo.
   await page.locator('[data-tab="compare"]').click();
   await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
-  await expect(offer).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  await page.locator('[data-tab="today"]').click();
+  await expect(page.locator('.meal-row[data-meal="breakfast"]')).toContainText('Removed (was 450 cal)');
+  await expect(page.getByRole('button', { name: 'Undo removing Breakfast' })).toBeVisible();
+  // Leaving again doesn't offer it a second time; the offer can be dismissed.
+  await page.locator('[data-tab="compare"]').click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await expect(offer).toHaveCount(0);
+  await page.locator('[data-tab="today"]').click();
+  await page.getByRole('button', { name: 'Remove Lunch' }).click();
+  await page.locator('[data-tab="history"]').click();
+  const lunch = page.locator('.toast').filter({ hasText: 'Lunch removed from today (650 cal)' });
+  await lunch.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(lunch).toHaveCount(0);
+  expect(await room()).toBe(0);
+  await page.locator('[data-tab="today"]').click();
+  await page.getByRole('button', { name: 'Undo removing Lunch' }).click();
+  await expect(page.locator('.total-num')).toHaveText('650');
+
+  // From another screen, the offer puts the meal back.
+  await page.getByRole('button', { name: 'Undo removing Breakfast' }).click();
+  await page.getByRole('button', { name: 'Remove Breakfast' }).click();
+  await page.locator('[data-tab="compare"]').click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
   await offer.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.toast').filter({ hasText: 'Breakfast put back for today: 450 cal' })).toBeVisible();
   expect((await data.entry(TODAY)).meals.breakfast).toBe(450);
