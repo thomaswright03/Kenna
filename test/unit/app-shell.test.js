@@ -59,7 +59,7 @@ test('the page shows it is loading until the first screen is drawn', () => {
   assert.match(html, /<main id="main" class="main"><p class="boot-loading" role="status">[\s\S]*Loading Kenna…<\/p><\/main>/);
 });
 
-test("the browser's theme colours match the page background, and the splash screen never flashes light", () => {
+test("the browser's theme colours match the page background, and the splash screen matches the default theme", () => {
   const css = fs.readFileSync(path.join(docs, 'style.css'), 'utf8');
   const bg = (block) => css.match(new RegExp(`^${block} \\{[\\s\\S]*?--bg: (#[0-9a-f]+);`, 'm'))[1];
   const light = bg(':root');
@@ -70,11 +70,12 @@ test("the browser's theme colours match the page background, and the splash scre
   const theme = fs.readFileSync(path.join(docs, 'ui', 'theme.js'), 'utf8');
   assert.match(theme, new RegExp(`THEME_COLORS = \\{ light: '${light}', dark: '${dark}' \\}`));
   // Before the page is drawn the installed app shows the manifest's colours,
-  // which can't follow the phone's theme: the dark background (the icon's
-  // own), so opening Kenna in dark mode never starts with a light flash.
+  // which can't follow the phone's theme: the light background, the theme
+  // Kenna starts in, so a light-mode launch has no dark splash or bar. Once
+  // the page loads, the theme-color tags above take over in dark mode.
   const manifest = JSON.parse(fs.readFileSync(path.join(docs, 'manifest.webmanifest'), 'utf8'));
-  assert.equal(manifest.background_color, dark);
-  assert.equal(manifest.theme_color, dark);
+  assert.equal(manifest.background_color, light);
+  assert.equal(manifest.theme_color, light);
   assert.match(fs.readFileSync(path.join(docs, 'favicon.svg'), 'utf8'), new RegExp(`<rect width="64" height="64" rx="14" fill="${dark}"/>`));
   const notFound = fs.readFileSync(path.join(docs, '404.html'), 'utf8');
   assert.ok(notFound.includes(`--bg: ${light};`) && notFound.includes(`--bg: ${dark};`), '404.html uses the same backgrounds');

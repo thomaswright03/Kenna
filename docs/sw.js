@@ -15,7 +15,7 @@
 // which pre-caches the whole new set together, so a phone that goes offline
 // right after an update still has matching files. A test checks every
 // listed file exists.
-const CACHE_NAME = 'kenna-6226cf753b26';
+const CACHE_NAME = 'kenna-ea475a678c63';
 
 const APP_SHELL = [
   './',
