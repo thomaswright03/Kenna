@@ -41,6 +41,16 @@ let currentView = null;
 
 export const getCurrentView = () => currentView;
 
+/**
+ * Shows data changed elsewhere (another tab, or an Undo offered on another
+ * screen) on the screen that's open: in place where the screen can, or by
+ * drawing History or Compare again.
+ */
+export function refreshCurrentScreen() {
+  if (currentView && currentView.refreshFromStorage) currentView.refreshFromStorage().catch(() => {});
+  else if (route.screen === 'history' || route.screen === 'compare') render();
+}
+
 /** @param {{ focus?: boolean }} [options] */
 export async function render(options) {
   const opts = options || {};

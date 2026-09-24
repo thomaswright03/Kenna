@@ -379,3 +379,39 @@ test('the Weight box says how it saves before anything is typed', async ({ page,
   await expect(hint).toBeVisible();
   expect((await data.entry(TODAY)).weight).toBe(170.2);
 });
+
+test('a meal removed just before leaving Today can be put back from the next screen', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 450, lunch: 650 }) });
+  await page.goto(appURL);
+  await page.getByRole('button', { name: 'Remove Breakfast' }).click();
+  await expect(page.locator('.total-num')).toHaveText('650');
+  await page.locator('[data-tab="history"]').click();
+  await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
+  const offer = page.locator('.toast').filter({ hasText: 'Breakfast removed from today (450 cal)' });
+  await expect(offer).toBeVisible();
+  // It's still offered on the screen after that.
+  await page.locator('[data-tab="compare"]').click();
+  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
+  await expect(offer).toBeVisible();
+  await offer.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Breakfast put back for today: 450 cal' })).toBeVisible();
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(450);
+  await expect(page.locator('[data-answer="calories"]')).toContainText('1,100 cal so far');
+  await page.locator('[data-tab="today"]').click();
+  await expect(page.locator('.total-num')).toHaveText('1,100');
+});
+
+test('an Undo offered after leaving Today leaves a meal logged again since as it is', async ({ page, appURL, data }) => {
+  await data.seed({ [TODAY]: day(TODAY, { breakfast: 450 }) });
+  await page.goto(appURL);
+  await page.getByRole('button', { name: 'Remove Breakfast' }).click();
+  await expect(page.locator('.meal-row[data-meal="breakfast"]')).toContainText('Removed (was 450 cal)');
+  // Straight to Log Meal for that meal, and a new number.
+  await page.locator('.meal-row[data-meal="breakfast"] .meal-name').click();
+  await page.getByLabel('Breakfast calories').fill('300');
+  await page.getByLabel('Breakfast calories').blur();
+  await expect(page.getByText('Breakfast saved')).toBeVisible();
+  await page.locator('.toast').filter({ hasText: 'Breakfast removed from today' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.toast').filter({ hasText: 'Breakfast has been logged again since' })).toBeVisible();
+  expect((await data.entry(TODAY)).meals.breakfast).toBe(300);
+});

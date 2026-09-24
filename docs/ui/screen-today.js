@@ -85,6 +85,7 @@ export async function buildToday(ctx) {
   const gate = farBackGate(date, allEntries, () => render());
   const weight = gate ? null : buildWeightField(view);
   const meals = gate ? null : buildMealList(view, { routeDate: ctx.route.date, isToday });
+  if (meals) ctx.onRelease(meals.offerUndoAfterLeaving);
   const dayCard =
     gate || !weight || !meals
       ? h('section', { class: 'card' }, dayHeading(date), gate, dateField)

@@ -39,9 +39,12 @@ const liveToasts = new Map();
  * A short message at the bottom of the screen. At most one message without
  * a button shows at a time (a new one replaces it), a tap on it dismisses
  * it, and moving to another screen clears it unless `keepOnNavigate` says
- * it's about the screen being opened (Save and close's "Saved for Today").
+ * it's about the screen being opened (Save and close's "Saved for Today"),
+ * or `keepWhileNavigating` says it offers something that still applies
+ * wherever the user goes (Undo for a meal removed on the screen left); that
+ * one stays until it times out or is used.
  * @param {string} message
- * @param {ToastOptions & { keepOnNavigate?: boolean }} [options]
+ * @param {ToastOptions & { keepOnNavigate?: boolean, keepWhileNavigating?: boolean }} [options]
  * @returns {() => void} dismisses the toast
  */
 export function toast(message, options) {
@@ -51,7 +54,8 @@ export function toast(message, options) {
     for (const [el, dismissOther] of liveToasts) if (!el.classList.contains('toast-actionable')) dismissOther();
   }
   const classes = ['toast', opts.tone === 'error' ? 'toast-error' : '', opts.action ? 'toast-actionable' : ''].filter(Boolean).join(' ');
-  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': opts.keepOnNavigate ? 'true' : null });
+  const keep = opts.keepWhileNavigating ? 'always' : opts.keepOnNavigate ? 'true' : null;
+  const el = h('div', { class: classes, role: opts.tone === 'error' ? 'alert' : 'status', 'data-keep': keep });
   el.append(h('span', { class: 'toast-text', text: message }));
   const dismiss = () => {
     clearTimeout(timer);
@@ -87,6 +91,7 @@ export function toast(message, options) {
 /** Called when another screen opens: clears messages about the one left. */
 export function clearToastsOnNavigation() {
   for (const [el, dismiss] of liveToasts) {
+    if (el.dataset.keep === 'always') continue;
     if (el.dataset.keep === 'true') delete el.dataset.keep;
     else dismiss();
   }

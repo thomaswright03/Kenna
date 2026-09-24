@@ -32,7 +32,10 @@ data never leaves your device.
   a ✓ and its calories. On the Today screen **Log Meal** is the main way
   in; tapping a meal's row (its name, calories or **Add**/**Edit**) opens
   Log Meal at that meal. A meal removed on the Today screen
-  keeps an **Undo** button in its row until you leave that screen.
+  keeps an **Undo** button in its row while you're on that screen; leave
+  it within a minute and the next screen offers **Undo** for ten seconds
+  more, even if you move on again (a meal logged again since is left as
+  it is).
 - **History** lists every logged day with its total calories and weight,
   grouped by month under headings with each month's average calories
   (days with meals, not counting today) and weight. The most recent
