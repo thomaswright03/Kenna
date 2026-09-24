@@ -1,7 +1,7 @@
 // Turning a picked file into the photo Kenna stores, and making the small
 // preview shown in the Photos grid.
 
-import { core } from './dom.js';
+import { core, h } from './dom.js';
 
 /** @param {Blob} file @param {number} n */
 function readHead(file, n) {
@@ -59,24 +59,42 @@ async function scaleToJpeg(img, maxDim, quality) {
 
 /**
  * Downscales and re-encodes so a multi-megabyte phone photo doesn't eat
- * storage. A real photo format this browser can't re-encode (e.g. HEIC in
- * some browsers) is kept as-is; anything that isn't an image is refused.
+ * storage. A real photo format this browser can't draw or re-encode (e.g.
+ * HEIC in most browsers other than Safari) is kept as-is, with `viewable`
+ * false; anything that isn't an image is refused.
  * @param {Blob} file
  * @param {number} maxDim
- * @returns {Promise<Blob>}
+ * @returns {Promise<{ blob: Blob, viewable: boolean }>}
  */
 export async function preparePhoto(file, maxDim) {
   const sniffed = core.sniffImageType(await readHead(file, 32));
   const decoded = await decodeImage(file);
   if (!decoded) {
-    if (sniffed) return new Blob([file], { type: sniffed });
+    if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: false };
     throw new core.KennaError("That file isn't a photo we can show.");
   }
   const blob = await scaleToJpeg(decoded.img, maxDim, 0.85);
   decoded.release();
-  if (blob) return blob;
-  if (sniffed) return new Blob([file], { type: sniffed });
+  if (blob) return { blob, viewable: true };
+  if (sniffed) return { blob: new Blob([file], { type: sniffed }), viewable: true };
   throw new core.KennaError("That file isn't a photo we can show.");
+}
+
+// What the Photos grid shows for a photo this browser can't draw.
+export const CANT_PREVIEW = "Can't preview in this browser";
+
+/**
+ * Shown in the viewer and in Compare photos in place of a photo this
+ * browser can't draw, which is still stored and backed up as it is.
+ * @param {string} label names the photo, e.g. "Progress photo, Thu, Sep 24"
+ */
+export function unviewablePhoto(label) {
+  return h(
+    'div',
+    { class: 'photo-unviewable', role: 'img', 'aria-label': `${label}: ${CANT_PREVIEW.toLowerCase()}` },
+    h('p', { class: 'photo-unviewable-title', text: CANT_PREVIEW }),
+    h('p', { class: 'photo-unviewable-text', text: 'The photo is saved as it is and included in backups.' })
+  );
 }
 
 // Grid cells are about 120 CSS pixels wide; 360 pixels stays sharp on a

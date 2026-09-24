@@ -5,6 +5,7 @@ import { core, h, uid, today, errorText } from './dom.js';
 import { openDialog } from './feedback.js';
 import { store } from './store.js';
 import { inDateOrder } from './photo-viewer.js';
+import { unviewablePhoto } from './photo-image.js';
 
 /** @typedef {import('../store-local.js').Photo} Photo */
 
@@ -17,7 +18,9 @@ function comparedPhoto(photo, entries, keep) {
   const now = today();
   const entry = entries[photo.date];
   const date = core.formatDate(photo.date, now);
-  const img = h('img', { class: 'compare-img', alt: `Progress photo, ${date}` });
+  const alt = `Progress photo, ${date}`;
+  const img = h('img', { class: 'compare-img', alt });
+  img.addEventListener('error', () => img.isConnected && img.replaceWith(unviewablePhoto(alt)));
   store
     .photoUrl(photo, 'full')
     .then((loaded) => {

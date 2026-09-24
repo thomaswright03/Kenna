@@ -730,6 +730,21 @@ input:focus-visible + .segment { outline: 3px solid var(--focus); outline-offset
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .photo-missing { display: block; padding: var(--s2); font-size: var(--fs-xs); color: var(--muted); }
+.photo-unviewable {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s1);
+  width: 100%;
+  min-height: 12rem;
+  padding: var(--s4);
+  border-radius: var(--r-md);
+  background: var(--card-2);
+  text-align: center;
+}
+.photo-unviewable p { margin: 0; }
+.photo-unviewable-title { font-weight: 600; }
+.photo-unviewable-text { color: var(--muted); font-size: var(--fs-sm); }
 
 /* ------------------------------------------------------------ dialogs */
 

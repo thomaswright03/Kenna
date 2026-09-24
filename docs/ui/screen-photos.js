@@ -6,7 +6,7 @@ import { core, h, uid, BACKEND, today, errorText } from './dom.js';
 import { toast, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
-import { preparePhoto, makeThumbnail } from './photo-image.js';
+import { preparePhoto, makeThumbnail, CANT_PREVIEW } from './photo-image.js';
 import { openPhotoViewer, photoDayProblem } from './photo-viewer.js';
 import { openPhotoCompare } from './photo-compare.js';
 
@@ -48,10 +48,11 @@ function buildAddCard() {
     status.set('pending', 'Saving photo…');
     busy(true);
     try {
-      const blob = await preparePhoto(file, 1600);
-      const thumb = await makeThumbnail(blob).catch(() => null);
+      const { blob, viewable } = await preparePhoto(file, 1600);
+      const thumb = viewable ? await makeThumbnail(blob).catch(() => null) : null;
       await store.addPhoto({ date: day, blob, thumb, createdAt: new Date().toISOString() });
-      toast(day === today() ? 'Photo added' : `Photo added to ${core.formatRelativeDate(day)}`);
+      const added = day === today() ? 'Photo added' : `Photo added to ${core.formatRelativeDate(day)}`;
+      toast(viewable ? added : `${added}. It's saved, but this browser can't show this kind of photo, so it can't be previewed here.`);
       render();
     } catch (err) {
       status.set('error', `Photo not saved. ${errorText(err, "Kenna couldn't save it. Your other photos are safe; try again.")}`);
@@ -86,7 +87,7 @@ function lazyThumbs(ctx) {
   ctx.onRelease(() => {
     released = true;
   });
-  const cantPreview = () => h('span', { class: 'photo-missing', text: "Can't preview in this browser" });
+  const cantPreview = () => h('span', { class: 'photo-missing', text: CANT_PREVIEW });
   /** @param {HTMLElement} button @param {Photo} p */
   async function load(button, p) {
     try {

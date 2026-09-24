@@ -7,6 +7,7 @@ import { core, h, uid, today, errorText } from './dom.js';
 import { toast, openDialog, confirmDialog, createStatusLine } from './feedback.js';
 import { store } from './store.js';
 import { render } from './render.js';
+import { unviewablePhoto } from './photo-image.js';
 
 /** @typedef {import('../store-local.js').Photo} Photo */
 
@@ -74,6 +75,9 @@ function photoFrame() {
       release();
       const mine = shown;
       const img = h('img', { alt, class: 'viewer-img' });
+      // A photo this browser can't draw (HEIC outside Safari) says so
+      // instead of showing a broken image.
+      img.addEventListener('error', () => mine === shown && img.replaceWith(unviewablePhoto(alt)));
       el.replaceChildren(img);
       store
         .photoUrl(photo, 'full')
