@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../../docs/core.js');
+const { parseBackup } = require('./parse-backup.js');
 
 const meals = (m) => ({ ...core.emptyMeals(), ...m });
 const entry = (date, m, weight = null) => ({ date, weight, meals: meals(m) });
@@ -183,20 +184,25 @@ test('numbers from the API or a backup follow the typed-input rules, with the sa
   assert.deepEqual(core.validatePatch({ weight: 180.5, meals: { lunch: 600 } }), { ok: true, patch: { weight: 180.5, meals: { lunch: 600 } } });
   assert.equal(core.validatePatch({ weight: 165.123 }).error, 'Weight not saved. Use at most two decimal places, like 165.25.');
   assert.equal(core.validatePatch({ meals: { lunch: 450.5 } }).error, 'Lunch not saved. Enter calories as a whole number, like 450, without decimals.');
-  assert.match(core.validatePatch({ meals: { brunch: 1 } }).error, /Unknown meal/);
-  assert.match(core.validatePatch({ height: 1 }).error, /Unknown field/);
+  // A change of another shape is never typed: it's a fault in Kenna, said plainly.
+  for (const odd of [{ meals: { brunch: 1 } }, { height: 1 }, { meals: [] }, null]) {
+    const result = core.validatePatch(odd);
+    assert.equal(result.ok, false);
+    assert.equal(result.fault, true);
+    assert.match(result.error, /^Not saved: Kenna couldn't read this change\./);
+  }
 
-  const decimalCalories = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
+  const decimalCalories = parseBackup(JSON.stringify({ entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } }));
   assert.equal(decimalCalories.ok, false);
   assert.equal(decimalCalories.error, 'Nothing was imported. Lunch on Thu, Sep 24 (450.7): Enter calories as a whole number, like 450, without decimals.');
   // The first version saved weights as typed; a backup from then imports
   // them rounded to two decimals, as the app shows them and exports them.
-  const longWeight = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } }));
+  const longWeight = parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } }));
   assert.equal(longWeight.ok, true);
   assert.equal(longWeight.entries['2026-09-16'].weight, 165.33);
-  assert.match(core.parseBackup({ entries: { '2026-09-16': { weight: 40.004, meals: {} } } }).error, /between 50 and 1,000/);
+  assert.match(parseBackup({ entries: { '2026-09-16': { weight: 40.004, meals: {} } } }).error, /between 50 and 1,000/);
   // Lists of foods from the first version still import as their total.
-  const foods = core.parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
+  const foods = parseBackup(JSON.stringify({ entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } }));
   assert.equal(foods.ok, true);
   assert.equal(foods.entries['2026-09-24'].meals.lunch, 151);
 });
@@ -206,7 +212,7 @@ test('a backup writes old weights with more than two decimals as the app shows t
   const written = core.entryForBackup(old);
   assert.equal(written.weight, 165.33);
   assert.equal(old.weight, 165.333, 'the stored day is not changed');
-  assert.equal(core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { [old.date]: written } })).ok, true);
+  assert.equal(parseBackup(JSON.stringify({ app: 'kenna', version: 2, entries: { [old.date]: written } })).ok, true);
   assert.equal(core.entryForBackup({ ...old, weight: null }).weight, null);
 });
 
@@ -234,19 +240,19 @@ test('stored entries are read tolerantly: unreadable days are skipped, not fatal
 });
 
 test('backup parsing rejects malformed files with a specific message', () => {
-  const bad = core.parseBackup(JSON.stringify({ entries: { '2026-01-01': 5, garbage: { weight: 'x' } } }));
+  const bad = parseBackup(JSON.stringify({ entries: { '2026-01-01': 5, garbage: { weight: 'x' } } }));
   assert.equal(bad.ok, false);
   assert.match(bad.error, /^Nothing was imported\./);
   assert.match(bad.error, /1 more problem/);
 
-  assert.equal(core.parseBackup('not json').ok, false);
-  assert.equal(core.parseBackup('[]').ok, false);
-  assert.equal(core.parseBackup(JSON.stringify({ app: 'other', entries: {} })).ok, false);
-  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .*can't be negative/);
-  assert.match(core.parseBackup(JSON.stringify({ entries: { '2026-01-01': { weight: 5, meals: {} } } })).error, /weight/);
-  assert.match(core.parseBackup(JSON.stringify({ version: 99, entries: {} })).error, /newer version/);
+  assert.equal(parseBackup('not json').ok, false);
+  assert.equal(parseBackup('[]').ok, false);
+  assert.equal(parseBackup(JSON.stringify({ app: 'other', entries: {} })).ok, false);
+  assert.match(parseBackup(JSON.stringify({ entries: { '2026-01-01': { meals: { breakfast: -300 } } } })).error, /Breakfast on .*can't be negative/);
+  assert.match(parseBackup(JSON.stringify({ entries: { '2026-01-01': { weight: 5, meals: {} } } })).error, /weight/);
+  assert.match(parseBackup(JSON.stringify({ version: 99, entries: {} })).error, /newer version/);
   assert.match(
-    core.parseBackup(JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'x', type: 'image/jpeg', data: 'AA==' }] })).error,
+    parseBackup(JSON.stringify({ entries: {}, photos: [{ date: '2026-01-01', createdAt: 'x', type: 'image/jpeg', data: 'AA==' }] })).error,
     /upload time/
   );
 });
@@ -257,14 +263,14 @@ test('a whole backup parses with its days and photos; version-1 files still impo
     '2026-09-24': entry('2026-09-24', {}, 179.8),
   };
   const photos = [{ date: '2026-09-23', createdAt: '2026-09-23T08:00:00.000Z', type: 'image/jpeg', data: 'AAECAw==' }];
-  const parsed = core.parseBackup(JSON.stringify({ app: 'kenna', version: 2, exportedAt: '2026-09-24T10:00:00.000Z', entries, photos }));
+  const parsed = parseBackup(JSON.stringify({ app: 'kenna', version: 2, exportedAt: '2026-09-24T10:00:00.000Z', entries, photos }));
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.entries, entries);
   assert.deepEqual(parsed.photos, photos);
   assert.equal(parsed.dayCount, 2);
   assert.equal(parsed.photoCount, 1);
 
-  const v1 = core.parseBackup(
+  const v1 = parseBackup(
     JSON.stringify({ exportedAt: 'x', entries: { '2025-05-01': { date: '2025-05-01', weight: null, meals: { lunch: [{ calories: 500, percent: 100 }] } } } })
   );
   assert.equal(v1.ok, true);
@@ -408,14 +414,14 @@ test('days after today never count toward averages', () => {
 });
 
 test('backup days dated after the latest allowed day are left out and counted', () => {
-  const parsed = core.parseBackup(
+  const parsed = parseBackup(
     { entries: { '2026-09-23': entry('2026-09-23', { lunch: 600 }), '2030-01-01': entry('2030-01-01', { lunch: 500 }) } },
     '2026-09-24'
   );
   assert.equal(parsed.ok, true);
   assert.deepEqual(Object.keys(parsed.entries), ['2026-09-23']);
   assert.equal(parsed.futureDays, 1);
-  assert.equal(core.parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
+  assert.equal(parseBackup({ entries: { '2030-01-01': entry('2030-01-01', { lunch: 500 }) } }).futureDays, 0, 'no limit given');
 });
 
 test('chart dates carry their year on every label when the range crosses a year', () => {
@@ -450,7 +456,7 @@ test('photo bytes are encoded as base64 exactly as the browser would', async () 
 });
 
 test('a backup with some days outside the rules restores the rest and lists what it left out', () => {
-  const parsed = core.parseBackup({
+  const parsed = parseBackup({
     app: 'kenna',
     version: 2,
     entries: {
@@ -467,7 +473,7 @@ test('a backup with some days outside the rules restores the rest and lists what
     'The weight on Thu, Sep 3 (12): Enter a weight between 50 and 1,000 lbs.',
     'Photo 1 has no valid upload time.',
   ]);
-  assert.deepEqual(core.parseBackup({ entries: { '2026-09-02': entry('2026-09-02', { lunch: 600 }) } }).skipped, []);
+  assert.deepEqual(parseBackup({ entries: { '2026-09-02': entry('2026-09-02', { lunch: 600 }) } }).skipped, []);
 });
 
 test('a restore is described by how many stored days it replaces and adds', () => {

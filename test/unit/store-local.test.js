@@ -215,3 +215,14 @@ test('if the days to be replaced cannot be kept first, nothing is restored', asy
   await assert.rejects(store.importEntries({ '2026-09-24': { date: '2026-09-24', weight: null, meals: { breakfast: 500 } } }), /^\w*Error: Nothing was restored\. There's no room left/);
   assert.equal((await store.getEntry('2026-09-24')).meals.breakfast, 700);
 });
+
+test('a value outside the rules is the user’s to fix; a change of another shape is a fault in Kenna', async () => {
+  const core = require('../../docs/core.js');
+  const { store } = makeStore(fakeStorage());
+  await assert.rejects(store.updateEntry('2026-09-24', { weight: 20 }), (err) => err instanceof core.InputError);
+  await assert.rejects(
+    store.updateEntry('2026-09-24', { height: 20 }),
+    (err) => err instanceof core.KennaError && !(err instanceof core.InputError) && /couldn't read this change/.test(err.message)
+  );
+  assert.deepEqual(await store.loadEntries(), {});
+});

@@ -126,3 +126,33 @@ test('checking a backup reports problems without importing anything', async () =
   assert.equal(v1.ok, true);
   assert.equal(v1.photoCount, 0);
 });
+
+test('reading a backup a piece at a time gives the same result as the whole-file rules the core tests state', async () => {
+  const { parseBackup } = require('./parse-backup.js');
+  const photo = (date, createdAt) => ({ date, createdAt, type: 'image/jpeg', data: 'AA==' });
+  const files = [
+    'not json',
+    { app: 'other', entries: {} },
+    { version: 99, entries: {} },
+    { entries: { '2026-01-01': 5, garbage: { weight: 'x' } } },
+    { entries: { '2026-09-24': { weight: null, meals: { lunch: 450.7 } } } },
+    { app: 'kenna', version: 2, entries: { '2026-09-16': { date: '2026-09-16', weight: 165.333, meals: { breakfast: 300 } } } },
+    { entries: { '2026-09-24': { meals: { lunch: [{ calories: 301, percent: 50 }] } } } },
+    { entries: {}, photos: [photo('2026-01-01', 'x')] },
+    { entries: { '2026-09-02': { meals: { lunch: 600 } } }, photos: 'nope' },
+    { entries: { '2026-09-01': { meals: { breakfast: -5 } }, '2026-09-02': { meals: { lunch: 600 } } }, photos: [7, photo('2026-09-02', '2026-09-02T08:00:00.000Z')] },
+    { entries: { '2026-09-02': { meals: { lunch: 600 } }, '2030-01-01': { meals: { lunch: 500 } } }, photos: [photo('2026-09-02', '2026-09-02T08:00:00.000Z')] },
+  ];
+  for (const file of files) {
+    const text = typeof file === 'string' ? file : JSON.stringify(file);
+    const whole = parseBackup(text, '2026-09-24');
+    const pieces = await checkBackup(new Blob([text]), { latestDay: '2026-09-24' });
+    if (whole.ok) {
+      const { photos, ...rest } = whole;
+      assert.deepEqual(pieces, rest, text);
+      assert.equal(photos.length, pieces.photoCount);
+    } else {
+      assert.deepEqual(pieces, whole, text);
+    }
+  }
+});

@@ -78,17 +78,23 @@ function validateWeightValue(v) {
   return validateWeight(String(v));
 }
 
+// What a change the screens never make says (a fault in Kenna itself, so
+// it is also noted in the problem log): nothing the user typed was wrong.
+const UNREADABLE_CHANGE = "Not saved: Kenna couldn't read this change. Close Kenna completely, open it again and try once more.";
+
 // Checks a change to one day ({ weight?, meals?: { key: calories } }),
-// as the phone's storage applies it.
+// as the phone's storage applies it. A value outside the rules says what
+// to type instead; a change of any other shape is Kenna's own fault
+// (`fault: true`).
 /**
  * @param {any} body
- * @returns {{ ok: true, patch: EntryPatch } | { ok: false, error: string }}
+ * @returns {{ ok: true, patch: EntryPatch } | { ok: false, error: string, fault?: true }}
  */
 function validatePatch(body) {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false, error: 'Send the fields to change as a JSON object.' };
-  for (const key of Object.keys(body)) {
-    if (key !== 'weight' && key !== 'meals') return { ok: false, error: `Unknown field "${key}".` };
-  }
+  /** @type {{ ok: false, error: string, fault: true }} */
+  const unreadable = { ok: false, error: UNREADABLE_CHANGE, fault: true };
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return unreadable;
+  if (Object.keys(body).some((key) => key !== 'weight' && key !== 'meals')) return unreadable;
   /** @type {EntryPatch} */
   const patch = {};
   if (Object.prototype.hasOwnProperty.call(body, 'weight')) {
@@ -97,12 +103,12 @@ function validatePatch(body) {
     patch.weight = checked.value;
   }
   if (body.meals !== undefined) {
-    if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) return { ok: false, error: 'Meals must be an object.' };
+    if (!body.meals || typeof body.meals !== 'object' || Array.isArray(body.meals)) return unreadable;
     /** @type {Record<string, number | null>} */
     const meals = {};
     for (const key of Object.keys(body.meals)) {
       const step = MEAL_STEPS.find((m) => m.key === key);
-      if (!step) return { ok: false, error: `Unknown meal "${key}".` };
+      if (!step) return unreadable;
       const checked = validateCaloriesValue(body.meals[key]);
       if (!checked.ok) return { ok: false, error: `${step.label} not saved. ${checked.error}` };
       meals[key] = checked.value;

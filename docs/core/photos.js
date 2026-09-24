@@ -35,19 +35,7 @@ async function blobToBase64(blob) {
   return btoa(parts.join(''));
 }
 
-/** @type {Record<string, string>} */
-const IMAGE_EXTENSIONS = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/gif': 'gif',
-  'image/webp': 'webp',
-  'image/avif': 'avif',
-  'image/heic': 'heic',
-  'image/heif': 'heif',
-};
-
 module.exports = {
   sniffImageType,
   blobToBase64,
-  IMAGE_EXTENSIONS,
 };

@@ -113,51 +113,6 @@ function backupRefusal(skipped, usable) {
 
 const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
 
-// Validates a whole backup held in memory at once. The app reads backup
-// files in pieces instead (backup-file.js), so a large photo library never
-// has to be in memory at once; both are built from the same checks
-// (checkBackupDays, checkBackupPhoto, backupRefusal), and the unit tests
-// state the file rules through this compact form.
-/**
- * @param {unknown} input the file's text, or its parsed JSON
- * @param {string} [latestDay] days after this are left out (see checkBackupDays)
- * @returns {{ ok: true, entries: Record<string, Entry>, photos: BackupPhoto[], dayCount: number, photoCount: number, futureDays: number, skipped: string[] } | { ok: false, error: string }}
- */
-function parseBackup(input, latestDay) {
-  /** @type {any} */
-  let payload = input;
-  if (typeof input === 'string') {
-    try {
-      payload = JSON.parse(input);
-    } catch {
-      return { ok: false, error: UNREADABLE_BACKUP };
-    }
-  }
-  /** @type {string[]} */
-  const skipped = [];
-  const days = checkBackupDays(payload, skipped, latestDay);
-  if (!days.ok) return days;
-
-  /** @type {BackupPhoto[]} */
-  const photos = [];
-  if (payload.photos !== undefined) {
-    if (!Array.isArray(payload.photos)) {
-      skipped.push('The photos section is not in the expected format.');
-    } else {
-      payload.photos.forEach((/** @type {unknown} */ p, /** @type {number} */ i) => {
-        const result = checkBackupPhoto(p, i + 1);
-        if (result.ok) photos.push(result.photo);
-        else skipped.push(result.error);
-      });
-    }
-  }
-
-  const dayCount = Object.keys(days.entries).length;
-  const refused = backupRefusal(skipped, dayCount + photos.length);
-  if (refused) return { ok: false, error: refused };
-  return { ok: true, entries: days.entries, photos, dayCount, photoCount: photos.length, futureDays: days.futureDays, skipped };
-}
-
 /** @param {Entry} a @param {Entry} b */
 function sameEntry(a, b) {
   return a.weight === b.weight && MEAL_KEYS.every((k) => (a.meals[k] ?? null) === (b.meals[k] ?? null));
@@ -225,10 +180,8 @@ module.exports = {
   photoKey,
   checkBackupDays,
   checkBackupPhoto,
-  backupProblemsMessage,
   backupRefusal,
   UNREADABLE_BACKUP,
-  parseBackup,
   compareWithStored,
   BACKUP_REMINDER,
   backupReminderDue,

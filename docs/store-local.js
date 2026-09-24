@@ -287,7 +287,7 @@
       if (!core.isValidDateStr(date)) throw new core.InputError('Not saved: pick a valid date first.');
       if (core.isFutureDate(date)) throw new core.InputError(`Not saved. ${core.FUTURE_DAY}`);
       const checked = core.validatePatch(patch);
-      if (!checked.ok) throw new core.InputError(checked.error);
+      if (!checked.ok) throw checked.fault ? new core.KennaError(checked.error) : new core.InputError(checked.error);
       const raw = readRaw();
       const next = core.applyPatch(date, raw[date], checked.patch);
       if (core.isEntryEmpty(next)) delete raw[date];
