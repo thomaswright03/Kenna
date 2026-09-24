@@ -8,13 +8,16 @@ history, and keep progress photos. No account, no sign-up: everything
 stays on the device. The badge shows the latest test run (Chromium and
 WebKit) on the published branch.
 
+Kenna is the installable phone app only. An optional server version
+(`server.js`) used to exist alongside it; the owner retired it, and it has
+been removed along with its tests and documentation.
+
 - [Use it on your phone](#use-it-on-your-phone)
 - [Rules at a glance](#rules-at-a-glance)
 - [Your data and backups](#your-data-and-backups)
 - [Run it locally](#run-it-locally)
 - [Test](#test)
 - [Release](#release)
-- [Optional: the server version](#optional-the-server-version)
 - [REFERENCE.md](REFERENCE.md): every screen and rule in detail
 
 ## Use it on your phone
@@ -75,14 +78,12 @@ the page loads (`docs/build/`) and the offline cache name in
 
 ```
 docs/            the app (also what GitHub Pages serves)
-  core.js        data rules shared by the app, the server and the tests,
-                 put together from the modules in core/ (dates, numbers,
+  core.js        data rules shared by the app and the tests, put
+                 together from the modules in core/ (dates, numbers,
                  entries, averages, input rules, backup format, charts,
                  photos)
   backup-file.js writes and reads backup files a piece at a time
   store-local.js browser storage (localStorage + IndexedDB)
-  store-server.js server storage (HTTP API)
-  backend.js     picks the storage; server.js serves its own version
   app.js         the user interface's entry point (an ES module)
   ui/            the interface, one module per screen plus shared parts
                  (routing, rendering, charts, dialogs and messages, backup,
@@ -93,13 +94,12 @@ docs/            the app (also what GitHub Pages serves)
                  with source maps; made by npm run build
   404.html       the "Page not found" page
   sw.js          offline cache
-server.js        the server version and its API
 scripts/build.js       builds docs/build/ (esbuild)
 scripts/serve-docs.js  serves docs/ locally as Pages would (compressed, with
                        404.html for unknown addresses)
 scripts/coverage.js    measures what the unit and browser tests run
-test/unit/       Node tests: data rules, browser storage, server API
-test/e2e/        Playwright tests, run against both versions
+test/unit/       Node tests: data rules, browser storage, backup files, build
+test/e2e/        Playwright tests of the app, served as Pages serves it
 ```
 
 ## Test
@@ -111,8 +111,8 @@ npm test                                 # lint, type check, unit/API tests, the
 
 `npm run test:unit` and `npm run test:e2e` run the parts separately, and
 `npm run coverage` prints coverage for every source file. The browser
-tests run in Chromium (both versions) and WebKit (the phone app), with an
-accessibility check of every screen. GitHub Actions runs **Tests / test**
+tests run in Chromium and WebKit, with an accessibility check of every
+screen. GitHub Actions runs **Tests / test**
 and **Tests / webkit** on every push and pull request. More in
 [Development details](REFERENCE.md#development-details).
 
@@ -142,13 +142,3 @@ Rolling back: `git revert` the commit(s) that caused the problem, push to the
 published branch, and Pages redeploys the previous files. User data is never
 part of a deploy, so a rollback doesn't touch anyone's logged days or photos;
 the app reads every older storage format.
-
-## Optional: the server version
-
-`server.js` is an optional developer tool, not part of the phone app: it
-serves the same app with its data saved in files on the computer running
-it (`npm start`, then `http://localhost:3000`), for anyone who wants their
-data on their own computer instead of the phone. The phone app installed
-from Pages never talks to it. The browser tests run every scenario against
-both, so the two behave the same. Setup, settings and behaviour:
-[Server version](REFERENCE.md#server-version).

@@ -1,6 +1,5 @@
-// End-to-end tests. Each spec runs against the installable app in docs/
-// (browser storage) and against server.js (server storage), in Chromium
-// with an iPhone-sized screen. The installable app also runs in WebKit, the
+// End-to-end tests of the installable app in docs/, served as GitHub Pages
+// serves it, with an iPhone-sized screen: in Chromium, and in WebKit, the
 // engine of Safari and of Home Screen apps on iPhone.
 const fs = require('node:fs');
 const { defineConfig, devices, webkit } = require('@playwright/test');
@@ -36,12 +35,7 @@ module.exports = defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: { trace: 'retain-on-failure' },
   projects: [
-    { name: 'phone-app', use: { ...phone, browserName: 'chromium', backend: 'local' } },
-    // The server version's tests stand in for a failing server with
-    // page.route, which can't see requests that pass through a service
-    // worker, so the worker is off there except in the test of opening
-    // the app while the server is stopped (server-offline.spec.js).
-    { name: 'server-app', use: { ...phone, browserName: 'chromium', backend: 'server', serviceWorkers: 'block' } },
-    ...(withWebKit ? [{ name: 'phone-app-webkit', use: { ...phone, browserName: 'webkit', backend: 'local' } }] : []),
+    { name: 'phone-app', use: { ...phone, browserName: 'chromium' } },
+    ...(withWebKit ? [{ name: 'phone-app-webkit', use: { ...phone, browserName: 'webkit' } }] : []),
   ],
 });

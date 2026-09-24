@@ -2,7 +2,7 @@
 // the viewer (photo-viewer.js); Compare photos puts two side by side
 // (photo-compare.js).
 
-import { core, h, uid, BACKEND, today } from './dom.js';
+import { core, h, uid, today } from './dom.js';
 import { failureText } from './problems.js';
 import { toast, createStatusLine, announce } from './feedback.js';
 import { store } from './store.js';
@@ -20,7 +20,6 @@ import { openPhotoCompare } from './photo-compare.js';
  */
 function buildAddCard() {
   const now = today();
-  const where = BACKEND === 'server' ? 'on the Kenna server' : 'on this device';
   const status = createStatusLine();
   const dayInput = h('input', { type: 'date', id: uid('photo-day'), value: now, max: now, required: true });
   const fileInput = h('input', { type: 'file', accept: 'image/*,.heic,.heif', class: 'visually-hidden', id: uid('upload') });
@@ -72,7 +71,7 @@ function buildAddCard() {
     h('h2', { class: 'card-title', text: 'Progress Photos' }),
     h('p', {
       class: 'card-sub',
-      text: `Photos are kept ${where} and are included in your backup file. Pick the day a photo was taken before adding it; you can change it later by opening the photo.`,
+      text: `Photos are kept on this device and are included in your backup file. Pick the day a photo was taken before adding it; you can change it later by opening the photo.`,
     }),
     h('div', { class: 'field' }, h('label', { for: dayInput.id, text: 'Day this photo was taken' }), dayInput),
     fileInput,

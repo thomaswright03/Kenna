@@ -73,7 +73,7 @@ test('files that are not photos are refused', async ({ page, appURL }) => {
   await expect(page.locator('.photo-thumb')).toHaveCount(0);
 });
 
-test('a backup file restores every day and photo, without duplicates on re-import', async ({ page, appURL, data, startApp, browser, backend }) => {
+test('a backup file restores every day and photo, without duplicates on re-import', async ({ page, appURL, data, startApp, browser }) => {
   await data.seed({ '2026-09-20': day('2026-09-20', { dinner: 700 }, 182), [TODAY]: day(TODAY, { breakfast: 400 }) });
   await page.clock.setFixedTime(new Date('2026-09-20T09:00:00-05:00'));
   await page.goto(`${appURL}/#/photos`);
@@ -95,10 +95,10 @@ test('a backup file restores every day and photo, without duplicates on re-impor
   const created = page.getByText(/Backup file created: kenna-backup-2026-09-24\.json, with 2 days and 2 photos/);
   await expect(created).toBeVisible();
   await expect(created).not.toContainText('phone');
-  await expect(created).toContainText(backend === 'server' ? 'somewhere other than the computer running Kenna' : 'Keep it off this device');
+  await expect(created).toContainText('Keep it off this device');
   await expect(page.getByText('Backup saved')).toHaveCount(0);
 
-  // Restore into a completely empty app (fresh storage / fresh server).
+  // Restore into a completely empty app (fresh storage).
   const freshURL = await startApp();
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', timezoneId: 'America/Chicago' });
   const fresh = await ctx.newPage();
@@ -250,8 +250,7 @@ test('Add Photo is unavailable while a photo is being added', async ({ page, app
   await expect(page.locator('label').filter({ hasText: 'Add Photo' })).not.toHaveClass(/is-disabled/);
 });
 
-test('photos saved by earlier versions, stored as a Blob, still show', async ({ page, appURL, backend, browserName }) => {
-  test.skip(backend !== 'local', 'browser storage only');
+test('photos saved by earlier versions, stored as a Blob, still show', async ({ page, appURL, browserName }) => {
   // WebKit's test browser can't put a Blob in IndexedDB at all, so a photo
   // in the old format can't exist there.
   test.skip(browserName === 'webkit', 'WebKit test contexts cannot store a Blob in IndexedDB');
@@ -322,8 +321,7 @@ test('the Photos grid shows small previews; the viewer shows the whole photo', a
   await expect.poll(() => full.evaluate((el) => el.naturalWidth)).toBe(1200);
 });
 
-test('photos saved before previews existed get one the first time they are shown', async ({ page, appURL, backend }) => {
-  test.skip(backend !== 'local', 'browser storage only');
+test('photos saved before previews existed get one the first time they are shown', async ({ page, appURL }) => {
   await page.goto(appURL);
   const buffer = await bigPhoto(page);
   await page.evaluate(

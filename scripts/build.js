@@ -1,8 +1,8 @@
 // Builds the two script files the page loads, from the sources in docs/:
 //
 //   docs/build/data.js  the classic scripts (core.js with its modules in
-//                       core/, store-local.js, store-server.js,
-//                       backup-file.js), each minified, in that order
+//                       core/, store-local.js, backup-file.js), each
+//                       minified, in that order
 //   docs/build/app.js   app.js and every ui/ module it imports, as one
 //                       minified ES module
 //
@@ -29,7 +29,7 @@ const esbuild = require('esbuild');
 
 const DOCS = path.join(__dirname, '..', 'docs');
 const OUT_DIR = path.join(DOCS, 'build');
-const CLASSIC_SCRIPTS = ['core.js', 'store-local.js', 'store-server.js', 'backup-file.js'];
+const CLASSIC_SCRIPTS = ['core.js', 'store-local.js', 'backup-file.js'];
 // The syntax the sources are written in (see tsconfig.json), left as it is.
 const TARGET = 'es2022';
 const MINIFY = !process.argv.includes('--no-minify');

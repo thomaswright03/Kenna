@@ -23,7 +23,7 @@ function sniffImageType(bytes) {
   return null;
 }
 
-// A photo's bytes as base64, for backup files and uploads to the server.
+// A photo's bytes as base64, for backup files.
 // Encoded in slices so a large photo never needs one huge argument list.
 /** @param {Blob} blob @returns {Promise<string>} */
 async function blobToBase64(blob) {

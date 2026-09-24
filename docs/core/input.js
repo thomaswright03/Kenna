@@ -1,6 +1,5 @@
 // The rules for what can be logged, with the message for anything that
-// breaks them: typed into a box, sent to the server's API, or read from a
-// backup file.
+// breaks them: typed into a box, or read from storage or a backup file.
 
 /**
  * @typedef {import('./entries.js').Entry} Entry
@@ -61,7 +60,7 @@ function validateWeight(raw) {
   return { ok: true, value };
 }
 
-// A number that arrives as data rather than typed (the server's API, a
+// A number that arrives as data rather than typed (a stored change, a
 // backup file) follows exactly the rules for typed input, with the same
 // messages: whole calories from 0 to 10,000, and a weight from 50 to
 // 1,000 lbs with at most two decimals. Nothing is rounded to fit.
@@ -80,7 +79,7 @@ function validateWeightValue(v) {
 }
 
 // Checks a change to one day ({ weight?, meals?: { key: calories } }),
-// as the server's API receives it and as the phone's storage applies it.
+// as the phone's storage applies it.
 /**
  * @param {any} body
  * @returns {{ ok: true, patch: EntryPatch } | { ok: false, error: string }}

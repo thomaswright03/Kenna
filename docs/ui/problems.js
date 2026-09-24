@@ -4,7 +4,7 @@
 // whoever looks after Kenna. It stays on the device; nothing is sent
 // anywhere by itself.
 
-import { core, h, prefs, today, errorText, BACKEND } from './dom.js';
+import { core, h, prefs, today, errorText } from './dom.js';
 import { createStatusLine, confirmDialog } from './feedback.js';
 
 const KEY = 'problemLog';
@@ -86,7 +86,7 @@ function when(iso) {
 
 /** The report to paste into a message. */
 async function reportText() {
-  let app = BACKEND === 'server' ? 'server version' : 'phone app';
+  let app = 'phone app';
   try {
     const names = 'caches' in window ? (await caches.keys()).filter((n) => n.startsWith('kenna')) : [];
     if (names.length) app += `, ${names.join(', ')}`;

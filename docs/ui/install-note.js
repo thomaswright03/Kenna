@@ -2,10 +2,9 @@
 // once it hasn't been used for about a week, unless the site was added to
 // the Home Screen. When Kenna runs in a Safari tab there (not from the Home
 // Screen), Today says so and gives the steps. "Not now" hides the card for
-// a week; it never appears once Kenna runs from the Home Screen, or in the
-// server version, whose data isn't kept in the browser.
+// a week; it never appears once Kenna runs from the Home Screen.
 
-import { h, uid, prefs, BACKEND } from './dom.js';
+import { h, uid, prefs } from './dom.js';
 import { announce } from './feedback.js';
 
 const SNOOZE_KEY = 'installNoteSnoozedUntil';
@@ -28,7 +27,7 @@ function onAppleMobile() {
 
 /** Kenna's data is in this browser, on iPhone or iPad, in a tab. */
 export function inAppleBrowserTab() {
-  return BACKEND === 'local' && onAppleMobile() && !runningInstalled();
+  return onAppleMobile() && !runningInstalled();
 }
 
 /** The steps, as an ordered list. */

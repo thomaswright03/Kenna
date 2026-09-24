@@ -4,7 +4,6 @@
 
 export const core = window.KennaCore;
 export const { MEAL_STEPS } = core;
-export const BACKEND = window.KENNA_BACKEND === 'server' ? 'server' : 'local';
 
 /**
  * @typedef {Node | string | null | undefined | false} Child

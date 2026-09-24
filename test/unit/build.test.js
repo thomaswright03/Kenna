@@ -40,10 +40,10 @@ test('the data bundle holds the classic scripts in the order the page used to lo
   // Each script still sets its global when run in a page.
   const window = {};
   new Function('self', 'window', built['build/data.js'])(window, window);
-  for (const name of ['KennaCore', 'KennaLocalStore', 'KennaServerStore', 'KennaBackupFile']) assert.ok(name in window, `${name} is set`);
+  for (const name of ['KennaCore', 'KennaLocalStore', 'KennaBackupFile']) assert.ok(name in window, `${name} is set`);
 });
 
-test('the rules shared by the app, the server and the tests are split into modules of a readable size', () => {
+test('the rules shared by the app and the tests are split into modules of a readable size', () => {
   const files = ['core.js', ...fs.readdirSync(path.join(docs, 'core')).map((f) => `core/${f}`)];
   assert.ok(files.length >= 8);
   for (const file of files) {

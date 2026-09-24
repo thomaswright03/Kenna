@@ -1,9 +1,9 @@
 // Measures which code the tests run, in one report: the unit tests (Node)
-// and the browser tests (the phone and server versions in Chromium, whose
-// pages record which parts of the built scripts ran; see
-// test/e2e/fixtures.js). The built files are mapped back to their sources
-// through their source maps, so the report lists docs/app.js,
-// docs/ui/*.js, docs/store-server.js and the rest one by one.
+// and the browser tests (the phone app in Chromium, whose pages record
+// which parts of the built scripts ran; see test/e2e/fixtures.js). The
+// built files are mapped back to their sources through their source maps,
+// so the report lists docs/app.js, docs/ui/*.js, docs/store-local.js and
+// the rest one by one.
 //
 // Usage: npm run coverage           unit and browser tests
 //        npm run coverage -- --unit unit tests only (quick)
@@ -87,14 +87,13 @@ async function main() {
   let ok = run(process.execPath, ['--test', 'test/unit/*.test.js'], { NODE_V8_COVERAGE: NODE_RAW });
   if (!unitOnly) {
     ok = run(process.execPath, ['scripts/build.js', '--no-minify']) && ok;
-    // The test runner's own processes are measured too (server.js serving
-    // the server version); the pages are measured by the fixture.
-    ok = run('npx', ['playwright', 'test', '--project', 'phone-app', '--project', 'server-app'], { NODE_V8_COVERAGE: NODE_RAW, KENNA_COVERAGE: PAGE_RAW }) && ok;
+    // The pages are measured by the fixture.
+    ok = run('npx', ['playwright', 'test', '--project', 'phone-app'], { NODE_V8_COVERAGE: NODE_RAW, KENNA_COVERAGE: PAGE_RAW }) && ok;
   }
 
   // What ran in Node, from c8, then what ran in the pages.
   const nodeJson = path.join(OUT, 'node');
-  run('npx', ['c8', 'report', '--temp-directory', NODE_RAW, '--report-dir', nodeJson, '--reporter', 'json', '--include', 'docs/*.js', '--include', 'docs/core/*.js', '--include', 'server.js', '--exclude', 'docs/sw.js']);
+  run('npx', ['c8', 'report', '--temp-directory', NODE_RAW, '--report-dir', nodeJson, '--reporter', 'json', '--include', 'docs/*.js', '--include', 'docs/core/*.js', '--exclude', 'docs/sw.js']);
   const coverage = libCoverage.createCoverageMap(JSON.parse(fs.readFileSync(path.join(nodeJson, 'coverage-final.json'), 'utf8')));
   await addPageCoverage(coverage);
 

@@ -1,5 +1,5 @@
-// Kenna core: the data rules shared by the phone app, the server app and the
-// server API. Pure functions only (no DOM, no storage). Each concern has its
+// Kenna core: the data rules shared by the app's screens, its storage and
+// the tests. Pure functions only (no DOM, no storage). Each concern has its
 // own module in core/; this file puts them together as one object, which
 // Node gets with require('./docs/core.js') and the page as
 // window.KennaCore (npm run build bundles core/ into build/data.js).

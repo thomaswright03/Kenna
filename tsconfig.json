@@ -12,6 +12,6 @@
     "noImplicitAny": true,
     "skipLibCheck": true
   },
-  "include": ["docs/**/*.js", "docs/globals.d.ts", "server.js", "scripts/**/*.js"],
+  "include": ["docs/**/*.js", "docs/globals.d.ts", "scripts/**/*.js"],
   "exclude": ["docs/sw.js", "docs/build"]
 }

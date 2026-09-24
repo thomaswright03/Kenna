@@ -1,7 +1,7 @@
 // Browser storage for the installable app: days live in localStorage,
 // progress photos in IndexedDB (photos are far bigger than localStorage's
-// quota allows). Every method returns a Promise so the UI treats this store
-// and the server store (store-server.js) identically.
+// quota allows). Every method returns a Promise, so the screens are written
+// the same way whether a call finishes at once (days) or later (photos).
 
 /**
  * @typedef {import('./core.js').Entry} Entry
@@ -11,16 +11,12 @@
 
 /**
  * A progress photo's details. Listing photos never reads their images: the
- * image is read on its own when it's shown or backed up. The server store
- * also gives the addresses of the image (`url`) and of its preview
- * (`thumbUrl`, once there is one).
+ * image is read on its own when it's shown or backed up.
  * @typedef {object} Photo
  * @property {number | string} id
  * @property {string} date the day it's filed under (YYYY-MM-DD)
  * @property {string} createdAt when it was added (ISO time); also its identity in backups
  * @property {string} type
- * @property {string} [url]
- * @property {string} [thumbUrl]
  */
 
 /**
@@ -34,9 +30,8 @@
  */
 
 /**
- * The storage interface both stores implement.
+ * The storage interface the screens use.
  * @typedef {object} KennaStore
- * @property {'local' | 'server'} kind
  * @property {() => Promise<{ ok: boolean, reason?: string }>} init
  * @property {() => Promise<Record<string, Entry>>} loadEntries
  * @property {(date: string) => Promise<Entry | null>} getEntry
@@ -657,7 +652,6 @@
     }
 
     return {
-      kind: /** @type {const} */ ('local'),
       init,
       loadEntries,
       getEntry,

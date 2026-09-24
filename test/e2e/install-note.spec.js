@@ -8,8 +8,6 @@ test.use({ installed: false });
 const note = (page) => page.locator('[data-install-note]');
 
 test.describe('phone version in a Safari tab', () => {
-  test.beforeEach(({ backend }) => test.skip(backend !== 'local', 'the server version keeps data on the server'));
-
   test('Today says iPhone may delete the data and gives the Home Screen steps', async ({ page, appURL }) => {
     await page.goto(appURL);
     await expect(note(page)).toBeVisible();
@@ -114,16 +112,7 @@ test.describe('not on an iPhone', () => {
   });
 });
 
-test('the server version never shows the note, even in a Safari tab', async ({ page, appURL, backend }) => {
-  test.skip(backend !== 'server', 'server version only');
-  await page.goto(appURL);
-  await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
-  await expect(note(page)).toHaveCount(0);
-});
-
 test.describe('only one notice above the day', () => {
-  test.beforeEach(({ backend }) => test.skip(backend !== 'local', 'the server version keeps data on the server'));
-
   test('with days logged and no backup, the Home Screen note is the only card above the day, and the Weight box is in view', async ({ page, appURL, data }) => {
     await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
     await page.goto(appURL);

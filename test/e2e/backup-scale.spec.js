@@ -100,8 +100,7 @@ const countPhotos = (page) =>
       })
   );
 
-test('a year of photos opens, backs up and restores a photo at a time', async ({ page, appURL, startApp, browser, backend, browserName }, testInfo) => {
-  test.skip(backend !== 'local', 'the phone app is where memory is tight');
+test('a year of photos opens, backs up and restores a photo at a time', async ({ page, appURL, startApp, browser, browserName }, testInfo) => {
   test.setTimeout(300000);
   const measure = browserName === 'chromium' ? rendererGrowthDuring : async (_p, action) => (await action(), null);
   await page.goto(`${appURL}/#/settings`);

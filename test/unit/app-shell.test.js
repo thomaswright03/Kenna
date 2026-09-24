@@ -47,7 +47,7 @@ test('every script, module and stylesheet the page loads is pre-cached for offli
 test('the page loads the built scripts, not the sources, so a first visit needs few downloads', () => {
   const html = fs.readFileSync(path.join(docs, 'index.html'), 'utf8');
   const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(scripts, ['backend.js', 'build/data.js', 'build/app.js']);
+  assert.deepEqual(scripts, ['build/data.js', 'build/app.js']);
   assert.match(html, /<script type="module" src="build\/app.js"><\/script>/);
   assert.doesNotMatch(html, /modulepreload/);
   const shell = appShell();

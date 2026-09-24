@@ -17,14 +17,7 @@ test('a weight typed but not yet saved survives a reload', async ({ page, appURL
   await expect.poll(async () => (await data.entry(TODAY)).weight).toBe(181.2);
 });
 
-test('typed values are saved when the app is sent to the background, only once', async ({ page, appURL, data, backend }) => {
-  let patches = 0;
-  if (backend === 'server') {
-    await page.route('**/api/entries/*', (route) => {
-      if (route.request().method() === 'PATCH') patches += 1;
-      return route.continue();
-    });
-  }
+test('typed values are saved when the app is sent to the background, only once', async ({ page, appURL, data }) => {
   const hide = () =>
     page.evaluate(() => {
       Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
@@ -45,7 +38,6 @@ test('typed values are saved when the app is sent to the background, only once',
   await page.getByLabel('Weight (lbs)').fill('179.8');
   await hide();
   await expect.poll(async () => (await data.entry(TODAY)).weight).toBe(179.8);
-  if (backend === 'server') expect(patches).toBe(2);
 });
 
 test('an invalid number is not saved; the next visit puts it back and says why', async ({ page, appURL, data, context }) => {

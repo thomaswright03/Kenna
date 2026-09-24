@@ -49,7 +49,7 @@ test('the backup save panel, the meal table, the photo viewer and the "Log a day
   await check('viewer');
 });
 
-test('the restore question, its result, photo comparison and the damaged-data card have no problems axe can find', async ({ page, appURL, data, backend }, testInfo) => {
+test('the restore question, its result, photo comparison and the damaged-data card have no problems axe can find', async ({ page, appURL, data }, testInfo) => {
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }, 180) });
   const check = async (label) => {
     const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
@@ -83,12 +83,10 @@ test('the restore question, its result, photo comparison and the damaged-data ca
   await expect(page.getByRole('dialog', { name: 'Compare photos' }).locator('img').nth(1)).toBeVisible();
   await check('comparing photos');
 
-  if (backend === 'local') {
-    await page.evaluate(() => localStorage.setItem('kenna:entries:corrupt', '{broken'));
-    await page.goto(`${appURL}/#/settings`);
-    await expect(page.locator('[data-damaged-data]')).toBeVisible();
-    await check('damaged data');
-  }
+  await page.evaluate(() => localStorage.setItem('kenna:entries:corrupt', '{broken'));
+  await page.goto(`${appURL}/#/settings`);
+  await expect(page.locator('[data-damaged-data]')).toBeVisible();
+  await check('damaged data');
 });
 
 test('the wide layout (tabs in the header, History month by month) and a photo that cannot be shown have no problems axe can find', async ({ page, appURL, data }) => {

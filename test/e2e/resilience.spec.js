@@ -1,4 +1,4 @@
-const { test, expect, TODAY, day } = require('./fixtures');
+const { test, expect, TODAY } = require('./fixtures');
 const { createStaticServer } = require('../../scripts/serve-docs.js');
 
 // The phone app's files, served normally until `stall` is set, after which
@@ -35,126 +35,7 @@ async function stallableServer() {
   return control;
 }
 
-test.describe('server version', () => {
-  test.beforeEach(({ backend }) => test.skip(backend !== 'server', 'server-only behaviour'));
-
-  test('a failed save says so and can be retried', async ({ page, appURL, data }) => {
-    await page.goto(appURL);
-    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? route.abort() : route.continue()));
-    await page.getByLabel('Weight (lbs)').fill('180');
-    await page.getByLabel('Weight (lbs)').blur();
-    await expect(page.getByText("Couldn't reach the Kenna server. Check that it's running, then try again.")).toBeVisible();
-    expect((await data.entry(TODAY)).weight).toBe(null);
-    await page.unroute('**/api/entries/*');
-    await page.getByRole('button', { name: 'Retry' }).click();
-    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-    expect((await data.entry(TODAY)).weight).toBe(180);
-  });
-
-  test('a failed load shows an error instead of an empty day that could overwrite data', async ({ page, appURL, data }) => {
-    await data.seed({ [TODAY]: day(TODAY, { breakfast: 400 }) });
-    await page.route('**/api/entries/**', (route) => route.abort());
-    await page.goto(appURL);
-    await expect(page.getByRole('heading', { name: "Couldn't load this screen" })).toBeVisible();
-    await expect(page.getByLabel('Weight (lbs)')).toHaveCount(0);
-    await page.unroute('**/api/entries/**');
-    await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.locator('.total-num')).toHaveText('400');
-  });
-
-  test('switching screens discards slow results from the previous screen', async ({ page, appURL }) => {
-    await page.goto(appURL);
-    let delayed = false;
-    await page.route('**/api/entries', async (route) => {
-      if (!delayed) {
-        delayed = true;
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-      await route.continue();
-    });
-    const nav = page.getByRole('navigation', { name: 'Main' });
-    await nav.getByRole('link', { name: 'History' }).click();
-    await nav.getByRole('link', { name: 'Compare' }).click();
-    await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
-    await page.waitForTimeout(2000);
-    await expect(page.getByRole('heading', { name: 'History' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible();
-  });
-
-  test('a slow screen shows a loading indicator and the old screen cannot be used meanwhile', async ({ page, appURL }) => {
-    await page.goto(appURL);
-    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
-    await page.route('**/api/**', async (route) => {
-      await new Promise((r) => setTimeout(r, 4000));
-      await route.continue().catch(() => {});
-    });
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
-    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeVisible();
-    await expect(page.locator('#main')).toHaveAttribute('inert', '');
-    const focused = await page.getByLabel('Weight (lbs)').evaluate((el) => {
-      el.focus();
-      return document.activeElement === el;
-    });
-    expect(focused).toBe(false);
-    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByRole('status').filter({ hasText: 'Loading…' })).toBeHidden();
-    await expect(page.locator('#main')).not.toHaveAttribute('inert', '');
-  });
-
-  test('a server that never answers times out with a message and Try again', async ({ page, appURL }) => {
-    await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
-    await page.goto(appURL);
-    await expect(page.getByLabel('Weight (lbs)')).toBeVisible();
-    let requested;
-    const hung = new Promise((resolve) => { requested = resolve; });
-    await page.route('**/api/entries', () => {
-      // never answers
-      requested();
-    });
-    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'History' }).click();
-    // Advance the clock only once the request (and its timeout timer) exists.
-    await hung;
-    await page.clock.runFor(10500);
-    await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
-    await page.unroute('**/api/entries');
-    await page.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.getByRole('heading', { name: 'History' })).toBeVisible();
-  });
-
-  test('a save that times out keeps the typed value and can be retried', async ({ page, appURL, data }) => {
-    await page.clock.install({ time: new Date('2026-09-24T10:00:00-05:00') });
-    await page.goto(appURL);
-    let patched;
-    const hung = new Promise((resolve) => { patched = resolve; });
-    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? patched() : route.continue()));
-    await page.getByLabel('Weight (lbs)').fill('180');
-    await page.getByLabel('Weight (lbs)').blur();
-    await hung;
-    await page.clock.runFor(10500);
-    await expect(page.getByText("The Kenna server isn't responding. Check it's running, then try again.")).toBeVisible();
-    await expect(page.getByLabel('Weight (lbs)')).toHaveValue('180');
-    await page.unroute('**/api/entries/*');
-    await page.getByRole('button', { name: 'Retry' }).click();
-    await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-    expect((await data.entry(TODAY)).weight).toBe(180);
-  });
-
-  test('a server error is explained without a status code', async ({ page, appURL }) => {
-    await page.goto(appURL);
-    await page.route('**/api/entries/*', (route) =>
-      route.request().method() === 'PATCH' ? route.fulfill({ status: 500, body: 'Internal Server Error' }) : route.continue()
-    );
-    await page.getByLabel('Weight (lbs)').fill('180');
-    await page.getByLabel('Weight (lbs)').blur();
-    const message = page.locator('.field-status.is-error');
-    await expect(message).toContainText('The Kenna server ran into a problem. Try again, and if it keeps happening, restart the server.');
-    await expect(message).not.toContainText('500');
-  });
-});
-
 test.describe('phone version', () => {
-  test.beforeEach(({ backend }) => test.skip(backend !== 'local', 'phone-only behaviour'));
-
   test('two tabs editing the same day keep both meals', async ({ page, appURL, context, data }) => {
     await page.goto(`${appURL}/#/log/breakfast`);
     const other = await context.newPage();
@@ -301,8 +182,7 @@ test.describe('phone version', () => {
   });
 });
 
-test('damaged data is kept at most twice, and Settings offers it for download or deletion', async ({ page, appURL, backend }) => {
-  test.skip(backend !== 'local', 'browser storage only');
+test('damaged data is kept at most twice, and Settings offers it for download or deletion', async ({ page, appURL }) => {
   await page.goto(appURL);
   for (const text of ['{broken 1', '{broken 2', '{broken 3']) {
     await page.evaluate((t) => localStorage.setItem('kenna:entries', t), text);

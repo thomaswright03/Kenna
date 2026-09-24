@@ -2,7 +2,7 @@
 // logged data and no backup has been saved from this device yet, or the
 // last one is more than a week old. "Not now" hides it for a few days.
 
-import { core, h, uid, prefs, BACKEND } from './dom.js';
+import { core, h, uid, prefs } from './dom.js';
 import { failureText } from './problems.js';
 import { announce, createStatusLine } from './feedback.js';
 import { exportBackup, buildBackupDelivery, lastBackup } from './backup.js';
@@ -25,10 +25,7 @@ export function buildBackupReminder(hasData) {
 
   const titleId = uid('backup-note');
   const headline = due.never ? "You haven't saved a backup yet" : `Your last backup was ${core.formatNumber(due.days)} days ago`;
-  const why =
-    BACKEND === 'server'
-      ? 'Your days and photos are stored only on the computer running Kenna. A backup file lets you get them back if anything happens to it.'
-      : 'Your days and photos are stored only on this device. A backup file lets you get them back if it is lost, replaced or cleared.';
+  const why = 'Your days and photos are stored only on this device. A backup file lets you get them back if it is lost, replaced or cleared.';
   const backupBtn = h('button', { type: 'button', class: 'btn btn-primary', text: 'Back up now' });
   const laterBtn = h('button', { type: 'button', class: 'btn btn-secondary', text: 'Not now' });
   const status = createStatusLine();

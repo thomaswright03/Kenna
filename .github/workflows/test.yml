@@ -19,7 +19,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:unit
-      - run: npx playwright test --project=phone-app --project=server-app
+      - run: npx playwright test --project=phone-app
         env:
           CI: 'true'
       - uses: actions/upload-artifact@v4

@@ -1,6 +1,6 @@
 // Backup file export and import (Settings).
 
-import { core, h, uid, prefs, today, visibleEntries, formatBytes, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today, visibleEntries, formatBytes } from './dom.js';
 import { failureText, recordProblem } from './problems.js';
 import { createStatusLine } from './feedback.js';
 import { store } from './store.js';
@@ -77,11 +77,9 @@ function recordBackupSaved() {
   prefs.remove('backupReminderSnoozedUntil');
 }
 
-/** Where to keep a backup file, worded for the version in use. */
+/** Where to keep a backup file. */
 function backupAdvice() {
-  return BACKEND === 'server'
-    ? 'Keep a copy somewhere other than the computer running Kenna, like cloud storage, a USB drive or email.'
-    : 'Keep it off this device, so it survives losing or replacing it: in iCloud Drive or another cloud folder, or emailed to yourself.';
+  return 'Keep it off this device, so it survives losing or replacing it: in iCloud Drive or another cloud folder, or emailed to yourself.';
 }
 
 /** "kenna-backup-2026-09-24.json, with 3 days and 2 photos (29 KB)" @param {BackupResult} result */

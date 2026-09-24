@@ -37,8 +37,7 @@ test('an address that leads nowhere is replaced by Today, without a history entr
   }
 });
 
-test('days dated in the future are left out of History and averages', async ({ page, appURL, backend }) => {
-  test.skip(backend !== 'local', 'the server refuses such days outright');
+test('days dated in the future are left out of History and averages', async ({ page, appURL }) => {
   await page.goto(appURL);
   await page.evaluate((entries) => localStorage.setItem('kenna:entries', JSON.stringify(entries)), {
     [TODAY]: day(TODAY, { lunch: 1000 }),

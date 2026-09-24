@@ -26,7 +26,7 @@ module.exports = [
     languageOptions: { globals: { ...globals.serviceworker } },
   },
   {
-    files: ['server.js', 'scripts/**/*.js', 'test/**/*.js', '*.config.js'],
+    files: ['scripts/**/*.js', 'test/**/*.js', '*.config.js'],
     languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs', globals: { ...globals.node } },
   },
   {

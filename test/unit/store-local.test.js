@@ -145,7 +145,7 @@ test('days that have not happened yet are refused', async () => {
   assert.deepEqual(await store.loadEntries(), {});
 });
 
-test('the phone storage refuses the same values the typed input and the server refuse', async () => {
+test('the phone storage refuses the same values the typed input refuses', async () => {
   const storage = fakeStorage();
   const { store } = makeStore(storage);
   await assert.rejects(store.updateEntry('2026-09-20', { weight: 165.123 }), /two decimal places/);

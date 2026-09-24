@@ -8,7 +8,6 @@ run, test and release it.
 - [How the numbers work](#how-the-numbers-work)
 - [Loading and offline](#loading-and-offline)
 - [Where your data lives, and backups](#where-your-data-lives-and-backups)
-- [Server version](#server-version)
 - [Development details](#development-details)
 
 ## Screens
@@ -99,7 +98,7 @@ to month); tapping a month goes to it.
 |---|---|
 | Calories per meal | whole numbers, 0 to 10,000 ("1,200" is read as 1200) |
 | Weight | 50 to 1,000 lbs, at most two decimal places |
-| Days that can be logged | today and earlier (the server's API allows one day ahead of its clock) |
+| Days that can be logged | today and earlier |
 | Averages | leave out today; calories count only days with meals |
 | Averages shown | to one decimal for weight (166.0 lbs), whole calories |
 | Weight differences | always one decimal (12.0 lbs down, 0.4 lbs up) |
@@ -126,17 +125,14 @@ to month); tapping a month goes to it.
   places. Anything else isn't saved and shows a message naming what's wrong
   (a decimal, a minus sign, a stray letter, a decimal comma, too many decimal
   places, or out of range). A weight ending in a decimal point ("165.") is
-  read as the whole number. The same rules, with the same messages, apply
-  to a value sent to the server's API, which refuses it. In a backup file
+  read as the whole number. In a backup file
   the day holding such a value is left out of the restore, and the restore
   names it (see Import Backup in [Where your data lives, and backups](#where-your-data-lives-and-backups)). Meals saved by the first version as
   lists of foods still import as their total. The first version saved
   weights exactly as typed; a weight with more than two decimals from then
   is shown, written into backups and read from backups rounded to two.
-- A day after today can't be logged, whether picked, typed into the address
-  bar or sent to the server's API (the server allows one day ahead of its
-  own clock, for a phone in a time zone ahead of it). The same goes for filing a photo, on
-  the phone and through the server's API. A backup's days and photos dated
+- A day after today can't be logged, whether picked or typed into the
+  address bar. The same goes for filing a photo. A backup's days and photos dated
   after today are left out on import, and the import says how many. An
   address that doesn't lead anywhere opens Today and is replaced by Today's
   address; one with a date that doesn't exist (Feb 30) does the same and
@@ -283,65 +279,6 @@ the browser until it is saved. Import checks the whole file first, then
 adds the days and the photos; if it is interrupted part-way, importing the
 same file again adds only the photos that are still missing.
 
-## Server version
-
-An optional developer tool, not part of the phone app (see the README).
-
-A Node/Express version stores everything in files on the computer running it
-(`data/entries.json`, `data/photos.json` and `data/photos/`). It serves the
-same app as `docs/`, switched to save through the server's API instead of the
-browser, so both versions always behave the same.
-
-Requires Node.js 20 or newer. On Android, [Termux](https://termux.dev) from
-F-Droid works (`pkg install nodejs`). From this project folder:
-
-```bash
-npm install --omit=dev
-npm start
-```
-
-You'll see `Kenna calorie tracker running at http://localhost:3000`. Open that
-address in a browser on the same device. When it accepts connections from
-other devices (the default `HOST`), the next line lists this computer's
-network addresses, such as `http://192.168.1.23:3000`, to open on a phone
-on the same Wi-Fi.
-
-Environment variables:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `PORT` | `3000` | Port to listen on |
-| `HOST` | `0.0.0.0` | Address to bind. `0.0.0.0` also accepts connections from other devices on your network; use `127.0.0.1` to allow only this device. There is no login, so only expose it on a network you trust. |
-| `KENNA_DATA_DIR` | `./data` | Folder for the data files and photos |
-
-For example: `PORT=8080 HOST=127.0.0.1 KENNA_DATA_DIR=~/kenna-data npm start`.
-
-Every write keeps the previous file as a `.bak` copy and replaces the file
-atomically. If a data file is unreadable, the server restores it from the
-`.bak` copy (keeping the damaged file as `*.damaged-<time>`); if there is no
-usable copy it leaves the file untouched and the app shows an error rather
-than overwriting it. Days in the file that can't be read are skipped, not
-fatal. Backup export and import work the same way as on the phone.
-
-While a screen is loading from the server the previous screen is dimmed and
-can't be used, with a "Loading…" indicator if it takes more than a moment.
-If the server doesn't answer within 10 seconds (60 for a photo), the app
-says it isn't responding and offers **Try again** (or **Retry** next to a
-value that wasn't saved; the typed value stays in its box). Unknown
-addresses on the server, including a photo that no longer exists opened
-in a browser, show a "Page not found" page with a link to the app (the
-same `docs/404.html` that GitHub Pages shows for an unknown address). The
-server sends the app's files and its answers compressed when the browser
-accepts it.
-
-Opened at `http://localhost:3000` (on the computer running the server),
-the server version keeps a copy of the app's own files, never your data,
-so opening or reloading it while the server is stopped shows Kenna's
-"Couldn't reach the Kenna server" message with **Try again**. Browsers
-only allow that on `localhost` or `https`: opened by a network address
-(`http://192.168.1.23:3000` on a phone), the page doesn't open at all
-until the server is running, and the browser shows its own error page.
-
 ## Development details
 
 The JavaScript is type-checked with TypeScript from JSDoc comments. `npm
@@ -365,17 +302,15 @@ developer tools at the original files.
 current sources). The
 browser tests include an accessibility check (axe-core, WCAG 2 A and AA)
 of every screen in both themes. The
-browser tests run every scenario against both versions in Chromium with an
-iPhone-sized screen (projects `phone-app` and `server-app`), and the phone
-app again in WebKit, the engine behind Safari and iPhone Home Screen apps
-(project `phone-app-webkit`). Locally the WebKit project is included when
+browser tests run every scenario in Chromium with an iPhone-sized screen
+(project `phone-app`), and again in WebKit, the engine behind Safari and
+iPhone Home Screen apps (project `phone-app-webkit`). Locally the WebKit project is included when
 WebKit is installed, and a run without it says so at the start; on CI it
 always runs.
 
 `npm run coverage` runs the unit tests and the Chromium browser tests
-(both versions) and prints one coverage table for every source file:
-`docs/app.js`, `docs/ui/*.js`, `docs/store-server.js`, `server.js` and the
-rest. The browser tests record which parts of the built scripts ran and
+and prints one coverage table for every source file: `docs/app.js`,
+`docs/ui/*.js`, `docs/store-local.js` and the rest. The browser tests record which parts of the built scripts ran and
 the source maps turn that back into the source files. The HTML report is
 written to `coverage/index.html`; `npm run coverage -- --unit` measures
 the unit tests alone.

@@ -2,7 +2,7 @@
 // say what the restore will change, restore the days and then the photos
 // one at a time, and offer to undo it.
 
-import { core, h, today, plural, formatBytes, BACKEND } from './dom.js';
+import { core, h, today, plural, formatBytes } from './dom.js';
 import { failureText } from './problems.js';
 import { confirmDialog, itemList, createStatusLine } from './feedback.js';
 import { store } from './store.js';
@@ -32,8 +32,6 @@ export function daysAndPhotos(days, photos) {
   return `${plural(days, 'day')} and ${photos === 0 ? 'no photos' : plural(photos, 'photo')}`;
 }
 
-const WHERE = BACKEND === 'server' ? 'in Kenna' : 'on this device';
-
 /**
  * First pass: checks the whole file without changing anything.
  * @param {File} file
@@ -61,8 +59,8 @@ async function checkFile(file, ui) {
 async function changeSummary(checked) {
   const { replaced, added } = core.compareWithStored(await store.loadEntries(), checked.entries);
   const addedText = `${plural(added.length, 'day')} will be added`;
-  if (replaced.length === 0) return added.length ? `${addedText}; no day ${WHERE} will change.` : `Every day in it is already ${WHERE} as it is.`;
-  const replacedText = `${plural(replaced.length, 'day')} ${WHERE} will be replaced by the file’s version`;
+  if (replaced.length === 0) return added.length ? `${addedText}; no day on this device will change.` : `Every day in it is already on this device as it is.`;
+  const replacedText = `${plural(replaced.length, 'day')} on this device will be replaced by the file’s version`;
   return added.length ? `${replacedText}, and ${addedText}.` : `${replacedText}.`;
 }
 
@@ -75,7 +73,7 @@ async function confirmRestore(file, checked) {
   const effect =
     checked.dayCount > 0
       ? `${await changeSummary(checked)} Other days and photos stay as they are, and you can undo the restore afterwards.`
-      : `No day ${WHERE} will change, and photos already here aren’t added again. You can undo the restore afterwards.`;
+      : `No day on this device will change, and photos already here aren’t added again. You can undo the restore afterwards.`;
   return confirmDialog({
     title: 'Restore from this backup?',
     message: `${contents} ${effect}`,

@@ -1,18 +1,14 @@
 const { test, expect, TODAY } = require('./fixtures');
 
-/** Makes the next saves of days fail: the phone's storage is full, or the server is unreachable. */
-async function breakSaving(page, backend) {
-  if (backend === 'local') {
-    await page.evaluate(() => {
-      const setItem = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (key, value) {
-        if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
-        return setItem.call(this, key, value);
-      };
-    });
-  } else {
-    await page.route('**/api/entries/*', (route) => (route.request().method() === 'PATCH' ? route.abort() : route.continue()));
-  }
+/** Makes the next saves of days fail, as when the phone's storage is full. */
+async function breakSaving(page) {
+  await page.evaluate(() => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'kenna:entries') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      return setItem.call(this, key, value);
+    };
+  });
 }
 
 test('Settings says when nothing has gone wrong', async ({ page, appURL }) => {
@@ -23,9 +19,9 @@ test('Settings says when nothing has gone wrong', async ({ page, appURL }) => {
   await expect(card.getByRole('button', { name: 'Copy log' })).toHaveCount(0);
 });
 
-test('a failed save is noted in the problem log, which Settings shows, copies and clears', async ({ page, appURL, backend, data }) => {
+test('a failed save is noted in the problem log, which Settings shows, copies and clears', async ({ page, appURL, data }) => {
   await page.goto(appURL);
-  await breakSaving(page, backend);
+  await breakSaving(page);
   await page.getByLabel('Weight (lbs)').fill('181.4');
   await page.getByLabel('Weight (lbs)').press('Enter');
   await expect(page.locator('.field-status.is-error')).toBeVisible();
@@ -40,7 +36,7 @@ test('a failed save is noted in the problem log, which Settings shows, copies an
   const item = card.locator('[data-problem]');
   await expect(item).toHaveCount(1);
   await expect(item).toContainText(/Save the weight \(\d times\)/);
-  await expect(item).toContainText(backend === 'local' ? 'Today, 10:00 AM · KennaError ← QuotaExceededError' : 'Today, 10:00 AM · KennaError ← TypeError');
+  await expect(item).toContainText('Today, 10:00 AM · KennaError ← QuotaExceededError');
   // Nothing typed or logged is kept in it.
   const stored = await page.evaluate(() => localStorage.getItem('kenna:problemLog'));
   expect(stored).not.toContain('181');

@@ -1,9 +1,8 @@
-// Kenna UI entry point. One codebase for both versions: the installable
-// phone app (backend "local": localStorage + IndexedDB) and the Node server
-// version (backend "server": the /api endpoints). Only the store differs.
-// The screens and their helpers live in ui/.
+// Kenna UI entry point: the installable phone app, which keeps everything
+// on the device (localStorage + IndexedDB). The screens and their helpers
+// live in ui/.
 
-import { h, prefs, byId, BACKEND } from './ui/dom.js';
+import { h, prefs, byId } from './ui/dom.js';
 import { applyTheme, followSystemTheme } from './ui/theme.js';
 import { store } from './ui/store.js';
 import { startRouter } from './ui/router.js';
@@ -58,7 +57,7 @@ async function start() {
   recordUncaughtErrors();
   applyTheme(prefs.get('theme', 'system'));
   followSystemTheme();
-  byId('storageNote').textContent = BACKEND === 'server' ? 'Data is saved on the Kenna server.' : 'Data is saved only in this browser, on this device.';
+  byId('storageNote').textContent = 'Data is saved only in this browser, on this device.';
   const status = await store.init();
   if (!status.ok) {
     recordProblem('Open storage', { name: 'StorageBlocked' }, { where: null });
@@ -93,9 +92,8 @@ async function start() {
   await render();
   reportUnclaimedDraft();
 
-  // The app's files are kept for opening offline (the phone app) or while
-  // the server is stopped (the server version, which then says so).
-  // Browsers allow this on https and on localhost only.
+  // The app's files are kept for opening offline. Browsers allow this on
+  // https and on localhost only.
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {
       // The app still works online without offline caching.

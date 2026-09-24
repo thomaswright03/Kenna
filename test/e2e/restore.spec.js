@@ -58,7 +58,7 @@ test('a backup with one day outside the rules offers to restore the rest, then n
   expect(skipped ? skipped.meals.breakfast : null).toBe(null);
 });
 
-test('restoring says how many days it will replace, and Undo restore puts them back', async ({ page, appURL, data, backend }, testInfo) => {
+test('restoring says how many days it will replace, and Undo restore puts them back', async ({ page, appURL, data }, testInfo) => {
   await data.seed({ [TODAY]: day(TODAY, { breakfast: 500 }) });
   // A backup with today's 500 cal breakfast and a photo.
   const file = testInfo.outputPath('backup.json');
@@ -78,7 +78,7 @@ test('restoring says how many days it will replace, and Undo restore puts them b
   await expect(page.locator('.total-num')).toHaveText('700');
 
   const dialog = await importFile(page, appURL, file);
-  const where = backend === 'server' ? 'in Kenna' : 'on this device';
+  const where = 'on this device';
   await expect(dialog).toContainText(`1 day ${where} will be replaced by the file’s version, and 1 day will be added.`);
   await expect(dialog).toContainText('you can undo the restore afterwards');
   await dialog.getByRole('button', { name: 'Restore' }).click();

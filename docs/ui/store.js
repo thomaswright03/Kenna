@@ -1,13 +1,11 @@
-// The storage the app uses: the browser (installable app) or the Kenna
-// server's API. Screens only ever talk to this one object.
+// The app's storage: days in localStorage, photos in IndexedDB, all on the
+// device. Screens only ever talk to this one object.
 
-import { BACKEND } from './dom.js';
 import { showBanner } from './feedback.js';
 import { recordProblem } from './problems.js';
 import { makeThumbnail } from './photo-image.js';
 
 function createStore() {
-  if (BACKEND === 'server') return window.KennaServerStore.createServerStore({ makeThumbnail });
   /** @type {Storage | null} */
   let storage = null;
   try {

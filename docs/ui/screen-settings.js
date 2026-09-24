@@ -1,6 +1,6 @@
 // Settings: theme, backup export/import and where the data is stored.
 
-import { core, h, uid, prefs, today, BACKEND } from './dom.js';
+import { core, h, uid, prefs, today } from './dom.js';
 import { failureText, recordProblem, buildProblemLogCard } from './problems.js';
 import { confirmDialog, createStatusLine } from './feedback.js';
 import { store } from './store.js';
@@ -40,46 +40,42 @@ export async function buildSettings() {
   );
 
   const storageCard = h('section', { class: 'card' }, h('h3', { class: 'section-title', text: 'Where your data lives' }));
-  if (BACKEND === 'server') {
-    storageCard.append(h('p', { class: 'card-sub', text: 'Days and photos are saved by the Kenna server in its data folder, on the computer running it.' }));
-  } else {
-    storageCard.append(h('p', { class: 'card-sub', text: 'Days and photos are saved only in this browser on this device. Nothing is uploaded anywhere.' }));
+  storageCard.append(h('p', { class: 'card-sub', text: 'Days and photos are saved only in this browser on this device. Nothing is uploaded anywhere.' }));
+  storageCard.append(
+    h('p', {
+      class: 'card-sub',
+      text: 'In a browser tab on iPhone or iPad, Safari may delete a website’s data, Kenna’s included, when it hasn’t been used for about a week. Kenna added to the Home Screen isn’t affected.',
+    })
+  );
+  if (inAppleBrowserTab()) {
+    storageCard.append(
+      h(
+        'div',
+        { class: 'note-box', 'data-install-steps': '' },
+        h('p', { class: 'notice-title', text: 'You’re using Kenna in a Safari tab' }),
+        h('p', { class: 'notice-text', text: 'To keep your data, add Kenna to your Home Screen:' }),
+        installSteps(),
+        h('p', {
+          class: 'notice-text',
+          text: 'Kenna on the Home Screen may open empty, because iPhone keeps its data apart from Safari’s: export a backup here first and import it there.',
+        })
+      )
+    );
+  } else if (runningInstalled()) {
+    storageCard.append(h('p', { class: 'card-sub', text: 'Kenna is running from your Home Screen, so this doesn’t apply.' }));
+  }
+  const persisted = await store.persistenceStatus();
+  if (persisted === true) {
+    storageCard.append(h('p', { class: 'card-sub', text: 'This browser has agreed to keep Kenna’s data even when the device is low on space.' }));
+  } else if (persisted === false) {
     storageCard.append(
       h('p', {
         class: 'card-sub',
-        text: 'In a browser tab on iPhone or iPad, Safari may delete a website’s data, Kenna’s included, when it hasn’t been used for about a week. Kenna added to the Home Screen isn’t affected.',
+        text: runningInstalled()
+          ? 'This browser may clear Kenna’s data if the device runs low on space. Saving backup files regularly keeps it safe.'
+          : 'This browser may clear Kenna’s data if the device runs low on space. Adding Kenna to your Home Screen and saving backup files regularly keeps it safe.',
       })
     );
-    if (inAppleBrowserTab()) {
-      storageCard.append(
-        h(
-          'div',
-          { class: 'note-box', 'data-install-steps': '' },
-          h('p', { class: 'notice-title', text: 'You’re using Kenna in a Safari tab' }),
-          h('p', { class: 'notice-text', text: 'To keep your data, add Kenna to your Home Screen:' }),
-          installSteps(),
-          h('p', {
-            class: 'notice-text',
-            text: 'Kenna on the Home Screen may open empty, because iPhone keeps its data apart from Safari’s: export a backup here first and import it there.',
-          })
-        )
-      );
-    } else if (runningInstalled()) {
-      storageCard.append(h('p', { class: 'card-sub', text: 'Kenna is running from your Home Screen, so this doesn’t apply.' }));
-    }
-    const persisted = await store.persistenceStatus();
-    if (persisted === true) {
-      storageCard.append(h('p', { class: 'card-sub', text: 'This browser has agreed to keep Kenna’s data even when the device is low on space.' }));
-    } else if (persisted === false) {
-      storageCard.append(
-        h('p', {
-          class: 'card-sub',
-          text: runningInstalled()
-            ? 'This browser may clear Kenna’s data if the device runs low on space. Saving backup files regularly keeps it safe.'
-            : 'This browser may clear Kenna’s data if the device runs low on space. Adding Kenna to your Home Screen and saving backup files regularly keeps it safe.',
-        })
-      );
-    }
   }
 
   const damaged = await buildDamagedDataCard();

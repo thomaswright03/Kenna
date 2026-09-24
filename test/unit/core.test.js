@@ -585,5 +585,5 @@ test('a stored problem log is read back tolerantly, and copied as plain text, ne
       '',
     ].join('\n')
   );
-  assert.match(core.problemReport([], { app: 'server version', browser: 'B' }), /Nothing recorded\./);
+  assert.match(core.problemReport([], { app: 'phone app', browser: 'B' }), /Nothing recorded\./);
 });

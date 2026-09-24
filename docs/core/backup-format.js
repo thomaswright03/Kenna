@@ -113,10 +113,11 @@ function backupRefusal(skipped, usable) {
 
 const UNREADABLE_BACKUP = "This file isn't a Kenna backup: it isn't readable backup data.";
 
-// Validates a whole backup held in memory before anything is changed (the
-// server's import, and small files). The app reads backup files in pieces
-// instead (backup-file.js), so a large photo library never has to be in
-// memory at once; both apply the same checks.
+// Validates a whole backup held in memory at once. The app reads backup
+// files in pieces instead (backup-file.js), so a large photo library never
+// has to be in memory at once; both are built from the same checks
+// (checkBackupDays, checkBackupPhoto, backupRefusal), and the unit tests
+// state the file rules through this compact form.
 /**
  * @param {unknown} input the file's text, or its parsed JSON
  * @param {string} [latestDay] days after this are left out (see checkBackupDays)

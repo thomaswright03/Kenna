@@ -72,7 +72,7 @@ test('out-of-range values show a message and are not saved', async ({ page, appU
   expect((await data.entry(TODAY)).weight).toBe(165);
 });
 
-test('the date field cannot be emptied or set to the future', async ({ page, appURL, backend }) => {
+test('the date field cannot be emptied or set to the future', async ({ page, appURL }) => {
   await page.goto(appURL);
   const date = page.getByLabel('Day to view or edit');
   await date.fill('');
@@ -81,10 +81,8 @@ test('the date field cannot be emptied or set to the future', async ({ page, app
   await page.getByLabel('Weight (lbs)').fill('181');
   await page.getByLabel('Weight (lbs)').blur();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
-  if (backend === 'local') {
-    const keys = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('kenna:entries'))));
-    expect(keys).toEqual([TODAY]);
-  }
+  const keys = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('kenna:entries'))));
+  expect(keys).toEqual([TODAY]);
   await date.fill('2026-12-01');
   await date.dispatchEvent('change');
   await expect(page.getByText("You can't log a day that hasn't happened yet.")).toBeVisible();

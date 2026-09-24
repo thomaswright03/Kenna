@@ -1,7 +1,5 @@
-// Offline support for the app's own files, in both versions: the
-// installable app opens offline, and the server version opened while its
-// server is stopped shows Kenna's own "Couldn't reach the Kenna server"
-// message instead of the browser's error page.
+// Offline support for the app's own files, so the installed app opens
+// with no connection.
 //
 // Requests are network-first: whenever the phone is online it gets the
 // latest deployed files (and refreshes the cached copy), and when it's
@@ -17,12 +15,11 @@
 // which pre-caches the whole new set together, so a phone that goes offline
 // right after an update still has matching files. A test checks every
 // listed file exists.
-const CACHE_NAME = 'kenna-ae09f47ff94a';
+const CACHE_NAME = 'kenna-9738f269df44';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './backend.js',
   './build/data.js',
   './build/app.js',
   './style.css',
@@ -86,15 +83,10 @@ async function respond(request, fromNetwork, clientId) {
   return hit;
 }
 
-// The server version's data (its API and the photo files) always comes
-// from the server itself: a copy of it would be out of date.
-const DATA_PATHS = ['api/', 'photos/'].map((p) => new URL(p, sw.registration.scope).pathname);
-
 sw.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== sw.location.origin) return;
-  if (DATA_PATHS.some((p) => url.pathname.startsWith(p))) return;
 
   /** @type {Promise<unknown>} */
   let stored = Promise.resolve();
