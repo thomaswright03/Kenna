@@ -259,6 +259,20 @@ The damaged data itself is kept aside (the two most recent damaged copies,
 never more), and Settings then shows a card to **Download damaged data**
 as a file or **Delete damaged data**.
 
+Kenna open in two windows or tabs on the same device (say, the Home
+Screen app and a Safari tab) shares the same days. A change saved in one
+shows in the other at once, and again whenever that one comes back into
+view. The Weight box and the Log Meal box take the new value if nothing
+different was typed in them ("Breakfast changed to 450 cal in another
+window"), so switching away from them, closing them or picking another
+meal saves nothing. If a different number was typed there, it is never
+saved over the new value without asking: the line under the box says
+"Not saved yet. Breakfast was changed to 450 cal in another window.",
+with **Use 450 cal**; saving it (leaving the box, Enter, another meal,
+**Save and close**) first asks **Keep 450 cal** or **Save 500 cal**; and
+switching away, closing the window or opening another screen keeps the
+typed number unsaved, to be asked about the next time that box is shown.
+
 If the browser refuses a save (storage full, or photo storage that won't
 open), the app says what failed, that what's already saved is safe, and
 what to do next: close and reopen Kenna, or export a backup and delete old

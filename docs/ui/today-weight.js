@@ -11,6 +11,7 @@ import { saveDateFor } from './day.js';
 import { keepDraft, claimDraft, settleDraft } from './drafts.js';
 import { sayLeftSaved, keepLeftUnsaved } from './leaving.js';
 import { unusualGuard, afterTap } from './unusual.js';
+import { boxBase } from './changed-elsewhere.js';
 
 /**
  * The day a screen is showing, shared by its parts: its date (which moves
@@ -38,8 +39,9 @@ const weightText = (weight) => (weight === null ? '' : String(weight));
  * @param {HTMLInputElement} input
  * @param {import('./feedback.js').StatusLine} status
  * @param {import('./unusual.js').UnusualGuard} guard
+ * @param {import('./changed-elsewhere.js').BoxBase} base the saved weight the box started from
  */
-function weightSaver(view, input, status, guard) {
+function weightSaver(view, input, status, guard, base) {
   /** @type {Promise<boolean> | null} */
   let saving = null;
   /** @type {WeightTrack} */
@@ -63,6 +65,7 @@ function weightSaver(view, input, status, guard) {
       view.entry = await store.updateEntry(target, { weight: value });
       settleDraft('weight', target);
       failed = '';
+      base.reset(value);
       track.lastSave = { date: target, saved: value, previous };
       if (value !== null) status.set('saved', 'Saved');
       else if (previous !== null) status.set('saved', 'Weight cleared', { label: 'Undo', onClick: () => putBack(previous) });
@@ -96,11 +99,14 @@ function weightSaver(view, input, status, guard) {
       return Promise.resolve(false);
     }
     if (isSaved(result)) {
+      base.reset();
       if (status.el.classList.contains('is-error')) status.set(null);
       return Promise.resolve(true);
     }
     if (saving) return saving;
     if (how && how.left && failed === `${view.date} ${result.value}`) return Promise.resolve(false);
+    // The weight was changed elsewhere since the box showed it: asked first.
+    if (base.changed()) return how && how.left ? askSoon() : base.settle(result.value, () => !track.left, commit);
     const unusual = question(result);
     if (unusual && result.value !== null) return how && how.left ? askSoon() : askFirst(result.value, unusual);
     saving = save(result.value, view.entry.weight, !!(how && how.retry)).finally(() => (saving = null));
@@ -146,11 +152,15 @@ function weightSaver(view, input, status, guard) {
   // and is saved again.
   /** @param {number} previous */
   async function putBack(previous) {
+    if (view.entry.weight !== null) {
+      status.set('saved', `Weight has been changed again since (${core.formatWeight(view.entry.weight)}), so it was left as it is`);
+      return;
+    }
     input.value = weightText(previous);
     if (await commit()) announce(`Weight put back: ${core.formatWeight(previous)}.`);
   }
 
-  return { commit, isSaved, question, notKept, track };
+  return { commit, isSaved, question, notKept, track, base };
 }
 
 /**
@@ -171,6 +181,13 @@ function weightExits(view, input, status, saver) {
     if (track.left) return;
     const text = input.value;
     const result = core.validateWeight(text);
+    // A weight typed over one changed elsewhere since is never saved
+    // unasked: it's kept, and asked about when the box is next shown.
+    if (result.ok && !saver.isSaved(result) && saver.base.changed()) {
+      keepDraft({ field: 'weight', date: view.date, text, error: saver.base.reason(), ask: true, base: saver.base.base() });
+      saver.base.note();
+      return;
+    }
     const unusual = result.ok ? saver.question(result) : null;
     if (unusual && result.ok && result.value !== null) {
       keepDraft({ field: 'weight', date: view.date, text, error: unusual.reason, ask: true });
@@ -199,6 +216,10 @@ function weightExits(view, input, status, saver) {
       keepLeftUnsaved({ field: 'weight', date: view.date, text, error: result.error }, backHash);
       return;
     }
+    if (!saver.isSaved(result) && saver.base.changed()) {
+      keepLeftUnsaved({ field: 'weight', date: view.date, text, error: saver.base.reason(), ask: true, base: saver.base.base() }, backHash);
+      return;
+    }
     const unusual = saver.question(result);
     if (unusual) {
       keepLeftUnsaved({ field: 'weight', date: view.date, text, error: unusual.reason, ask: true }, backHash);
@@ -220,7 +241,7 @@ function weightExits(view, input, status, saver) {
 /**
  * @param {DayView} view
  * @param {Record<string, import('../core.js').Entry>} entries every stored day, for noticing a weight far from the others
- * @returns {{ root: HTMLElement, flush: () => void, leave: (backHash: string) => Promise<void> | undefined, mounted: () => void, refresh: () => void }}
+ * @returns {{ root: HTMLElement, flush: () => void, leave: (backHash: string) => Promise<void> | undefined, mounted: () => void, refresh: (elsewhere: boolean) => void }}
  */
 export function buildWeightField(view, entries) {
   const input = h('input', {
@@ -236,12 +257,25 @@ export function buildWeightField(view, entries) {
   // an error) shows in its place while there is one.
   const hint = h('p', { class: 'field-hint', id: uid('weight-hint'), text: 'Saves when you leave the box' });
   input.setAttribute('aria-describedby', `${status.el.id} ${hint.id}`);
+  const base = boxBase({
+    name: () => 'Weight',
+    stored: () => view.entry.weight,
+    typed: () => core.validateWeight(input.value),
+    show: (value) => (input.value = weightText(value)),
+    format: (value) => core.formatWeight(value),
+    status,
+    focus: () => input.focus(),
+    moved: () => view.rolledOver,
+  });
   const guard = unusualGuard((field, value) => core.unusualValue(entries, view.date, field, value, today()));
-  const saver = weightSaver(view, input, status, guard);
+  const saver = weightSaver(view, input, status, guard, base);
   const exits = weightExits(view, input, status, saver);
 
   const draft = claimDraft('weight', view.date);
-  if (draft) input.value = draft.text;
+  if (draft) {
+    input.value = draft.text;
+    if (draft.base !== undefined) base.reset(draft.base);
+  }
 
   input.addEventListener('change', () => saver.commit({ left: true }));
   input.addEventListener('keydown', (e) => {
@@ -261,8 +295,6 @@ export function buildWeightField(view, entries) {
       if (draft.ask) saver.commit();
       else status.set('error', `Not saved yet. ${draft.error}`);
     },
-    refresh: () => {
-      if (document.activeElement !== input) input.value = weightText(view.entry.weight);
-    },
+    refresh: (elsewhere) => base.refresh(elsewhere),
   };
 }

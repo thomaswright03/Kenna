@@ -287,9 +287,11 @@ export async function buildToday(ctx) {
     },
     flush: weight ? weight.flush : undefined,
     leave: weight ? () => weight.leave(dayHash(ctx.route.date)) : undefined,
-    async refreshFromStorage() {
-      view.entry = (await store.getEntry(view.date)) || blankEntry(view.date);
-      if (weight) weight.refresh();
+    async refreshFromStorage(how) {
+      const entry = (await store.getEntry(view.date)) || blankEntry(view.date);
+      if (JSON.stringify(entry) === JSON.stringify(view.entry)) return;
+      view.entry = entry;
+      if (weight) weight.refresh(!!(how && how.elsewhere));
       if (meals) meals.refresh();
     },
   };

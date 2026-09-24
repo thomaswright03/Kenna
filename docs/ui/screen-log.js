@@ -9,6 +9,7 @@ import { farBackGate } from './day.js';
 import { claimDraft, draftMealFor, waitingDrafts } from './drafts.js';
 import { unusualGuard } from './unusual.js';
 import { mealSaver, mealExits } from './log-saving.js';
+import { boxBase } from './changed-elsewhere.js';
 
 /** @typedef {import('./log-saving.js').LogState} LogState */
 
@@ -144,6 +145,44 @@ function showDraft(d, status, saver) {
   else status.set('error', `Not saved yet. ${d.error}`);
 }
 
+/**
+ * The calories box: what it shows for the meal picked, and the saved value
+ * that was (see changed-elsewhere.js).
+ * @param {LogState} state
+ * @param {HTMLInputElement} input
+ * @param {HTMLLabelElement} label
+ * @param {import('./feedback.js').StatusLine} status
+ * @param {() => void} refresh redraws the buttons and the total
+ */
+function calorieBox(state, input, label, status, refresh) {
+  // The box shows what's saved for the meal picked.
+  const loadInput = () => {
+    const v = state.entry.meals[state.activeKey];
+    input.value = v === null ? '' : String(v);
+    label.textContent = `${mealLabel(state.activeKey)} calories`;
+    base.reset();
+  };
+  const base = boxBase({
+    name: () => mealLabel(state.activeKey),
+    stored: () => state.entry.meals[state.activeKey],
+    typed: () => core.validateCalories(input.value),
+    show: () => {
+      loadInput();
+      refresh();
+    },
+    format: core.formatCalories,
+    status,
+    focus: () => input.focus(),
+    moved: () => state.rolledOver,
+  });
+  /** A value typed earlier and kept, back in the box. @param {import('./drafts.js').Draft} d */
+  const putBackDraft = (d) => {
+    input.value = d.text;
+    if (d.base !== undefined) base.reset(d.base);
+  };
+  return { loadInput, base, putBackDraft };
+}
+
 /** @type {import('./render.js').ScreenBuilder} */
 export async function buildLog(ctx) {
   const now = today();
@@ -168,14 +207,10 @@ export async function buildLog(ctx) {
     picker.refresh(state);
     showRunningTotal(runningTotal, state, input.value);
   };
+  const { loadInput, base, putBackDraft } = calorieBox(state, input, label, status, refresh);
   const guard = unusualGuard((field, value) => core.unusualValue(entries, state.date, field, value, today()));
-  const saver = mealSaver(state, input, status, refresh, guard);
+  const saver = mealSaver(state, input, status, refresh, guard, base);
   const exits = mealExits(state, input, status, saver);
-  const loadInput = () => {
-    const v = state.entry.meals[state.activeKey];
-    input.value = v === null ? '' : String(v);
-    label.textContent = `${mealLabel(state.activeKey)} calories`;
-  };
 
   /** @param {string} key */
   function select(key) {
@@ -185,7 +220,7 @@ export async function buildLog(ctx) {
     // A value typed for this meal earlier and not saved comes back in the
     // box, and is asked about again if it waits for an answer.
     const waiting = claimDraft(key, state.date);
-    if (waiting) input.value = waiting.text;
+    if (waiting) putBackDraft(waiting);
     refresh();
     replaceHashSilently(logHash(ctx.route.date, key));
     input.focus();
@@ -209,7 +244,7 @@ export async function buildLog(ctx) {
     },
   });
   loadInput();
-  if (draft) input.value = draft.text;
+  if (draft) putBackDraft(draft);
   refresh();
 
   const forDay = date === now ? `today, ${core.formatDate(date, now)}` : core.formatDate(date, now);
@@ -226,9 +261,11 @@ export async function buildLog(ctx) {
     },
     flush: exits.flush,
     leave: () => exits.leave(logHash(ctx.route.date, state.activeKey)),
-    async refreshFromStorage() {
-      state.entry = (await store.getEntry(state.date)) || blankEntry(state.date);
-      if (document.activeElement !== input) loadInput();
+    async refreshFromStorage(how) {
+      const entry = (await store.getEntry(state.date)) || blankEntry(state.date);
+      if (JSON.stringify(entry) === JSON.stringify(state.entry)) return;
+      state.entry = entry;
+      base.refresh(!!(how && how.elsewhere));
       refresh();
     },
   };

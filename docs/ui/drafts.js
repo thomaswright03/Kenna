@@ -13,9 +13,12 @@ import { core, prefs, mealLabel, notSavedReason } from './dom.js';
 import { showBanner } from './feedback.js';
 
 /**
- * @typedef {{ field: string, date: string, text: string, error: string, ask?: boolean }} Draft
- *   field is 'weight' or a meal key; ask: a valid value far from the usual,
- *   kept until the user answers whether to keep it (see unusual.js)
+ * @typedef {{ field: string, date: string, text: string, error: string, ask?: boolean, base?: number | null }} Draft
+ *   field is 'weight' or a meal key; ask: a valid value kept until the user
+ *   answers whether to save it: one far from the usual (see unusual.js), or
+ *   one typed over a value changed elsewhere since (see
+ *   changed-elsewhere.js), in which case base is the saved value it was
+ *   typed over
  */
 
 // Stored as a list of drafts. Versions before this one stored a single
@@ -49,7 +52,10 @@ function readDraft(d) {
   if (!d || typeof d !== 'object') return null;
   const o = /** @type {Record<string, unknown>} */ (d);
   if (typeof o.field !== 'string' || typeof o.date !== 'string' || !core.isValidDateStr(o.date) || typeof o.text !== 'string' || typeof o.error !== 'string') return null;
-  return { field: o.field, date: o.date, text: o.text, error: o.error, ask: o.ask === true };
+  /** @type {Draft} */
+  const draft = { field: o.field, date: o.date, text: o.text, error: o.error, ask: o.ask === true };
+  if (o.base === null || (typeof o.base === 'number' && Number.isFinite(o.base))) draft.base = o.base;
+  return draft;
 }
 
 /**

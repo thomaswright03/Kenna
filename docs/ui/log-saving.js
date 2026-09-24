@@ -38,8 +38,9 @@ import { afterTap } from './unusual.js';
  * @param {import('./feedback.js').StatusLine} status
  * @param {() => void} onSaved
  * @param {import('./unusual.js').UnusualGuard} guard
+ * @param {import('./changed-elsewhere.js').BoxBase} base the saved value the box started from
  */
-export function mealSaver(state, input, status, onSaved, guard) {
+export function mealSaver(state, input, status, onSaved, guard, base) {
   /** @type {{ key: string, value: number | null, promise: Promise<boolean> } | null} */
   let saving = null;
   /** @type {SaveTrack} */
@@ -61,6 +62,7 @@ export function mealSaver(state, input, status, onSaved, guard) {
       state.entry = await store.updateEntry(target, { meals: { [key]: value } });
       settleDraft(key, target);
       failed = '';
+      if (state.activeKey === key) base.reset(value);
       track.lastSave = { key, date: target, saved: value, previous };
       if (state.rolledOver) {
         if (!track.left) render();
@@ -95,11 +97,14 @@ export function mealSaver(state, input, status, onSaved, guard) {
       return false;
     }
     if (!needsSave(result)) {
+      base.reset();
       if (status.el.classList.contains('is-error')) status.set(null);
       return true;
     }
     if (saving && saving.key === key && saving.value === result.value) return saving.promise;
     if (how && how.left && failed === `${state.date} ${key} ${result.value}`) return false;
+    // The meal was changed elsewhere since the box showed it: asked first.
+    if (base.changed()) return how && how.left ? askSoon(key) : base.settle(result.value, () => state.activeKey === key && !track.left, commit);
     const unusual = guard.question(key, result.value);
     if (unusual && result.value !== null) return how && how.left ? askSoon(key) : askFirst(key, result.value, unusual);
     const promise = save(key, result.value, !!(how && how.retry));
@@ -142,13 +147,11 @@ export function mealSaver(state, input, status, onSaved, guard) {
    * @param {import('./unusual.js').Unusual} unusual
    */
   function notKept(key, value, unusual) {
-    status.set('error', `Not saved yet. ${unusual.reason}`, {
-      label: 'Keep it',
-      onClick: () => {
-        guard.keep(key, value);
-        if (state.activeKey === key) commit();
-      },
-    });
+    const keep = () => {
+      guard.keep(key, value);
+      if (state.activeKey === key) commit();
+    };
+    status.set('error', `Not saved yet. ${unusual.reason}`, { label: 'Keep it', onClick: keep });
   }
 
   /**
@@ -163,7 +166,7 @@ export function mealSaver(state, input, status, onSaved, guard) {
     const result = core.validateCalories(input.value);
     return result.ok && !needsSave(result);
   };
-  return { commit, settled, needsSave, question, notKept, track };
+  return { commit, settled, needsSave, question, notKept, track, base };
 }
 
 /**
@@ -201,6 +204,11 @@ export function mealExits(state, input, status, saver) {
       if (last && last.key === key && status.el.classList.contains('is-saved')) sayLeftSaved({ field: key, ...last });
       return;
     }
+    // Nor can a number typed over a meal changed elsewhere since.
+    if (saver.base.changed()) {
+      keepLeftUnsaved({ field: key, date: state.date, text, error: saver.base.reason(), ask: true, base: saver.base.base() }, backHash);
+      return;
+    }
     // A number waiting to be asked about can't be asked about on the way
     // out: it's kept, and asked about when the box is next shown.
     const unusual = saver.question(result);
@@ -223,6 +231,13 @@ export function mealExits(state, input, status, saver) {
     const key = state.activeKey;
     const text = input.value;
     const result = core.validateCalories(text);
+    // A number typed over a meal changed elsewhere since is never saved
+    // unasked: it's kept, and asked about when the box is next shown.
+    if (result.ok && saver.needsSave(result) && saver.base.changed()) {
+      keepDraft({ field: key, date: state.date, text, error: saver.base.reason(), ask: true, base: saver.base.base() });
+      saver.base.note();
+      return;
+    }
     const unusual = result.ok ? saver.question(result) : null;
     if (unusual && result.ok && result.value !== null) {
       keepDraft({ field: key, date: state.date, text, error: unusual.reason, ask: true });
