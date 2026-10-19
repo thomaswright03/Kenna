@@ -5,7 +5,7 @@ test.use({ whatsNewSeen: false });
 
 const tour = (page) => page.getByRole('dialog');
 const spot = (page) => page.locator('.tour-spot');
-const STOPS = 11;
+const STOPS = 12;
 
 // Someone who logged days with the version before this update: days are
 // stored and what's new has never been seen.
@@ -88,6 +88,9 @@ test('opens once for someone who had logged days, and lights up each new feature
   await next();
   await expect(page).toHaveURL(/#\/settings$/);
   await expectStop(page, 'Back up everything in one file', main.getByRole('button', { name: 'Export Backup' }));
+  await next();
+  await expect(page).toHaveURL(/#\/settings$/);
+  await expectStop(page, 'Free, and your data stays on your phone', main.locator('[data-your-data]'));
   await expect(tour(page).getByText(`${STOPS} of ${STOPS}`)).toBeVisible();
 
   await tour(page).getByRole('button', { name: 'Done' }).click();
@@ -214,7 +217,8 @@ test('with nothing logged, every stop still opens straight away and says where t
     await expect(tour(page).getByText(`${i + 1} of ${STOPS}`)).toBeVisible({ timeout: 1500 });
     await expect(page.locator('.tour-layer.is-moving')).toHaveCount(0, { timeout: 1500 });
   }
-  await expect(tour(page).getByRole('heading', { name: 'Back up everything in one file' })).toBeVisible();
+  await expect(tour(page).getByRole('heading', { name: 'Free, and your data stays on your phone' })).toBeVisible();
+  await tour(page).getByRole('button', { name: 'Back' }).click();
   await tour(page).getByRole('button', { name: 'Back' }).click();
   await tour(page).getByRole('button', { name: 'Back' }).click();
   await expect(tour(page).getByRole('heading', { name: 'How am I doing today?' })).toBeFocused();
