@@ -118,4 +118,12 @@ export const STOPS = [
     title: 'Back up everything in one file',
     points: ['Export Backup saves every day and photo in one file. Keep it in Files or iCloud Drive.', 'Import Backup restores it, and can be undone.'],
   },
+  {
+    where: 'Settings',
+    hash: '#/settings',
+    screen: 'settings',
+    find: inMain('[data-your-data]'),
+    title: 'Free, and your data stays on your phone',
+    points: ['Kenna is completely free: no account, no ads, no subscription.', 'Your calories, weight and photos are saved only on this phone. Kenna has no server, so nothing is ever uploaded.'],
+  },
 ];

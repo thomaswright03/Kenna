@@ -194,6 +194,10 @@ and the newer files, once they arrive, are used from the next launch.
 
 ## Where your data lives, and backups
 
+Kenna is free: no account, no ads, no subscription, and no server. Settings
+says so in its **Free and private** card, Today says it in one line until
+the first day or photo is logged, and the What's new tour ends on it.
+
 Days are stored in the browser's `localStorage` and photos in its IndexedDB,
 on that device only. On first launch the app asks the browser to keep this
 data even when the device runs low on space (Settings shows the answer

@@ -48,8 +48,26 @@ export async function buildSettings() {
     h('button', { type: 'button', class: 'btn btn-secondary', text: 'Take the tour', onClick: () => showWhatsNew() })
   );
 
-  const storageCard = h('section', { class: 'card' }, h('h3', { class: 'section-title', text: 'Where your data lives' }));
-  storageCard.append(h('p', { class: 'card-sub', text: 'Days and photos are saved only in this browser on this device. Nothing is uploaded anywhere.' }));
+  const storageCard = await buildYourDataCard();
+  const damaged = await buildDamagedDataCard();
+  return {
+    title: 'Settings',
+    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), whatsNew), h('div', { class: 'screen-stack' }, damaged, storageCard, buildProblemLogCard(downloadBlob))),
+  };
+}
+
+/**
+ * "Free and private": what Kenna costs, where the data is kept and how
+ * safe it is there.
+ */
+async function buildYourDataCard() {
+  const storageCard = h(
+    'section',
+    { class: 'card', 'data-your-data': '' },
+    h('h3', { class: 'section-title', text: 'Free and private' }),
+    h('p', { class: 'card-sub', text: 'Kenna is completely free, with no account, no ads and no subscription.' }),
+    h('p', { class: 'card-sub', text: 'Your calories, weight and photos are saved only in this browser on this device. Kenna has no server, so nothing is ever uploaded.' })
+  );
   storageCard.append(
     h('p', {
       class: 'card-sub',
@@ -86,12 +104,7 @@ export async function buildSettings() {
       })
     );
   }
-
-  const damaged = await buildDamagedDataCard();
-  return {
-    title: 'Settings',
-    root: h('div', { class: 'screen-stack two-col' }, h('div', { class: 'screen-stack' }, appearance, buildBackupSection(), whatsNew), h('div', { class: 'screen-stack' }, damaged, storageCard, buildProblemLogCard(downloadBlob))),
-  };
+  return storageCard;
 }
 
 /**

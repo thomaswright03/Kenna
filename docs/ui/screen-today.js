@@ -107,6 +107,11 @@ export async function buildToday(ctx) {
     footer: h('p', { class: 'card-foot' }, h('a', { class: 'btn-text', href: '#/history', text: 'See exact numbers in History' })),
   });
   const hasData = visibleEntries(allEntries).length > 0 || (await photoCount) > 0;
+  // Before anything is logged, a first-time visitor learns what Kenna costs
+  // and where their numbers go.
+  if (!hasData && !gate) {
+    dayCard.append(h('p', { class: 'card-foot', 'data-your-data': '' }, 'Kenna is free. Your calories and weight stay on this phone and are never uploaded. ', h('a', { class: 'btn-text', href: '#/settings', text: 'About your data' })));
+  }
   // At most one card above the day, so logging stays in reach. The Home
   // Screen note wins: it already says to back up first. The backup
   // reminder shows once the note is hidden or doesn't apply.
